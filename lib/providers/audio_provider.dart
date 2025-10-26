@@ -209,6 +209,15 @@ class AudioProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> stop() async {
+    await audioPlayer.stop();
+    _isPlaying = false;
+    _currentTrack = null;
+    _position = Duration.zero;
+    _duration = Duration.zero;
+    notifyListeners();
+  }
+
   Future<void> skipNext() async {
     if (_queue.isEmpty) return;
 

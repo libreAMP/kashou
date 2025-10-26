@@ -167,6 +167,31 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
   static const List<Widget> _screens = [HomeScreen(), LibraryScreen()];
 
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final audioProvider = Provider.of<AudioProvider>(context, listen: false);
+      audioProvider.addListener(_onAudioProviderChange);
+    });
+  }
+
+  @override
+  void dispose() {
+    final audioProvider = Provider.of<AudioProvider>(context, listen: false);
+    audioProvider.removeListener(_onAudioProviderChange);
+    super.dispose();
+  }
+
+  void _onAudioProviderChange() {
+    final audioProvider = Provider.of<AudioProvider>(context, listen: false);
+    if (audioProvider.currentTrack != null && !_showMiniPlayer) {
+      setState(() {
+        _showMiniPlayer = true;
+      });
+    }
+  }
+
   void _onItemTapped(int index) {
     setState(() {
       _selectedIndex = index;
@@ -175,7 +200,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
   void _dismissMiniPlayer() {
     final audioProvider = Provider.of<AudioProvider>(context, listen: false);
-    audioProvider.togglePlayPause();
+    audioProvider.stop();
     setState(() {
       _showMiniPlayer = false;
     });

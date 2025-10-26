@@ -42,11 +42,8 @@ class _LibraryScreenState extends State<LibraryScreen>
               NestedScrollView(
         headerSliverBuilder: (context, innerBoxIsScrolled) {
           return [
-            SliverAppBar.large(
-              title: Text(
-                'Library',
-                style: Theme.of(context).textTheme.headlineMedium,
-              ),
+            SliverAppBar.medium(
+              title: const Text('Library'),
               actions: [
                 IconButton(
                   icon: const Icon(Icons.refresh),
