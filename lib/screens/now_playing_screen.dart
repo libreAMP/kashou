@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/audio_provider.dart';
 import '../widgets/equalizer_widget.dart';
+import 'metadata_editor_screen.dart';
+import 'dart:ui';
 
 class NowPlayingScreen extends StatelessWidget {
   const NowPlayingScreen({super.key});
@@ -22,50 +24,57 @@ class NowPlayingScreen extends StatelessWidget {
               SliverAppBar(
                 expandedHeight: 400,
                 pinned: true,
+                backgroundColor: Colors.transparent,
                 flexibleSpace: FlexibleSpaceBar(
                   background: Stack(
                     fit: StackFit.expand,
                     children: [
                       if (track.albumArt != null)
-                        Image.memory(
-                          track.albumArt!,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return Container(
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  begin: Alignment.topCenter,
-                                  end: Alignment.bottomCenter,
-                                  colors: [
-                                    Theme.of(context).colorScheme.primaryContainer,
-                                    Theme.of(context).colorScheme.surface,
-                                  ],
+                        Hero(
+                          tag: 'album_art_${track.id}',
+                          child: Image.memory(
+                            track.albumArt!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Container(
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                    colors: [
+                                      Theme.of(context).colorScheme.primaryContainer,
+                                      Theme.of(context).colorScheme.surface,
+                                    ],
+                                  ),
                                 ),
-                              ),
-                              child: Icon(
-                                Icons.music_note,
-                                size: 120,
-                                color: Theme.of(context).colorScheme.onPrimaryContainer.withOpacity(0.3),
-                              ),
-                            );
-                          },
+                                child: Icon(
+                                  Icons.music_note,
+                                  size: 120,
+                                  color: Theme.of(context).colorScheme.onPrimaryContainer.withOpacity(0.3),
+                                ),
+                              );
+                            },
+                          ),
                         )
                       else
-                        Container(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [
-                                Theme.of(context).colorScheme.primaryContainer,
-                                Theme.of(context).colorScheme.surface,
-                              ],
+                        Hero(
+                          tag: 'album_art_${track.id}',
+                          child: Container(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  Theme.of(context).colorScheme.primaryContainer,
+                                  Theme.of(context).colorScheme.surface,
+                                ],
+                              ),
                             ),
-                          ),
-                          child: Icon(
-                            Icons.music_note,
-                            size: 120,
-                            color: Theme.of(context).colorScheme.onPrimaryContainer.withOpacity(0.3),
+                            child: Icon(
+                              Icons.music_note,
+                              size: 120,
+                              color: Theme.of(context).colorScheme.onPrimaryContainer.withOpacity(0.3),
+                            ),
                           ),
                         ),
                       Container(
@@ -74,8 +83,8 @@ class NowPlayingScreen extends StatelessWidget {
                             begin: Alignment.topCenter,
                             end: Alignment.bottomCenter,
                             colors: [
-                              Colors.transparent,
-                              Theme.of(context).colorScheme.surface.withOpacity(0.8),
+                              Colors.black.withOpacity(0.3),
+                              Theme.of(context).colorScheme.surface.withOpacity(0.9),
                             ],
                           ),
                         ),
@@ -83,18 +92,42 @@ class NowPlayingScreen extends StatelessWidget {
                     ],
                   ),
                 ),
-                actions: [
-                  IconButton(
-                    icon: const Icon(Icons.equalizer),
-                    onPressed: () {
-                      _showEqualizerSheet(context);
-                    },
+                leading: Container(
+                  margin: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.3),
+                    shape: BoxShape.circle,
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.more_vert),
-                    onPressed: () {
-                      _showMoreOptions(context);
-                    },
+                  child: BackButton(
+                    color: Colors.white,
+                  ),
+                ),
+                actions: [
+                  Container(
+                    margin: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.3),
+                      shape: BoxShape.circle,
+                    ),
+                    child: IconButton(
+                      icon: const Icon(Icons.equalizer, color: Colors.white),
+                      onPressed: () {
+                        _showEqualizerSheet(context);
+                      },
+                    ),
+                  ),
+                  Container(
+                    margin: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.3),
+                      shape: BoxShape.circle,
+                    ),
+                    child: IconButton(
+                      icon: const Icon(Icons.more_vert, color: Colors.white),
+                      onPressed: () {
+                        _showMoreOptions(context);
+                      },
+                    ),
                   ),
                 ],
               ),
@@ -438,6 +471,9 @@ class NowPlayingScreen extends StatelessWidget {
   }
 
   void _showMoreOptions(BuildContext context) {
+    final audioProvider = Provider.of<AudioProvider>(context, listen: false);
+    final track = audioProvider.currentTrack;
+    
     showModalBottomSheet(
       context: context,
       builder: (context) {
@@ -445,6 +481,21 @@ class NowPlayingScreen extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              ListTile(
+                leading: const Icon(Icons.edit),
+                title: const Text('Edit Metadata'),
+                onTap: () {
+                  Navigator.pop(context);
+                  if (track != null) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => MetadataEditorScreen(track: track),
+                      ),
+                    );
+                  }
+                },
+              ),
               ListTile(
                 leading: const Icon(Icons.playlist_add),
                 title: const Text('Add to Playlist'),

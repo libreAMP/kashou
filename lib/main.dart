@@ -13,11 +13,11 @@ import 'screens/home_screen.dart';
 import 'screens/library_screen.dart';
 import 'screens/now_playing_screen.dart';
 import 'screens/settings_screen.dart';
+import 'widgets/mini_player.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Set system UI overlay style
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
@@ -71,7 +71,6 @@ class KashouApp extends StatelessWidget {
                 );
               }
 
-              // Get selected font family
               TextTheme getTextTheme(ColorScheme colorScheme) {
                 try {
                   final fontFamily = settingsProvider.fontFamily;
@@ -122,7 +121,6 @@ class KashouApp extends StatelessWidget {
                       return baseTheme;
                   }
                 } catch (e) {
-                  // Fallback to default theme if font loading fails
                   return ThemeData(colorScheme: colorScheme).textTheme;
                 }
               }
@@ -165,6 +163,7 @@ class MainNavigationScreen extends StatefulWidget {
 
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _selectedIndex = 0;
+  bool _showMiniPlayer = true;
 
   static const List<Widget> _screens = [HomeScreen(), LibraryScreen()];
 
@@ -174,10 +173,36 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     });
   }
 
+  void _dismissMiniPlayer() {
+    final audioProvider = Provider.of<AudioProvider>(context, listen: false);
+    audioProvider.togglePlayPause();
+    setState(() {
+      _showMiniPlayer = false;
+    });
+  }
+
+  void _openNowPlaying() {
+    Navigator.pushNamed(context, '/now-playing').then((_) {
+      setState(() {
+        _showMiniPlayer = true;
+      });
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack(index: _selectedIndex, children: _screens),
+      resizeToAvoidBottomInset: false,
+      body: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 200),
+        switchInCurve: Curves.easeInOut,
+        switchOutCurve: Curves.easeInOut,
+        child: IndexedStack(
+          key: ValueKey(_selectedIndex),
+          index: _selectedIndex,
+          children: _screens,
+        ),
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
         onDestinationSelected: _onItemTapped,
@@ -196,17 +221,18 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       ),
       floatingActionButton: Consumer<AudioProvider>(
         builder: (context, audioProvider, child) {
-          if (audioProvider.currentTrack == null) {
+          final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
+          final hasPlayer = audioProvider.currentTrack != null && _showMiniPlayer;
+          
+          if (!hasPlayer || keyboardHeight > 0) {
             return const SizedBox.shrink();
           }
 
-          return GestureDetector(
-            onTap: () {
-              Navigator.pushNamed(context, '/now-playing');
-            },
-            child: Container(
-              margin: const EdgeInsets.only(bottom: 80),
-              child: _buildMiniPlayer(audioProvider),
+          return Container(
+            margin: const EdgeInsets.only(bottom: 90),
+            child: MiniPlayer(
+              onTap: _openNowPlaying,
+              onDismiss: _dismissMiniPlayer,
             ),
           );
         },
@@ -215,83 +241,4 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     );
   }
 
-  Widget _buildMiniPlayer(AudioProvider audioProvider) {
-    return Container(
-      width: MediaQuery.of(context).size.width - 32,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.2),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: Container(
-              width: 48,
-              height: 48,
-              color: Theme.of(context).colorScheme.primaryContainer,
-              child: audioProvider.currentTrack?.albumArt != null
-                  ? Image.memory(
-                      audioProvider.currentTrack!.albumArt!,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Icon(
-                          Icons.music_note,
-                          color: Theme.of(context).colorScheme.onPrimaryContainer,
-                        );
-                      },
-                    )
-                  : Icon(
-                      Icons.music_note,
-                      color: Theme.of(context).colorScheme.onPrimaryContainer,
-                    ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  audioProvider.currentTrack?.title ?? 'Unknown',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                Text(
-                  audioProvider.currentTrack?.artist ?? 'Unknown Artist',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-          IconButton(
-            icon: Icon(
-              audioProvider.isPlaying ? Icons.pause : Icons.play_arrow,
-            ),
-            onPressed: audioProvider.togglePlayPause,
-          ),
-          IconButton(
-            icon: const Icon(Icons.skip_next),
-            onPressed: audioProvider.skipNext,
-          ),
-        ],
-      ),
-    );
-  }
 }

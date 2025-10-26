@@ -56,6 +56,17 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
   AudioPlayer get player => _player;
 
   Future<void> setTrackMediaItem(Track track) async {
+    Uri? artUri;
+    if (track.albumArt != null) {
+      try {
+        // Convert album art bytes to data URI
+        final base64String = track.albumArt!.toList();
+        artUri = Uri.dataFromBytes(base64String, mimeType: 'image/png');
+      } catch (e) {
+        print('Error setting album art: $e');
+      }
+    }
+    
     mediaItem.add(
       MediaItem(
         id: track.id,
@@ -63,9 +74,7 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
         artist: track.artist,
         album: track.album,
         duration: track.duration,
-        artUri: track.albumArt != null 
-            ? Uri.dataFromBytes(track.albumArt!.toList(), mimeType: 'image/jpeg')
-            : null,
+        artUri: artUri,
       ),
     );
   }

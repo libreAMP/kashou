@@ -1,7 +1,7 @@
 name: kashou
 description: Music player with local library playback and YouTube streaming
 publish_to: 'none'
-version: 1.0.0+1
+version: 1.0.1+2
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -35,6 +35,7 @@ dependencies:
   rxdart: ^0.28.0
   shared_preferences: ^2.2.2
   package_info_plus: ^9.0.0
+  image: ^4.0.17
   
   cast: ^2.1.0
   
@@ -58,14 +59,14 @@ flutter_launcher_icons:
   android: true
   ios: false
   image_path: "assets/icons/icon.png"
-  adaptive_icon_background: "#6750A4"
+  adaptive_icon_background: "#fcf5fb"
   adaptive_icon_foreground: "assets/icons/icon.png"
 
 flutter_native_splash:
-  color: "#6750A4"
+  color: "#fcf5fb"
   image: assets/images/splash.png
   android: true
   ios: false
   android_12:
     image: assets/images/splash.png
-    color: "#6750A4"
+    color: "#fcf5fb"

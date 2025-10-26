@@ -17,20 +17,42 @@ class TrackListItem extends StatelessWidget {
         final isCurrent = audio.currentTrack?.id == track.id;
 
         return ListTile(
-          leading: Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: isCurrent
-                  ? Theme.of(context).colorScheme.primaryContainer
-                  : Theme.of(context).colorScheme.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(
-              isPlaying ? Icons.graphic_eq : Icons.music_note,
-              color: isCurrent
-                  ? Theme.of(context).colorScheme.onPrimaryContainer
-                  : Theme.of(context).colorScheme.onSurfaceVariant,
+          leading: ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: Container(
+              width: 48,
+              height: 48,
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+              child: track.albumArt != null
+                  ? Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        Image.memory(
+                          track.albumArt!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Icon(
+                              Icons.music_note,
+                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            );
+                          },
+                        ),
+                        if (isPlaying)
+                          Container(
+                            color: Colors.black54,
+                            child: Icon(
+                              Icons.graphic_eq,
+                              color: Colors.white,
+                            ),
+                          ),
+                      ],
+                    )
+                  : Icon(
+                      isPlaying ? Icons.graphic_eq : Icons.music_note,
+                      color: isCurrent
+                          ? Theme.of(context).colorScheme.onPrimaryContainer
+                          : Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
             ),
           ),
           title: Text(

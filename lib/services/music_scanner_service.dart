@@ -4,6 +4,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:flutter/foundation.dart';
 import 'package:audiotags/audiotags.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:image/image.dart' as img;
 import '../models/track.dart';
 import '../models/album.dart';
 import '../models/artist.dart';
@@ -80,7 +81,7 @@ class MusicScannerService {
   }
 
   Future<List<Directory>> _getMusicDirectories() async {
-    List<Directory> dirs = [];
+    Set<String> uniquePaths = {};
 
     try {
       // Load custom directories from preferences
@@ -88,29 +89,19 @@ class MusicScannerService {
       final customPaths = prefs.getStringList('custom_music_paths') ?? [];
       
       for (var path in customPaths) {
-        dirs.add(Directory(path));
-      }
-
-      // External storage
-      final externalDirs = await getExternalStorageDirectories();
-      if (externalDirs != null) {
-        for (var dir in externalDirs) {
-          dirs.add(Directory('${dir.path}/Music'));
-          dirs.add(Directory('${dir.parent.path}/Music'));
-        }
+        uniquePaths.add(path);
       }
 
       // Common music directories
-      dirs.add(Directory('/storage/emulated/0/Music'));
-      dirs.add(Directory('/sdcard/Music'));
-      dirs.add(Directory('/storage/emulated/0/Download'));
-      dirs.add(Directory('/storage/emulated/0/Podcasts'));
-      dirs.add(Directory('/storage/emulated/0/Audiobooks'));
+      uniquePaths.add('/storage/emulated/0/Music');
+      uniquePaths.add('/storage/emulated/0/Download');
+      uniquePaths.add('/storage/emulated/0/Podcasts');
+      uniquePaths.add('/storage/emulated/0/Audiobooks');
     } catch (e) {
       debugPrint('Error getting music directories: $e');
     }
 
-    return dirs;
+    return uniquePaths.map((path) => Directory(path)).toList();
   }
 
   Future<Track?> _parseTrack(File file) async {
@@ -118,7 +109,6 @@ class MusicScannerService {
       final fileName = file.path.split('/').last;
       final titleWithExt = fileName.split('.').first;
       
-      // Extract metadata using audiotags
       Tag? tag;
       try {
         tag = await AudioTags.read(file.path);
@@ -126,10 +116,47 @@ class MusicScannerService {
         debugPrint('Error reading tags for ${file.path}: $e');
       }
 
-      // Extract album art
       Uint8List? albumArtBytes;
       if (tag?.pictures != null && tag!.pictures.isNotEmpty) {
-        albumArtBytes = tag.pictures.first.bytes;
+        albumArtBytes = _compressAlbumArt(tag.pictures.first.bytes);
+      }
+
+      String? codec;
+      final ext = file.path.split('.').last.toLowerCase();
+      switch (ext) {
+        case 'mp3':
+          codec = 'MP3';
+          break;
+        case 'flac':
+          codec = 'FLAC';
+          break;
+        case 'wav':
+          codec = 'WAV';
+          break;
+        case 'ogg':
+          codec = 'OGG Vorbis';
+          break;
+        case 'opus':
+          codec = 'Opus';
+          break;
+        case 'm4a':
+        case 'aac':
+          codec = 'AAC';
+          break;
+        case 'wma':
+          codec = 'WMA';
+          break;
+        case 'ape':
+          codec = 'APE';
+          break;
+        case 'wv':
+          codec = 'WavPack';
+          break;
+        case 'alac':
+          codec = 'ALAC';
+          break;
+        default:
+          codec = ext.toUpperCase();
       }
 
       return Track(
@@ -143,6 +170,9 @@ class MusicScannerService {
         year: tag?.year,
         trackNumber: tag?.trackNumber,
         genre: tag?.genre,
+        bitrate: null,
+        sampleRate: null,
+        codec: codec,
       );
     } catch (e) {
       debugPrint('Error parsing track: $e');
@@ -221,5 +251,24 @@ class MusicScannerService {
         albumArt: entry.value.first.albumArt,
       );
     }).toList();
+  }
+
+  Uint8List? _compressAlbumArt(Uint8List bytes) {
+    try {
+      final image = img.decodeImage(bytes);
+      if (image == null) return bytes;
+
+      if (bytes.length < 100000) {
+        return bytes;
+      }
+
+      final resized = img.copyResize(image, width: 500);
+      final compressed = Uint8List.fromList(img.encodeJpg(resized, quality: 85));
+      
+      return compressed;
+    } catch (e) {
+      debugPrint('Error compressing album art: $e');
+      return bytes;
+    }
   }
 }

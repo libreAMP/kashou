@@ -34,11 +34,19 @@ class _LibraryScreenState extends State<LibraryScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: NestedScrollView(
+      resizeToAvoidBottomInset: false,
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          return Stack(
+            children: [
+              NestedScrollView(
         headerSliverBuilder: (context, innerBoxIsScrolled) {
           return [
             SliverAppBar.large(
-              title: const Text('Library'),
+              title: Text(
+                'Library',
+                style: Theme.of(context).textTheme.headlineMedium,
+              ),
               actions: [
                 IconButton(
                   icon: const Icon(Icons.refresh),
@@ -124,19 +132,24 @@ class _LibraryScreenState extends State<LibraryScreen>
           },
         ),
       ),
-      floatingActionButton: Consumer<AudioProvider>(
-        builder: (context, audioProvider, child) {
-          return Padding(
-            padding: EdgeInsets.only(
-              bottom: audioProvider.currentTrack != null ? 90 : 0,
-            ),
-            child: FloatingActionButton.extended(
-              onPressed: () {
-                _showCreatePlaylistDialog(context);
-              },
-              icon: const Icon(Icons.add),
-              label: const Text('New Playlist'),
-            ),
+              Consumer<AudioProvider>(
+                builder: (context, audioProvider, child) {
+                  final hasPlayer = audioProvider.currentTrack != null;
+                  
+                  return Positioned(
+                    right: 16,
+                    bottom: hasPlayer ? 94.0 : 16.0,
+                    child: FloatingActionButton.extended(
+                      onPressed: () {
+                        _showCreatePlaylistDialog(context);
+                      },
+                      icon: const Icon(Icons.add),
+                      label: const Text('New Playlist'),
+                    ),
+                  );
+                },
+              ),
+            ],
           );
         },
       ),

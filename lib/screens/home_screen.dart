@@ -5,6 +5,7 @@ import '../providers/audio_provider.dart';
 import '../widgets/track_list_item.dart';
 import '../widgets/album_card.dart';
 import '../models/track.dart';
+import 'search_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -19,7 +20,14 @@ class HomeScreen extends StatelessWidget {
             actions: [
               IconButton(
                 icon: const Icon(Icons.search),
-                onPressed: () {},
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const SearchScreen(),
+                    ),
+                  );
+                },
               ),
               IconButton(
                 icon: const Icon(Icons.settings_outlined),
@@ -219,7 +227,7 @@ class HomeScreen extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             SizedBox(
-              height: 200,
+              height: 170,
               child: ListView.builder(
                 scrollDirection: Axis.horizontal,
                 itemCount: recentTracks.length,
@@ -290,7 +298,7 @@ class HomeScreen extends StatelessWidget {
       },
       borderRadius: BorderRadius.circular(12),
       child: Container(
-        width: 150,
+        width: 135,
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(12),
@@ -303,39 +311,55 @@ class HomeScreen extends StatelessWidget {
                 top: Radius.circular(12),
               ),
               child: Container(
-                height: 150,
-                width: 150,
+                height: 115,
+                width: 135,
                 color: Theme.of(context).colorScheme.primaryContainer,
-                child: Icon(
-                  Icons.music_note,
-                  size: 64,
-                  color: Theme.of(context).colorScheme.onPrimaryContainer,
-                ),
+                child: track.albumArt != null
+                    ? Image.memory(
+                        track.albumArt!,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return Icon(
+                            Icons.music_note,
+                            size: 48,
+                            color: Theme.of(context).colorScheme.onPrimaryContainer,
+                          );
+                        },
+                      )
+                    : Icon(
+                        Icons.music_note,
+                        size: 48,
+                        color: Theme.of(context).colorScheme.onPrimaryContainer,
+                      ),
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    track.title,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    track.artist,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      track.title,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      track.artist,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            fontSize: 11,
+                          ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
