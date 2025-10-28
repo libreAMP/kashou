@@ -13,6 +13,7 @@ class SettingsProvider extends ChangeNotifier {
   int _bufferSize = 2048;
   String _resamplerQuality = 'High';
   bool _enableDither = false;
+  String _streamUrl = 'https://invidious.nerdvpn.de';
   bool _isLoaded = false;
 
   // Getters
@@ -27,6 +28,7 @@ class SettingsProvider extends ChangeNotifier {
   int get bufferSize => _bufferSize;
   String get resamplerQuality => _resamplerQuality;
   bool get enableDither => _enableDither;
+  String get streamUrl => _streamUrl;
   bool get isLoaded => _isLoaded;
 
   SettingsProvider() {
@@ -47,6 +49,7 @@ class SettingsProvider extends ChangeNotifier {
       _bufferSize = prefs.getInt('buffer_size') ?? 2048;
       _resamplerQuality = prefs.getString('resampler_quality') ?? 'High';
       _enableDither = prefs.getBool('enable_dither') ?? false;
+      _streamUrl = prefs.getString('stream_url') ?? 'https://invidious.nerdvpn.de';
       _isLoaded = true;
       notifyListeners();
     } catch (e) {
@@ -130,6 +133,13 @@ class SettingsProvider extends ChangeNotifier {
     _enableDither = value;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('enable_dither', value);
+    notifyListeners();
+  }
+
+  Future<void> setStreamUrl(String url) async {
+    _streamUrl = url;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('stream_url', url);
     notifyListeners();
   }
 }

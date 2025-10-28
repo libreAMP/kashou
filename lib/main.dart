@@ -13,6 +13,7 @@ import 'screens/home_screen.dart';
 import 'screens/library_screen.dart';
 import 'screens/now_playing_screen.dart';
 import 'screens/settings_screen.dart';
+import 'screens/stream_screen.dart';
 import 'widgets/mini_player.dart';
 
 void main() {
@@ -165,7 +166,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _selectedIndex = 0;
   bool _showMiniPlayer = true;
 
-  static const List<Widget> _screens = [HomeScreen(), LibraryScreen()];
+  static const List<Widget> _screens = [HomeScreen(), LibraryScreen(), StreamScreen()];
 
   @override
   void initState() {
@@ -241,6 +242,11 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             icon: Icon(Icons.library_music_outlined),
             selectedIcon: Icon(Icons.library_music),
             label: 'Library',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.cloud_outlined),
+            selectedIcon: Icon(Icons.cloud),
+            label: 'Stream',
           ),
         ],
       ),

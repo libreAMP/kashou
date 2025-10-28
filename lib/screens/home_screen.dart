@@ -15,7 +15,7 @@ class HomeScreen extends StatelessWidget {
     return Scaffold(
       body: CustomScrollView(
         slivers: [
-          SliverAppBar.large(
+          SliverAppBar.medium(
             title: Row(
               children: [
                 Icon(Icons.home, color: Theme.of(context).colorScheme.primary),
@@ -457,7 +457,7 @@ class HomeScreen extends StatelessWidget {
                   children: [
                     Text(
                       track.title,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
                             fontWeight: FontWeight.w600,
                             height: 1.2,
                           ),
