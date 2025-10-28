@@ -7,6 +7,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'providers/audio_provider.dart';
 import 'providers/theme_provider.dart';
 import 'providers/library_provider.dart';
+import 'providers/online_music_provider.dart';
 import 'providers/settings_provider.dart';
 import 'screens/splash_screen.dart';
 import 'screens/home_screen.dart';
@@ -37,13 +38,16 @@ class KashouApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
         ChangeNotifierProvider(create: (_) => SettingsProvider()),
-        ChangeNotifierProxyProvider<SettingsProvider, AudioProvider>(
+        ChangeNotifierProvider(create: (_) => OnlineMusicProvider()),
+        ChangeNotifierProxyProvider2<SettingsProvider, OnlineMusicProvider, AudioProvider>(
           create: (context) => AudioProvider(
             settingsProvider: Provider.of<SettingsProvider>(context, listen: false),
+            onlineMusicProvider: Provider.of<OnlineMusicProvider>(context, listen: false),
           ),
-          update: (context, settings, audio) {
+          update: (context, settings, onlineMusic, audio) {
             audio?.updateSettings(settings);
-            return audio ?? AudioProvider(settingsProvider: settings);
+            audio?.updateOnlineMusicProvider(onlineMusic);
+            return audio ?? AudioProvider(settingsProvider: settings, onlineMusicProvider: onlineMusic);
           },
         ),
         ChangeNotifierProvider(create: (_) => LibraryProvider()),

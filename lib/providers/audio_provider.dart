@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 import '../models/track.dart';
+import '../models/online_track.dart';
 import '../services/audio_service.dart' as audio_svc;
 import '../providers/settings_provider.dart';
+import '../providers/online_music_provider.dart';
 
 enum RepeatMode { off, all, one }
 
@@ -12,6 +14,7 @@ class AudioProvider extends ChangeNotifier {
   AudioPlayer? _audioPlayer;
   audio_svc.AudioPlayerHandler? _audioHandler;
   SettingsProvider? _settingsProvider;
+  OnlineMusicProvider? _onlineMusicProvider;
   ConcatenatingAudioSource? _playlist;
   
   AudioPlayer get audioPlayer {
@@ -23,6 +26,8 @@ class AudioProvider extends ChangeNotifier {
 
   Track? _currentTrack;
   List<Track> _queue = [];
+  final Map<String, String> _onlineTrackUrls = {};
+  String? _error;
   int _currentIndex = 0;
 
   bool _isPlaying = false;
@@ -42,7 +47,6 @@ class AudioProvider extends ChangeNotifier {
   double _reverbLevel = 0.0;
   double _tempoControl = 1.0;
 
-  // Getters
   Track? get currentTrack => _currentTrack;
   List<Track> get queue => _queue;
   int get currentIndex => _currentIndex;
@@ -58,13 +62,21 @@ class AudioProvider extends ChangeNotifier {
   double get reverbLevel => _reverbLevel;
   double get tempoControl => _tempoControl;
 
-  AudioProvider({SettingsProvider? settingsProvider}) {
+  bool get hasError => _error != null;
+  String? get error => _error;
+
+  AudioProvider({SettingsProvider? settingsProvider, OnlineMusicProvider? onlineMusicProvider}) {
     _settingsProvider = settingsProvider;
+    _onlineMusicProvider = onlineMusicProvider;
     _initializeAudioService();
   }
   
   void updateSettings(SettingsProvider settings) {
     _settingsProvider = settings;
+  }
+
+  void updateOnlineMusicProvider(OnlineMusicProvider onlineMusicProvider) {
+    _onlineMusicProvider = onlineMusicProvider;
   }
 
   Future<void> _initializeAudioService() async {
@@ -112,6 +124,20 @@ class AudioProvider extends ChangeNotifier {
     });
   }
 
+  static const Map<String, String> _youtubeHeaders = {
+    'User-Agent':
+        'com.google.android.youtube/19.38.35 (Linux; U; Android 13) gzip',
+    'Accept': '*/*',
+    'Accept-Encoding': 'gzip, deflate, br',
+    'Accept-Language': 'en-US,en;q=0.9',
+    'Connection': 'keep-alive',
+    'Referer': 'https://www.youtube.com/',
+    'Origin': 'https://www.youtube.com',
+    'X-YouTube-Client-Name': '3',
+    'X-YouTube-Client-Version': '19.38.35',
+    'X-Android-Player': 'api=3',
+  };
+
   Future<void> playTrack(Track track, {List<Track>? playlist}) async {
     _currentTrack = track;
 
@@ -123,49 +149,81 @@ class AudioProvider extends ChangeNotifier {
       _currentIndex = 0;
     }
 
-    try {
-      if (_audioHandler != null) {
-        await _audioHandler!.setTrackMediaItem(track);
-      }
-      
-      final enableGapless = _settingsProvider?.enableGapless ?? false;
-      final enableCrossfade = _settingsProvider?.enableCrossfade ?? false;
-      final crossfadeDuration = _settingsProvider?.crossfadeDuration ?? 3.0;
-      final enableReplayGain = _settingsProvider?.enableReplayGain ?? false;
-      
-      if (enableGapless && _queue.length > 1) {
+    if (_audioHandler != null) {
+      await _audioHandler!.setTrackMediaItem(track);
+    }
+    _error = null;
+
+    final enableGapless = _settingsProvider?.enableGapless ?? false;
+    final enableCrossfade = _settingsProvider?.enableCrossfade ?? false;
+    final crossfadeDuration = _settingsProvider?.crossfadeDuration ?? 3.0;
+    final enableReplayGain = _settingsProvider?.enableReplayGain ?? false;
+    final containsOnlineTracks = _queue.any((item) => item is OnlineTrack);
+
+    if (enableGapless && _queue.length > 1 && !containsOnlineTracks) {
+      try {
         await _setupGaplessPlayback();
-      } else {
+        _isPlaying = true;
+        notifyListeners();
+        return;
+      } catch (e) {
+        _error = 'Playback error: $e';
+        notifyListeners();
+        return;
+      }
+    }
+
+    bool retriedOnline = false;
+    while (true) {
+      try {
         double volume = 1.0;
         if (enableReplayGain) {
           // TODO read the actual gain tag, flat cut for now
           volume = 0.8;
         }
-        
+
         await audioPlayer.setVolume(volume);
-        
+
         if (enableCrossfade && _isPlaying) {
-          await _crossfadeToTrack(track, crossfadeDuration);
+          await _crossfadeToTrack(
+            track,
+            crossfadeDuration,
+            forceRefresh: retriedOnline,
+          );
         } else {
-          await audioPlayer.setFilePath(track.path);
+          final source = await _buildAudioSource(
+            track,
+            forceRefresh: retriedOnline,
+          );
+          await audioPlayer.setAudioSource(source);
           await audioPlayer.play();
         }
+
+        _isPlaying = true;
+        notifyListeners();
+        return;
+      } catch (e) {
+        if (track is OnlineTrack && !retriedOnline) {
+          _onlineTrackUrls.remove(track.videoId);
+          retriedOnline = true;
+          continue;
+        }
+
+        _error = 'Playback error: $e';
+        notifyListeners();
+        return;
       }
-      
-      _isPlaying = true;
-      notifyListeners();
-    } catch (e) {
-      debugPrint('Error playing track: $e');
     }
   }
   
   Future<void> _setupGaplessPlayback() async {
-    _playlist = ConcatenatingAudioSource(
-      children: _queue.map((track) {
-        return AudioSource.file(track.path);
-      }).toList(),
-    );
-    
+    final sources = <AudioSource>[];
+    for (final track in _queue) {
+      sources.add(await _buildAudioSource(track));
+    }
+
+    _playlist = ConcatenatingAudioSource(children: sources);
+
     await audioPlayer.setAudioSource(_playlist!, initialIndex: _currentIndex);
     await audioPlayer.play();
     
@@ -181,8 +239,8 @@ class AudioProvider extends ChangeNotifier {
     });
   }
   
-  Future<void> _crossfadeToTrack(Track track, double duration) async {
-    // fade out then in on the one player, real overlap needs two players
+  Future<void> _crossfadeToTrack(Track track, double duration,
+      {bool forceRefresh = false}) async {
     final currentVolume = audioPlayer.volume;
     
     for (int i = 10; i >= 0; i--) {
@@ -190,7 +248,8 @@ class AudioProvider extends ChangeNotifier {
       await Future.delayed(Duration(milliseconds: (duration * 100).toInt()));
     }
     
-    await audioPlayer.setFilePath(track.path);
+    final source = await _buildAudioSource(track, forceRefresh: forceRefresh);
+    await audioPlayer.setAudioSource(source);
     await audioPlayer.play();
     
     for (int i = 0; i <= 10; i++) {
@@ -336,6 +395,32 @@ class AudioProvider extends ChangeNotifier {
     if (_audioHandler == null && _audioPlayer != null) {
       _audioPlayer!.dispose();
     }
+    _onlineTrackUrls.clear();
     super.dispose();
+  }
+
+  Future<String> _resolveOnlineUrl(OnlineTrack track,
+      {bool forceRefresh = false}) async {
+    if (!forceRefresh && _onlineTrackUrls.containsKey(track.videoId)) {
+      return _onlineTrackUrls[track.videoId]!;
+    }
+    final url = await _onlineMusicProvider!.getStreamUrl(track.videoId);
+    _onlineTrackUrls[track.videoId] = url;
+    return url;
+  }
+
+  Future<AudioSource> _buildAudioSource(Track track,
+      {bool forceRefresh = false}) async {
+    if (track is OnlineTrack) {
+      final url = await _resolveOnlineUrl(
+        track,
+        forceRefresh: forceRefresh,
+      );
+      return AudioSource.uri(
+        Uri.parse(url),
+        headers: _youtubeHeaders,
+      );
+    }
+    return AudioSource.file(track.path);
   }
 }
