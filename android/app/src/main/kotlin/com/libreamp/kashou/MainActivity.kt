@@ -1,5 +1,167 @@
 package com.libreamp.kashou
 
+import android.media.audiofx.Equalizer
+import android.media.audiofx.BassBoost
+import android.media.audiofx.Virtualizer
+import android.os.Bundle
 import com.ryanheise.audioservice.AudioServiceActivity
+import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.plugin.common.MethodChannel
 
-class MainActivity : AudioServiceActivity()
+class MainActivity : AudioServiceActivity() {
+    private val CHANNEL = "com.libreamp.kashou/equalizer"
+    private var equalizer: Equalizer? = null
+    private var bassBoost: BassBoost? = null
+    private var virtualizer: Virtualizer? = null
+
+    override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
+        super.configureFlutterEngine(flutterEngine)
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "initEqualizer" -> {
+                    val sessionId = call.argument<Int>("sessionId")
+                    if (sessionId != null) {
+                        initEqualizer(sessionId)
+                        result.success(null)
+                    } else {
+                        result.error("INVALID_ARGUMENT", "Session ID is required", null)
+                    }
+                }
+                "setBandLevel" -> {
+                    val bandId = call.argument<Int>("bandId")
+                    val level = call.argument<Int>("level")
+                    if (bandId != null && level != null) {
+                        setBandLevel(bandId, level)
+                        result.success(null)
+                    } else {
+                        result.error("INVALID_ARGUMENT", "Band ID and level are required", null)
+                    }
+                }
+                "getBandLevelRange" -> {
+                    val range = getBandLevelRange()
+                    result.success(range)
+                }
+                "getCenterBandFreqs" -> {
+                    val freqs = getCenterBandFreqs()
+                    result.success(freqs)
+                }
+                "getPresetNames" -> {
+                    val presets = getPresetNames()
+                    result.success(presets)
+                }
+                "setPreset" -> {
+                    val presetName = call.argument<String>("presetName")
+                    if (presetName != null) {
+                        setPreset(presetName)
+                        result.success(null)
+                    } else {
+                        result.error("INVALID_ARGUMENT", "Preset name is required", null)
+                    }
+                }
+                "releaseEqualizer" -> {
+                    releaseEqualizer()
+                    result.success(null)
+                }
+                "setBassBoost" -> {
+                    val strength = call.argument<Int>("strength")
+                    if (strength != null) {
+                        setBassBoost(strength)
+                        result.success(null)
+                    } else {
+                        result.error("INVALID_ARGUMENT", "Strength is required", null)
+                    }
+                }
+                "setVirtualizer" -> {
+                    val strength = call.argument<Int>("strength")
+                    if (strength != null) {
+                        setVirtualizer(strength)
+                        result.success(null)
+                    } else {
+                        result.error("INVALID_ARGUMENT", "Strength is required", null)
+                    }
+                }
+                "enableEffects" -> {
+                    val enabled = call.argument<Boolean>("enabled")
+                    if (enabled != null) {
+                        enableEffects(enabled)
+                        result.success(null)
+                    } else {
+                        result.error("INVALID_ARGUMENT", "Enabled flag is required", null)
+                    }
+                }
+                else -> result.notImplemented()
+            }
+        }
+    }
+
+    private fun initEqualizer(sessionId: Int) {
+        equalizer = Equalizer(0, sessionId)
+        equalizer?.enabled = true
+        bassBoost = BassBoost(0, sessionId)
+        bassBoost?.enabled = true
+        virtualizer = Virtualizer(0, sessionId)
+        virtualizer?.enabled = true
+    }
+
+    private fun setBandLevel(bandId: Int, level: Int) {
+        equalizer?.setBandLevel(bandId.toShort(), level.toShort())
+    }
+
+    private fun getBandLevelRange(): List<Int> {
+        return equalizer?.let {
+            listOf(it.bandLevelRange[0].toInt(), it.bandLevelRange[1].toInt())
+        } ?: listOf(-1500, 1500) // Default range in millibels
+    }
+
+    private fun getCenterBandFreqs(): List<Int> {
+        return equalizer?.let { eq ->
+            (0 until eq.numberOfBands).map { eq.getCenterFreq(it.toShort()).toInt() }
+        } ?: emptyList()
+    }
+
+    private fun getPresetNames(): List<String> {
+        return equalizer?.let { eq ->
+            (0 until eq.numberOfPresets).map { eq.getPresetName(it.toShort()) }
+        } ?: emptyList()
+    }
+
+    private fun setPreset(presetName: String) {
+        equalizer?.let { eq ->
+            for (i in 0 until eq.numberOfPresets) {
+                if (eq.getPresetName(i.toShort()) == presetName) {
+                    eq.usePreset(i.toShort())
+                    break
+                }
+            }
+        }
+    }
+
+    private fun setBassBoost(strength: Int) {
+        bassBoost?.setStrength(strength.toShort())
+    }
+
+    private fun setVirtualizer(strength: Int) {
+        virtualizer?.setStrength(strength.toShort())
+    }
+
+    private fun enableEffects(enabled: Boolean) {
+        equalizer?.enabled = enabled
+        bassBoost?.enabled = enabled
+        virtualizer?.enabled = enabled
+    }
+
+    private fun releaseEqualizer() {
+        equalizer?.release()
+        equalizer = null
+        bassBoost?.release()
+        bassBoost = null
+        virtualizer?.release()
+        virtualizer = null
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        releaseEqualizer()
+    }
+}

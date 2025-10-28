@@ -49,7 +49,7 @@ class _MiniPlayerState extends State<MiniPlayer>
       begin: 1.0,
       end: 0.0,
     ).animate(CurvedAnimation(
-      parent: _swipeController,
+      parent: _slideController,
       curve: Curves.easeOut,
     ));
   }

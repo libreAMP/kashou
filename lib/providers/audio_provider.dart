@@ -3,6 +3,7 @@ import 'package:just_audio/just_audio.dart';
 import '../models/track.dart';
 import '../services/audio_service.dart' as audio_svc;
 import '../providers/settings_provider.dart';
+import '../services/custom_equalizer.dart';
 
 enum RepeatMode { off, all, one }
 
@@ -33,7 +34,7 @@ class AudioProvider extends ChangeNotifier {
   ShuffleMode _shuffleMode = ShuffleMode.off;
 
   // Equalizer
-  List<double> _equalizerBands = List.filled(10, 0.0);
+  List<double> _equalizerBands = [];
   bool _equalizerEnabled = false;
 
   // Audio effects
@@ -109,6 +110,13 @@ class AudioProvider extends ChangeNotifier {
       }
 
       notifyListeners();
+    });
+
+    audioPlayer.androidAudioSessionIdStream.listen((sessionId) {
+      if (sessionId != null) {
+        CustomEqualizer.init(sessionId);
+        _loadEqualizerBands();
+      }
     });
   }
 
@@ -289,32 +297,72 @@ class AudioProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> _loadEqualizerBands() async {
+    try {
+      final freqs = await CustomEqualizer.getCenterBandFreqs();
+      // Always set to 10 bands, pad with zeros if less
+      _equalizerBands = List.filled(10, 0.0);
+    } catch (e) {
+      // Fallback to 10 bands
+      _equalizerBands = List.filled(10, 0.0);
+    }
+    notifyListeners();
+  }
+
   // Equalizer controls
-  void setEqualizerBand(int index, double value) {
+  void setEqualizerBand(int index, double value) async {
     if (index >= 0 && index < _equalizerBands.length) {
       _equalizerBands[index] = value;
+      if (_equalizerEnabled) {
+        try {
+          await CustomEqualizer.setBandLevel(index, (value * 100).toInt());
+        } catch (e) {
+          // Handle error
+        }
+      }
       notifyListeners();
     }
   }
 
-  void setEqualizerEnabled(bool enabled) {
+  void setEqualizerEnabled(bool enabled) async {
     _equalizerEnabled = enabled;
+    try {
+      await CustomEqualizer.enableEffects(enabled);
+    } catch (e) {
+    }
     notifyListeners();
   }
 
-  void resetEqualizer() {
-    _equalizerBands = List.filled(10, 0.0);
+  void resetEqualizer() async {
+    _equalizerBands = List.filled(_equalizerBands.length, 0.0);
+    if (_equalizerEnabled) {
+      for (int i = 0; i < _equalizerBands.length; i++) {
+        try {
+          await CustomEqualizer.setBandLevel(i, 0);
+        } catch (e) {
+        }
+      }
+    }
     notifyListeners();
   }
 
   // Audio effects
-  void setBassBoost(double value) {
+  void setBassBoost(double value) async {
     _bassBoost = value;
+    try {
+      await CustomEqualizer.setBassBoost((value * 1000).toInt()); 
+    } catch (e) {
+    }
     notifyListeners();
   }
 
-  void setTrebleBoost(double value) {
+  void setTrebleBoost(double value) async {
+    // no dedicated treble effect on android, virtualizer is the closest
     _trebleBoost = value;
+    try {
+      await CustomEqualizer.setVirtualizer((value * 1000).toInt());
+    } catch (e) {
+    }
     notifyListeners();
   }
 
