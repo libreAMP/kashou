@@ -38,7 +38,7 @@ dependencies:
   image: ^4.0.17
   http: ^1.2.1
   
-  cast: ^2.1.0
+  flutter_chrome_cast: ^1.2.5
   
   cupertino_icons: ^1.0.8
 

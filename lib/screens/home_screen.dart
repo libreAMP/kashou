@@ -10,6 +10,19 @@ import 'search_screen.dart';
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
+  String _getGreeting() {
+    final hour = DateTime.now().hour;
+    if (hour < 12) {
+      return 'Good morning';
+    } else if (hour < 18) {
+      return 'Good afternoon';
+    } else if (hour < 22) {
+      return 'Good evening';
+    } else {
+      return 'Good night';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -20,7 +33,7 @@ class HomeScreen extends StatelessWidget {
               children: [
                 Icon(Icons.home, color: Theme.of(context).colorScheme.primary),
                 const SizedBox(width: 12),
-                const Text('Good evening'),
+                Text(_getGreeting()),
               ],
             ),
             actions: [

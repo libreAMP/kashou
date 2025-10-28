@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_chrome_cast/flutter_chrome_cast.dart';
 import '../providers/audio_provider.dart';
 import 'dart:ui';
 import 'dart:typed_data';
+import 'dart:convert';
 
 class MiniPlayer extends StatefulWidget {
   final VoidCallback onTap;
@@ -18,8 +20,7 @@ class MiniPlayer extends StatefulWidget {
   State<MiniPlayer> createState() => _MiniPlayerState();
 }
 
-class _MiniPlayerState extends State<MiniPlayer>
-    with TickerProviderStateMixin {
+class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
   late AnimationController _slideController;
   late AnimationController _swipeController;
   late Animation<Offset> _slideAnimation;
@@ -52,10 +53,45 @@ class _MiniPlayerState extends State<MiniPlayer>
       parent: _slideController,
       curve: Curves.easeOut,
     ));
+
+    GoogleCastSessionManager.instance.currentSessionStream.listen((session) {
+      if (session != null) {
+        _onCastConnected();
+      }
+    });
+
+    GoogleCastDiscoveryManager.instance.startDiscovery();
+  }
+
+  void _onCastConnected() {
+    final audioProvider = Provider.of<AudioProvider>(context, listen: false);
+    final track = audioProvider.currentTrack;
+    if (track != null) {
+      GoogleCastRemoteMediaClient.instance.loadMedia(
+        GoogleCastMediaInformationIOS(
+          contentId: track.path,
+          streamType: CastMediaStreamType.buffered,
+          contentUrl: Uri.parse(track.path),
+          contentType: 'audio/mp3',
+          metadata: GoogleCastMusicMediaMetadata(
+            title: track.title,
+            artist: track.artist,
+            albumName: track.album,
+            images: track.albumArt != null
+                ? [GoogleCastImage(url: Uri.parse('data:image/jpeg;base64,${base64Encode(track.albumArt!)}'))]
+                : null,
+          ),
+        ),
+        autoPlay: true,
+        playPosition: audioProvider.position,
+        playbackRate: 1.0,
+      );
+    }
   }
 
   @override
   void dispose() {
+    GoogleCastDiscoveryManager.instance.stopDiscovery();
     _slideController.dispose();
     _swipeController.dispose();
     super.dispose();
@@ -298,6 +334,22 @@ class _MiniPlayerState extends State<MiniPlayer>
                                   iconSize: 26,
                                   onPressed: audioProvider.skipNext,
                                 ),
+                                StreamBuilder<GoogleCastSession?>(
+                                  stream: GoogleCastSessionManager.instance.currentSessionStream,
+                                  builder: (context, snapshot) {
+                                    final isConnected = snapshot.data != null;
+                                    return IconButton(
+                                      icon: Icon(
+                                        isConnected ? Icons.cast_connected : Icons.cast,
+                                        color: useWhiteText
+                                            ? Colors.white
+                                            : Theme.of(context).colorScheme.onSurface,
+                                      ),
+                                      iconSize: 22,
+                                      onPressed: () => _showCastDialog(context),
+                                    );
+                                  },
+                                ),
                               ],
                             ),
                           ),
@@ -316,13 +368,13 @@ class _MiniPlayerState extends State<MiniPlayer>
 
   bool _isAlbumArtDark(Uint8List? albumArt) {
     if (albumArt == null) return true;
-    
+
     try {
       int totalBrightness = 0;
       int sampleCount = 0;
-      
+
       final step = (albumArt.length / 600).ceil().clamp(1, albumArt.length);
-      
+
       for (int i = 0; i < albumArt.length && sampleCount < 200; i += step) {
         if (i + 2 < albumArt.length) {
           final r = albumArt[i];
@@ -333,12 +385,60 @@ class _MiniPlayerState extends State<MiniPlayer>
           sampleCount++;
         }
       }
-      
+
       if (sampleCount == 0) return true;
       final avgBrightness = totalBrightness / sampleCount;
       return avgBrightness < 140;
     } catch (e) {
       return true;
     }
+  }
+
+  void _showCastDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Cast to Device'),
+          content: SizedBox(
+            height: 200,
+            width: 300,
+            child: StreamBuilder<List<GoogleCastDevice>>(
+              stream: GoogleCastDiscoveryManager.instance.devicesStream,
+              builder: (context, snapshot) {
+                final devices = snapshot.data ?? [];
+                if (devices.isEmpty) {
+                  return const Center(child: Text('No devices found'));
+                }
+                return ListView.builder(
+                  itemCount: devices.length,
+                  itemBuilder: (context, index) {
+                    final device = devices[index];
+                    return ListTile(
+                      leading: const Icon(Icons.cast),
+                      title: Text(device.friendlyName),
+                      subtitle: Text(device.modelName ?? 'Unknown'),
+                      onTap: () async {
+                        Navigator.pop(context);
+                        try {
+                          await GoogleCastSessionManager.instance.startSessionWithDevice(device);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Connecting to ${device.friendlyName}...')),
+                          );
+                        } catch (e) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Failed to connect: $e')),
+                          );
+                        }
+                      },
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        );
+      },
+    );
   }
 }

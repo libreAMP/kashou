@@ -3,7 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:dynamic_color/dynamic_color.dart';
 import 'package:google_fonts/google_fonts.dart';
-
+import 'package:flutter_chrome_cast/flutter_chrome_cast.dart';
+import 'dart:io';
 import 'providers/audio_provider.dart';
 import 'providers/theme_provider.dart';
 import 'providers/library_provider.dart';
@@ -16,8 +17,23 @@ import 'screens/settings_screen.dart';
 import 'screens/stream_screen.dart';
 import 'widgets/mini_player.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  const appId = GoogleCastDiscoveryCriteria.kDefaultApplicationId;
+  GoogleCastOptions? options;
+  
+  if (Platform.isIOS) {
+    options = IOSGoogleCastOptions(
+      GoogleCastDiscoveryCriteriaInitialize.initWithApplicationID(appId),
+    );
+  } else if (Platform.isAndroid) {
+    options = GoogleCastOptionsAndroid(
+      appId: appId,
+    );
+  }
+  
+  GoogleCastContext.instance.setSharedInstanceWithOptions(options!);
 
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
