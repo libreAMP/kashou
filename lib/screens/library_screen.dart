@@ -43,7 +43,13 @@ class _LibraryScreenState extends State<LibraryScreen>
         headerSliverBuilder: (context, innerBoxIsScrolled) {
           return [
             SliverAppBar.medium(
-              title: const Text('Library'),
+              title: Row(
+                children: [
+                  Icon(Icons.library_music, color: Theme.of(context).colorScheme.primary),
+                  const SizedBox(width: 12),
+                  const Text('Library'),
+                ],
+              ),
               actions: [
                 IconButton(
                   icon: const Icon(Icons.refresh),
@@ -65,36 +71,97 @@ class _LibraryScreenState extends State<LibraryScreen>
                 controller: _tabController,
                 isScrollable: true,
                 tabs: const [
-                  Tab(text: 'Songs'),
-                  Tab(text: 'Albums'),
-                  Tab(text: 'Artists'),
-                  Tab(text: 'Playlists'),
+                  Tab(icon: Icon(Icons.music_note), text: 'Songs'),
+                  Tab(icon: Icon(Icons.album), text: 'Albums'),
+                  Tab(icon: Icon(Icons.person), text: 'Artists'),
+                  Tab(icon: Icon(Icons.playlist_play), text: 'Playlists'),
                 ],
               ),
             ),
             SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
-                child: SearchBar(
-                  controller: _searchController,
-                  leading: const Padding(
-                    padding: EdgeInsets.only(left: 8),
-                    child: Icon(Icons.search),
-                  ),
-                  hintText: 'Search library...',
-                  elevation: const WidgetStatePropertyAll(1),
-                  shape: WidgetStatePropertyAll(
-                    RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+              child: Consumer<LibraryProvider>(
+                builder: (context, library, child) {
+                  final songCount = library.allTracks.length;
+                  final albumCount = library.albums.length;
+                  final artistCount = library.artists.length;
+                  final playlistCount = library.playlists.length;
+
+                  return Container(
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Theme.of(context).colorScheme.primaryContainer,
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(
+                                Icons.bar_chart,
+                                color: Theme.of(context).colorScheme.onPrimaryContainer,
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    '$songCount songs • $albumCount albums • $artistCount artists',
+                                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                  Text(
+                                    '$playlistCount playlists',
+                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        SearchBar(
+                          controller: _searchController,
+                          leading: const Padding(
+                            padding: EdgeInsets.only(left: 8),
+                            child: Icon(Icons.search),
+                          ),
+                          trailing: _searchController.text.isNotEmpty
+                              ? [
+                                  IconButton(
+                                    icon: const Icon(Icons.clear),
+                                    onPressed: () {
+                                      _searchController.clear();
+                                      setState(() {});
+                                    },
+                                  ),
+                                ]
+                              : null,
+                          hintText: 'Search library...',
+                          elevation: const WidgetStatePropertyAll(1),
+                          shape: WidgetStatePropertyAll(
+                            RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(24),
+                            ),
+                          ),
+                          padding: const WidgetStatePropertyAll(
+                            EdgeInsets.symmetric(horizontal: 16),
+                          ),
+                          onChanged: (value) {
+                            setState(() {});
+                          },
+                        ),
+                      ],
                     ),
-                  ),
-                  padding: const WidgetStatePropertyAll(
-                    EdgeInsets.symmetric(horizontal: 16),
-                  ),
-                  onChanged: (value) {
-                    setState(() {});
-                  },
-                ),
+                  );
+                },
               ),
             ),
           ];
@@ -164,33 +231,48 @@ class _LibraryScreenState extends State<LibraryScreen>
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              Icons.music_note_outlined,
+              _searchController.text.isEmpty ? Icons.music_note_outlined : Icons.search_off,
               size: 64,
               color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
             const SizedBox(height: 16),
             Text(
-              'No songs found',
-              style: Theme.of(context).textTheme.titleMedium,
+              _searchController.text.isEmpty ? 'No songs found' : 'No songs match your search',
+              style: Theme.of(context).textTheme.headlineSmall,
             ),
             const SizedBox(height: 8),
-            TextButton(
-              onPressed: () {
-                library.scanLibrary();
-              },
-              child: const Text('Scan Library'),
+            Text(
+              _searchController.text.isEmpty
+                  ? 'Add some music to get started'
+                  : 'Try a different search term',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+              textAlign: TextAlign.center,
             ),
+            if (_searchController.text.isEmpty) ...[
+              const SizedBox(height: 16),
+              FilledButton(
+                onPressed: () {
+                  library.scanLibrary();
+                },
+                child: const Text('Scan Library'),
+              ),
+            ],
           ],
         ),
       );
     }
 
-    return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 160),
-      itemCount: tracks.length,
-      itemBuilder: (context, index) {
-        return TrackListItem(track: tracks[index]);
-      },
+    return Container(
+      color: Theme.of(context).colorScheme.surface,
+      child: ListView.builder(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 160),
+        itemCount: tracks.length,
+        itemBuilder: (context, index) {
+          return TrackListItem(track: tracks[index]);
+        },
+      ),
     );
   }
 
@@ -201,25 +283,39 @@ class _LibraryScreenState extends State<LibraryScreen>
 
     if (albums.isEmpty) {
       return Center(
-        child: Text(
-          'No albums found',
-          style: Theme.of(context).textTheme.titleMedium,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              _searchController.text.isEmpty ? Icons.album_outlined : Icons.search_off,
+              size: 64,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              _searchController.text.isEmpty ? 'No albums found' : 'No albums match your search',
+              style: Theme.of(context).textTheme.headlineSmall,
+            ),
+          ],
         ),
       );
     }
 
-    return GridView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 160),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        childAspectRatio: 0.75,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
+    return Container(
+      color: Theme.of(context).colorScheme.surface,
+      child: GridView.builder(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 160),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          childAspectRatio: 0.75,
+          crossAxisSpacing: 16,
+          mainAxisSpacing: 16,
+        ),
+        itemCount: albums.length,
+        itemBuilder: (context, index) {
+          return AlbumCard(album: albums[index]);
+        },
       ),
-      itemCount: albums.length,
-      itemBuilder: (context, index) {
-        return AlbumCard(album: albums[index]);
-      },
     );
   }
 
@@ -230,19 +326,33 @@ class _LibraryScreenState extends State<LibraryScreen>
 
     if (artists.isEmpty) {
       return Center(
-        child: Text(
-          'No artists found',
-          style: Theme.of(context).textTheme.titleMedium,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              _searchController.text.isEmpty ? Icons.person_outlined : Icons.search_off,
+              size: 64,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              _searchController.text.isEmpty ? 'No artists found' : 'No artists match your search',
+              style: Theme.of(context).textTheme.headlineSmall,
+            ),
+          ],
         ),
       );
     }
 
-    return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 160),
-      itemCount: artists.length,
-      itemBuilder: (context, index) {
-        return ArtistCard(artist: artists[index]);
-      },
+    return Container(
+      color: Theme.of(context).colorScheme.surface,
+      child: ListView.builder(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 160),
+        itemCount: artists.length,
+        itemBuilder: (context, index) {
+          return ArtistCard(artist: artists[index]);
+        },
+      ),
     );
   }
 
@@ -260,10 +370,18 @@ class _LibraryScreenState extends State<LibraryScreen>
             const SizedBox(height: 16),
             Text(
               'No playlists yet',
-              style: Theme.of(context).textTheme.titleMedium,
+              style: Theme.of(context).textTheme.headlineSmall,
             ),
             const SizedBox(height: 8),
-            TextButton(
+            Text(
+              'Create your first playlist',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            FilledButton(
               onPressed: () {
                 _showCreatePlaylistDialog(context);
               },
@@ -274,39 +392,43 @@ class _LibraryScreenState extends State<LibraryScreen>
       );
     }
 
-    return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 160),
-      itemCount: library.playlists.length,
-      itemBuilder: (context, index) {
-        final playlist = library.playlists[index];
-        return Card(
-          child: ListTile(
-            leading: Container(
-              width: 56,
-              height: 56,
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primaryContainer,
-                borderRadius: BorderRadius.circular(8),
+    return Container(
+      color: Theme.of(context).colorScheme.surface,
+      child: ListView.builder(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 160),
+        itemCount: library.playlists.length,
+        itemBuilder: (context, index) {
+          final playlist = library.playlists[index];
+          return Card(
+            margin: const EdgeInsets.only(bottom: 8),
+            child: ListTile(
+              leading: Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  Icons.playlist_play,
+                  color: Theme.of(context).colorScheme.onPrimaryContainer,
+                ),
               ),
-              child: Icon(
-                Icons.playlist_play,
-                color: Theme.of(context).colorScheme.onPrimaryContainer,
+              title: Text(playlist.name),
+              subtitle: Text('${playlist.trackCount} songs'),
+              trailing: IconButton(
+                icon: const Icon(Icons.more_vert),
+                onPressed: () {
+                  _showPlaylistOptions(context, playlist.id);
+                },
               ),
-            ),
-            title: Text(playlist.name),
-            subtitle: Text('${playlist.trackCount} songs'),
-            trailing: IconButton(
-              icon: const Icon(Icons.more_vert),
-              onPressed: () {
-                _showPlaylistOptions(context, playlist.id);
+              onTap: () {
+                // Navigate to playlist detail
               },
             ),
-            onTap: () {
-              // Navigate to playlist detail
-            },
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 

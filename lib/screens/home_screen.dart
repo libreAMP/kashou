@@ -16,7 +16,13 @@ class HomeScreen extends StatelessWidget {
       body: CustomScrollView(
         slivers: [
           SliverAppBar.large(
-            title: const Text('Home'),
+            title: Row(
+              children: [
+                Icon(Icons.home, color: Theme.of(context).colorScheme.primary),
+                const SizedBox(width: 12),
+                const Text('Good evening'),
+              ],
+            ),
             actions: [
               IconButton(
                 icon: const Icon(Icons.search),
@@ -39,16 +45,16 @@ class HomeScreen extends StatelessWidget {
           ),
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 120),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _buildQuickActions(context),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 40),
                   _buildRecentlyPlayed(context),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 40),
                   _buildRecentlyAdded(context),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 40),
                   _buildTopAlbums(context),
                 ],
               ),
@@ -63,13 +69,20 @@ class HomeScreen extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Quick Actions',
-          style: Theme.of(
-            context,
-          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+        Row(
+          children: [
+            Icon(Icons.bolt, color: Theme.of(context).colorScheme.primary, size: 24),
+            const SizedBox(width: 8),
+            Text(
+              'Quick Actions',
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
+            ),
+          ],
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 20),
         Row(
           children: [
             Expanded(
@@ -95,7 +108,7 @@ class HomeScreen extends StatelessWidget {
                 },
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 16),
             Expanded(
               child: _buildActionCard(
                 context,
@@ -134,27 +147,50 @@ class HomeScreen extends StatelessWidget {
   }) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(20),
       child: Container(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.primaryContainer,
+          gradient: LinearGradient(
+            colors: [
+              Theme.of(context).colorScheme.primaryContainer,
+              Theme.of(context).colorScheme.primaryContainer.withOpacity(0.8),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
           borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Theme.of(context).colorScheme.shadow.withOpacity(0.1),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              icon,
-              size: 32,
-              color: Theme.of(context).colorScheme.onPrimaryContainer,
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                icon,
+                size: 24,
+                color: Theme.of(context).colorScheme.primary,
+              ),
             ),
             const SizedBox(height: 8),
             Text(
               label,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.onPrimaryContainer,
-                    fontWeight: FontWeight.w600,
-                  ),
+                color: Theme.of(context).colorScheme.onPrimaryContainer,
+                fontWeight: FontWeight.w600,
+              ),
+              textAlign: TextAlign.center,
             ),
           ],
         ),
@@ -177,23 +213,43 @@ class HomeScreen extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  'Recently Played',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                Row(
+                  children: [
+                    Icon(Icons.history, color: Theme.of(context).colorScheme.primary, size: 24),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Recently Played',
+                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
+                    ),
+                  ],
                 ),
-                TextButton(onPressed: () {}, child: const Text('See All')),
+                TextButton(
+                  onPressed: () {},
+                  child: Text(
+                    'See All',
+                    style: TextStyle(color: Theme.of(context).colorScheme.primary),
+                  ),
+                ),
               ],
             ),
-            const SizedBox(height: 12),
-            ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: recentTracks.length,
-              itemBuilder: (context, index) {
-                return TrackListItem(track: recentTracks[index]);
-              },
+            const SizedBox(height: 16),
+            Container(
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surfaceContainerLow,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: recentTracks.length,
+                padding: EdgeInsets.zero,
+                itemBuilder: (context, index) {
+                  return TrackListItem(track: recentTracks[index]);
+                },
+              ),
             ),
           ],
         );
@@ -216,24 +272,37 @@ class HomeScreen extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  'Recently Added',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                Row(
+                  children: [
+                    Icon(Icons.new_releases, color: Theme.of(context).colorScheme.primary, size: 24),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Recently Added',
+                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
+                    ),
+                  ],
                 ),
-                TextButton(onPressed: () {}, child: const Text('See All')),
+                TextButton(
+                  onPressed: () {},
+                  child: Text(
+                    'See All',
+                    style: TextStyle(color: Theme.of(context).colorScheme.primary),
+                  ),
+                ),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
             SizedBox(
-              height: 170,
+              height: 160,
               child: ListView.builder(
                 scrollDirection: Axis.horizontal,
                 itemCount: recentTracks.length,
                 itemBuilder: (context, index) {
                   return Padding(
-                    padding: const EdgeInsets.only(right: 12),
+                    padding: const EdgeInsets.only(right: 16),
                     child: _buildTrackCard(context, recentTracks[index]),
                   );
                 },
@@ -260,24 +329,37 @@ class HomeScreen extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  'Albums',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                Row(
+                  children: [
+                    Icon(Icons.album, color: Theme.of(context).colorScheme.primary, size: 24),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Top Albums',
+                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
+                    ),
+                  ],
                 ),
-                TextButton(onPressed: () {}, child: const Text('See All')),
+                TextButton(
+                  onPressed: () {},
+                  child: Text(
+                    'See All',
+                    style: TextStyle(color: Theme.of(context).colorScheme.primary),
+                  ),
+                ),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
             GridView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 2,
                 childAspectRatio: 0.75,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
+                crossAxisSpacing: 16,
+                mainAxisSpacing: 16,
               ),
               itemCount: albums.length,
               itemBuilder: (context, index) {
@@ -302,48 +384,82 @@ class HomeScreen extends StatelessWidget {
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Theme.of(context).colorScheme.shadow.withOpacity(0.1),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            ClipRRect(
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(12),
-              ),
-              child: Container(
-                height: 115,
-                width: 135,
-                color: Theme.of(context).colorScheme.primaryContainer,
-                child: track.albumArt != null
-                    ? Image.memory(
-                        track.albumArt!,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          return Icon(
+            Stack(
+              children: [
+                ClipRRect(
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(12),
+                  ),
+                  child: Container(
+                    height: 105,
+                    width: 135,
+                    color: Theme.of(context).colorScheme.primaryContainer,
+                    child: track.albumArt != null
+                        ? Image.memory(
+                            track.albumArt!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Icon(
+                                Icons.music_note,
+                                size: 48,
+                                color: Theme.of(context).colorScheme.onPrimaryContainer,
+                              );
+                            },
+                          )
+                        : Icon(
                             Icons.music_note,
                             size: 48,
                             color: Theme.of(context).colorScheme.onPrimaryContainer,
-                          );
-                        },
-                      )
-                    : Icon(
-                        Icons.music_note,
-                        size: 48,
-                        color: Theme.of(context).colorScheme.onPrimaryContainer,
-                      ),
-              ),
+                          ),
+                  ),
+                ),
+                Positioned(
+                  bottom: 8,
+                  right: 8,
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primary,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Theme.of(context).colorScheme.shadow.withOpacity(0.3),
+                          blurRadius: 4,
+                        ),
+                      ],
+                    ),
+                    child: Icon(
+                      Icons.play_arrow,
+                      color: Theme.of(context).colorScheme.onPrimary,
+                      size: 16,
+                    ),
+                  ),
+                ),
+              ],
             ),
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.all(8),
+                padding: const EdgeInsets.all(12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
                       track.title,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                             fontWeight: FontWeight.w600,
+                            height: 1.2,
                           ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
