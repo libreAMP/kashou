@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
 import '../models/track.dart';
 import '../models/album.dart';
 import '../models/artist.dart';
@@ -11,6 +13,8 @@ class LibraryProvider extends ChangeNotifier {
   List<Artist> _artists = [];
   List<Playlist> _playlists = [];
 
+  Set<String> _favoriteTrackIds = {};
+
   bool _isScanning = false;
   double _scanProgress = 0.0;
 
@@ -21,12 +25,34 @@ class LibraryProvider extends ChangeNotifier {
   List<Playlist> get playlists => _playlists;
   bool get isScanning => _isScanning;
   double get scanProgress => _scanProgress;
+  Set<String> get favoriteTrackIds => _favoriteTrackIds;
 
   LibraryProvider() {
     _loadLibrary();
+    _loadFavorites();
   }
 
   Future<void> _loadLibrary() async {
+  }
+
+  Future<void> _loadFavorites() async {
+    final prefs = await SharedPreferences.getInstance();
+    final storedFavorites = prefs.getStringList('favorite_tracks') ?? [];
+    _favoriteTrackIds = storedFavorites.toSet();
+    notifyListeners();
+  }
+
+  bool isTrackFavorite(String trackId) => _favoriteTrackIds.contains(trackId);
+
+  Future<void> toggleFavorite(Track track) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (_favoriteTrackIds.contains(track.id)) {
+      _favoriteTrackIds.remove(track.id);
+    } else {
+      _favoriteTrackIds.add(track.id);
+    }
+    await prefs.setStringList('favorite_tracks', _favoriteTrackIds.toList());
+    notifyListeners();
   }
 
   Future<void> scanLibrary() async {

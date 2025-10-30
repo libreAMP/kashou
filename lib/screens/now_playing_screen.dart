@@ -5,6 +5,7 @@ import '../widgets/equalizer_widget.dart';
 import 'metadata_editor_screen.dart';
 import 'dart:ui';
 
+import '../providers/library_provider.dart';
 import '../utils/hero_transitions.dart';
 
 class NowPlayingScreen extends StatelessWidget {
@@ -13,8 +14,8 @@ class NowPlayingScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Consumer<AudioProvider>(
-        builder: (context, audio, child) {
+      body: Consumer2<AudioProvider, LibraryProvider>(
+        builder: (context, audio, library, child) {
           final track = audio.currentTrack;
 
           if (track == null) {
@@ -172,7 +173,7 @@ class NowPlayingScreen extends StatelessWidget {
                       const SizedBox(height: 32),
                       _buildControls(context, audio),
                       const SizedBox(height: 24),
-                      _buildSecondaryControls(context, audio),
+                      _buildSecondaryControls(context, audio, library),
                       const SizedBox(height: 32),
                       _buildAudioInfo(context, track),
                     ],
@@ -255,7 +256,7 @@ class NowPlayingScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildSecondaryControls(BuildContext context, AudioProvider audio) {
+  Widget _buildSecondaryControls(BuildContext context, AudioProvider audio, LibraryProvider library) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
@@ -294,8 +295,19 @@ class NowPlayingScreen extends StatelessWidget {
           },
         ),
         IconButton(
-          icon: const Icon(Icons.favorite_border),
-          onPressed: () {},
+          icon: Icon(
+            library.isTrackFavorite(audio.currentTrack?.id ?? '')
+                ? Icons.favorite
+                : Icons.favorite_border,
+            color: library.isTrackFavorite(audio.currentTrack?.id ?? '')
+                ? Theme.of(context).colorScheme.primary
+                : null,
+          ),
+          onPressed: audio.currentTrack == null
+              ? null
+              : () {
+                  library.toggleFavorite(audio.currentTrack!);
+                },
         ),
       ],
     );
@@ -384,9 +396,9 @@ class NowPlayingScreen extends StatelessWidget {
       case RepeatMode.off:
         return Icons.repeat;
       case RepeatMode.all:
-        return Icons.repeat_on;
+        return Icons.repeat;
       case RepeatMode.one:
-        return Icons.repeat_one_on;
+        return Icons.repeat_one;
     }
   }
 

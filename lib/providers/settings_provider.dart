@@ -38,7 +38,7 @@ class SettingsProvider extends ChangeNotifier {
   Future<void> _loadSettings() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      _fontFamily = prefs.getString('font_family') ?? 'DM Sans';
+      _fontFamily = prefs.getString('font_family') ?? 'Poppins';
       _enableGapless = prefs.getBool('enable_gapless') ?? true;
       _enableCrossfade = prefs.getBool('enable_crossfade') ?? false;
       _crossfadeDuration = prefs.getDouble('crossfade_duration') ?? 3.0;
