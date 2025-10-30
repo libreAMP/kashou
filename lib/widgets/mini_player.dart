@@ -1,10 +1,14 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:typed_data';
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_chrome_cast/flutter_chrome_cast.dart';
+
 import '../providers/audio_provider.dart';
-import 'dart:ui';
-import 'dart:typed_data';
-import 'dart:convert';
+import '../services/local_media_server.dart';
 
 class MiniPlayer extends StatefulWidget {
   final VoidCallback onTap;
@@ -57,22 +61,43 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
     GoogleCastSessionManager.instance.currentSessionStream.listen((session) {
       if (session != null) {
         _onCastConnected();
+      } else {
+        LocalMediaServer.instance.stop();
+        final audioProvider = Provider.of<AudioProvider>(context, listen: false);
+        audioProvider.audioPlayer.setVolume(1.0);
+        audioProvider.audioPlayer.play();
       }
     });
 
     GoogleCastDiscoveryManager.instance.startDiscovery();
   }
 
-  void _onCastConnected() {
+  Future<void> _onCastConnected() async {
     final audioProvider = Provider.of<AudioProvider>(context, listen: false);
     final track = audioProvider.currentTrack;
     if (track != null) {
+      final server = LocalMediaServer.instance;
+      final baseUrl = await server.ensureStarted();
+      final streamUrl = baseUrl != null ? server.buildStreamUrl(track.path) : null;
+
+      if (streamUrl == null) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Unable to start local media server for casting.')),
+          );
+        }
+        return;
+      }
+
+      await audioProvider.audioPlayer.pause();
+      await audioProvider.audioPlayer.setVolume(0.0);
+
       GoogleCastRemoteMediaClient.instance.loadMedia(
         GoogleCastMediaInformationIOS(
-          contentId: track.path,
+          contentId: streamUrl,
           streamType: CastMediaStreamType.buffered,
-          contentUrl: Uri.parse(track.path),
-          contentType: 'audio/mp3',
+          contentUrl: Uri.parse(streamUrl),
+          contentType: _inferTrackMimeType(track.path) ?? 'audio/mpeg',
           metadata: GoogleCastMusicMediaMetadata(
             title: track.title,
             artist: track.artist,
@@ -92,9 +117,24 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
   @override
   void dispose() {
     GoogleCastDiscoveryManager.instance.stopDiscovery();
+    final audioProvider = Provider.of<AudioProvider>(context, listen: false);
+    audioProvider.audioPlayer.setVolume(1.0);
+    audioProvider.audioPlayer.play();
     _slideController.dispose();
     _swipeController.dispose();
     super.dispose();
+  }
+
+  String? _inferTrackMimeType(String path) {
+    final lower = path.toLowerCase();
+
+    if (lower.endsWith('.mp3')) return 'audio/mpeg';
+    if (lower.endsWith('.m4a') || lower.endsWith('.aac')) return 'audio/mp4';
+    if (lower.endsWith('.flac')) return 'audio/flac';
+    if (lower.endsWith('.wav')) return 'audio/wav';
+    if (lower.endsWith('.ogg')) return 'audio/ogg';
+
+    return null;
   }
 
   void _handleVerticalDragUpdate(DragUpdateDetails details) {
@@ -338,12 +378,16 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
                                   stream: GoogleCastSessionManager.instance.currentSessionStream,
                                   builder: (context, snapshot) {
                                     final isConnected = snapshot.data != null;
+                                    final iconColor = isConnected
+                                        ? Theme.of(context).colorScheme.tertiary
+                                        : (useWhiteText
+                                            ? Colors.white
+                                            : Theme.of(context).colorScheme.onSurface);
+
                                     return IconButton(
                                       icon: Icon(
                                         isConnected ? Icons.cast_connected : Icons.cast,
-                                        color: useWhiteText
-                                            ? Colors.white
-                                            : Theme.of(context).colorScheme.onSurface,
+                                        color: iconColor,
                                       ),
                                       iconSize: 22,
                                       onPressed: () => _showCastDialog(context),
@@ -397,46 +441,219 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
   void _showCastDialog(BuildContext context) {
     showDialog(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Cast to Device'),
-          content: SizedBox(
-            height: 200,
-            width: 300,
-            child: StreamBuilder<List<GoogleCastDevice>>(
-              stream: GoogleCastDiscoveryManager.instance.devicesStream,
-              builder: (context, snapshot) {
-                final devices = snapshot.data ?? [];
-                if (devices.isEmpty) {
-                  return const Center(child: Text('No devices found'));
+      builder: (dialogContext) {
+        final theme = Theme.of(dialogContext);
+        final colorScheme = theme.colorScheme;
+
+        return StreamBuilder<GoogleCastSession?>(
+          stream: GoogleCastSessionManager.instance.currentSessionStream,
+          builder: (context, sessionSnapshot) {
+            final session = sessionSnapshot.data;
+            final connectedDeviceId = session?.device?.deviceID;
+            final connectedDeviceName = session?.device?.friendlyName ?? 'Cast device';
+
+            Future<void> stopCasting() async {
+              Future<void> tryStopRemoteMedia() async {
+                try {
+                  await GoogleCastRemoteMediaClient.instance.stop();
+                } catch (_) {
                 }
-                return ListView.builder(
-                  itemCount: devices.length,
-                  itemBuilder: (context, index) {
-                    final device = devices[index];
-                    return ListTile(
-                      leading: const Icon(Icons.cast),
-                      title: Text(device.friendlyName),
-                      subtitle: Text(device.modelName ?? 'Unknown'),
-                      onTap: () async {
-                        Navigator.pop(context);
-                        try {
-                          await GoogleCastSessionManager.instance.startSessionWithDevice(device);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Connecting to ${device.friendlyName}...')),
-                          );
-                        } catch (e) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Failed to connect: $e')),
-                          );
+              }
+
+              try {
+                await tryStopRemoteMedia();
+
+                final result = await GoogleCastSessionManager.instance.endSessionAndStopCasting();
+                final success = result != false;
+
+                if (!success) {
+                  final fallback = await GoogleCastSessionManager.instance.endSession();
+                  if (fallback == true) {
+                    Navigator.of(dialogContext).pop();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Disconnected from $connectedDeviceName')),
+                    );
+                    return;
+                  }
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Could not disconnect from $connectedDeviceName')),
+                  );
+                  return;
+                }
+
+                Navigator.of(dialogContext).pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Disconnected from $connectedDeviceName')),
+                );
+              } catch (error) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Failed to disconnect: $error')),
+                );
+              }
+            }
+
+            return AlertDialog(
+              titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
+              contentPadding: const EdgeInsets.fromLTRB(0, 0, 0, 0),
+              insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+              title: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Cast to Device',
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  if (session != null)
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: colorScheme.primaryContainer.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.cast_connected, color: colorScheme.primary),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  'Currently casting',
+                                  style: theme.textTheme.labelMedium?.copyWith(
+                                    color: colorScheme.onPrimaryContainer,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                if (session.deviceStatusText.isNotEmpty)
+                                  Text(
+                                    session.deviceStatusText,
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: colorScheme.onPrimaryContainer.withOpacity(0.8),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          FilledButton.tonalIcon(
+                            onPressed: stopCasting,
+                            icon: const Icon(Icons.close),
+                            label: const Text('Disconnect'),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+              content: SizedBox(
+                height: 280,
+                width: 320,
+                child: StreamBuilder<List<GoogleCastDevice>>(
+                  stream: GoogleCastDiscoveryManager.instance.devicesStream,
+                  builder: (context, snapshot) {
+                    final devices = snapshot.data ?? [];
+
+                    if (devices.isEmpty) {
+                      return Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.cast, size: 36, color: colorScheme.onSurfaceVariant.withOpacity(0.5)),
+                            const SizedBox(height: 12),
+                            Text(
+                              'Searching for cast devices...',
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+
+                    return ListView.separated(
+                      padding: const EdgeInsets.only(bottom: 16),
+                      itemBuilder: (context, index) {
+                        final device = devices[index];
+                        final isConnected = device.deviceID == connectedDeviceId;
+
+                        Future<void> connectToDevice() async {
+                          Navigator.of(dialogContext).pop();
+                          try {
+                            await GoogleCastSessionManager.instance.startSessionWithDevice(device);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Connecting to ${device.friendlyName}...')),
+                            );
+                          } catch (error) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Failed to connect: $error')),
+                            );
+                          }
                         }
+
+                        return ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor: isConnected
+                                ? colorScheme.primary.withOpacity(0.15)
+                                : colorScheme.surfaceContainerHighest,
+                            child: Icon(
+                              isConnected ? Icons.cast_connected : Icons.cast,
+                              color: isConnected
+                                  ? colorScheme.primary
+                                  : colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                          title: Text(
+                            device.friendlyName,
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: isConnected
+                                  ? colorScheme.primary
+                                  : colorScheme.onSurface,
+                            ),
+                          ),
+                          subtitle: Text(
+                            isConnected
+                                ? 'Connected'
+                                : (device.modelName ?? 'Tap to connect'),
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: isConnected
+                                  ? colorScheme.primary
+                                  : colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                          trailing: isConnected
+                              ? OutlinedButton.icon(
+                                  onPressed: stopCasting,
+                                  icon: const Icon(Icons.close),
+                                  label: const Text('Disconnect'),
+                                )
+                              : Icon(
+                                  Icons.chevron_right,
+                                  color: colorScheme.onSurfaceVariant,
+                                ),
+                          onTap: isConnected ? null : connectToDevice,
+                        );
                       },
+                      separatorBuilder: (_, __) => const Divider(height: 0),
+                      itemCount: devices.length,
                     );
                   },
-                );
-              },
-            ),
-          ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Close'),
+                ),
+              ],
+            );
+          },
         );
       },
     );
