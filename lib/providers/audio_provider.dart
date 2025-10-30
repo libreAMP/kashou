@@ -42,6 +42,7 @@ class AudioProvider extends ChangeNotifier {
   double _trebleBoost = 0.0;
   double _reverbLevel = 0.0;
   double _tempoControl = 1.0;
+  double _masterVolume = 1.0;
 
   // Getters
   Track? get currentTrack => _currentTrack;
@@ -58,6 +59,7 @@ class AudioProvider extends ChangeNotifier {
   double get trebleBoost => _trebleBoost;
   double get reverbLevel => _reverbLevel;
   double get tempoControl => _tempoControl;
+  double get masterVolume => _masterVolume;
 
   AudioProvider({SettingsProvider? settingsProvider}) {
     _settingsProvider = settingsProvider;
@@ -117,6 +119,12 @@ class AudioProvider extends ChangeNotifier {
         CustomEqualizer.init(sessionId);
         _loadEqualizerBands();
       }
+    });
+
+    _masterVolume = audioPlayer.volume;
+    audioPlayer.volumeStream.listen((volume) {
+      _masterVolume = volume;
+      notifyListeners();
     });
   }
 
@@ -375,6 +383,12 @@ class AudioProvider extends ChangeNotifier {
   void setTempoControl(double value) {
     _tempoControl = value;
     audioPlayer.setSpeed(value);
+    notifyListeners();
+  }
+
+  Future<void> setMasterVolume(double value) async {
+    _masterVolume = value.clamp(0.0, 1.0);
+    await audioPlayer.setVolume(_masterVolume);
     notifyListeners();
   }
 

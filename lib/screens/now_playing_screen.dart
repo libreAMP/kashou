@@ -5,6 +5,8 @@ import '../widgets/equalizer_widget.dart';
 import 'metadata_editor_screen.dart';
 import 'dart:ui';
 
+import '../utils/hero_transitions.dart';
+
 class NowPlayingScreen extends StatelessWidget {
   const NowPlayingScreen({super.key});
 
@@ -32,6 +34,8 @@ class NowPlayingScreen extends StatelessWidget {
                       if (track.albumArt != null)
                         Hero(
                           tag: 'album_art_${track.id}',
+                          createRectTween: albumArtRectTween,
+                          flightShuttleBuilder: albumArtFlightShuttleBuilder,
                           child: Image.memory(
                             track.albumArt!,
                             fit: BoxFit.cover,
@@ -59,6 +63,8 @@ class NowPlayingScreen extends StatelessWidget {
                       else
                         Hero(
                           tag: 'album_art_${track.id}',
+                          createRectTween: albumArtRectTween,
+                          flightShuttleBuilder: albumArtFlightShuttleBuilder,
                           child: Container(
                             decoration: BoxDecoration(
                               gradient: LinearGradient(

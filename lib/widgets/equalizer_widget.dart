@@ -64,6 +64,8 @@ class EqualizerWidget extends StatelessWidget {
                 children: [
                   _buildEqualizer(context),
                   const SizedBox(height: 32),
+                  _buildVolumeControl(context),
+                  const SizedBox(height: 32),
                   _buildPresets(context),
                   const SizedBox(height: 32),
                   _buildAudioEffects(context),
@@ -117,59 +119,75 @@ class EqualizerWidget extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: List.generate(10, (index) {
-                      return Expanded(
-                        child: Column(
-                          children: [
-                            RotatedBox(
-                              quarterTurns: 3,
-                              child: SizedBox(
-                                height: 120,
-                                child: SliderTheme(
-                                  data: SliderTheme.of(context).copyWith(
-                                    trackHeight: 4,
-                                    thumbShape: RoundSliderThumbShape(
-                                      enabledThumbRadius: 6,
-                                      pressedElevation: 4,
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final isCompact = constraints.maxWidth < 360;
+                      final sliderHeight = isCompact ? 140.0 : 180.0;
+                      final trackWidth = isCompact ? 3.0 : 4.0;
+
+                      return Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: List.generate(10, (index) {
+                          final value = index < audio.equalizerBands.length ? audio.equalizerBands[index] : 0.0;
+
+                          return Expanded(
+                            child: Column(
+                              children: [
+                                Container(
+                                  height: sliderHeight,
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(20),
+                                    gradient: LinearGradient(
+                                      begin: Alignment.bottomCenter,
+                                      end: Alignment.topCenter,
+                                      colors: [
+                                        Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.08),
+                                        Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.25),
+                                      ],
                                     ),
-                                    overlayShape: const RoundSliderOverlayShape(overlayRadius: 16),
-                                    activeTrackColor: Theme.of(context).colorScheme.primary,
-                                    inactiveTrackColor: Theme.of(context).colorScheme.outline.withOpacity(0.5),
-                                    thumbColor: Theme.of(context).colorScheme.primary,
                                   ),
-                                  child: Container(
-                                    decoration: BoxDecoration(
-                                      color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.5),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                                    child: Slider(
-                                      value: index < audio.equalizerBands.length ? audio.equalizerBands[index] : 0.0,
-                                      min: -12,
-                                      max: 12,
-                                      divisions: 24,
-                                      onChanged: audio.equalizerEnabled
-                                          ? (value) => audio.setEqualizerBand(index, value)
-                                          : null,
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                                  child: RotatedBox(
+                                    quarterTurns: 3,
+                                    child: SliderTheme(
+                                      data: SliderTheme.of(context).copyWith(
+                                        trackHeight: trackWidth,
+                                        thumbShape: RoundSliderThumbShape(
+                                          enabledThumbRadius: isCompact ? 6 : 7,
+                                          pressedElevation: 4,
+                                        ),
+                                        overlayShape: const RoundSliderOverlayShape(overlayRadius: 16),
+                                        activeTrackColor: Theme.of(context).colorScheme.primary,
+                                        inactiveTrackColor: Theme.of(context).colorScheme.outline.withOpacity(0.4),
+                                        thumbColor: Theme.of(context).colorScheme.primary,
+                                      ),
+                                      child: Slider(
+                                        value: value,
+                                        min: -12,
+                                        max: 12,
+                                        divisions: 24,
+                                        label: '${value.toStringAsFixed(1)} dB',
+                                        onChanged: audio.equalizerEnabled
+                                            ? (bandValue) => audio.setEqualizerBand(index, bandValue)
+                                            : null,
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  freqLabels[index],
+                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ],
                             ),
-                            const SizedBox(height: 8),
-                            Text(
-                              freqLabels[index],
-                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: Theme.of(context).colorScheme.onSurfaceVariant,
-                              ),
-                            ),
-                          ],
-                        ),
+                          );
+                        }),
                       );
-                    }),
+                    },
                   ),
                   const SizedBox(height: 16),
                   Row(
@@ -202,6 +220,30 @@ class EqualizerWidget extends StatelessWidget {
     );
   }
 
+  Widget _buildVolumeControl(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Consumer<AudioProvider>(
+        builder: (context, audio, child) {
+          final percent = (audio.masterVolume * 100).clamp(0, 100).round();
+
+          return _buildMaterialSliderTile(
+            context,
+            icon: Icons.volume_up_rounded,
+            label: 'Master volume',
+            value: audio.masterVolume,
+            min: 0.0,
+            max: 1.0,
+            divisions: 20,
+            valueLabel: '$percent%',
+            onChanged: audio.setMasterVolume,
+            resetAction: percent == 100 ? null : () => audio.setMasterVolume(1.0),
+          );
+        },
+      ),
+    );
+  }
+
   Widget _buildPresets(BuildContext context) {
     return Consumer<AudioProvider>(
       builder: (context, audio, child) {
@@ -212,51 +254,105 @@ class EqualizerWidget extends StatelessWidget {
               return const SizedBox.shrink();
             }
             final presets = snapshot.data!;
+            final theme = Theme.of(context);
+            final colorScheme = theme.colorScheme;
+
             return Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.library_music,
-                        color: Theme.of(context).colorScheme.primary,
-                        size: 20,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Presets',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: Theme.of(context).colorScheme.onSurface,
-                        ),
+              child: Theme(
+                data: theme.copyWith(dividerColor: Colors.transparent),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: colorScheme.surfaceContainerHigh,
+                    borderRadius: BorderRadius.circular(24),
+                    boxShadow: [
+                      BoxShadow(
+                        color: colorScheme.shadow.withOpacity(0.04),
+                        blurRadius: 12,
+                        offset: const Offset(0, 6),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 16),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: presets.map((preset) {
-                      final cleanPreset = preset.replaceAll(RegExp(r'[^\x00-\x7F]'), '');
-                      return FilterChip(
-                        label: Text(cleanPreset),
-                        selected: false,
-                        onSelected: audio.equalizerEnabled ? (selected) async {
-                          try {
-                            await CustomEqualizer.setPreset(preset);
-                            audio.resetEqualizer();
-                          } catch (e) {
-                          }
-                        } : null,
-                        backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
-                        selectedColor: Theme.of(context).colorScheme.primaryContainer,
-                        checkmarkColor: Theme.of(context).colorScheme.onPrimaryContainer,
-                      );
-                    }).toList(),
+                  child: ExpansionTile(
+                    tilePadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                    collapsedIconColor: colorScheme.onSurfaceVariant,
+                    iconColor: colorScheme.primary,
+                    title: Row(
+                      children: [
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: colorScheme.primary.withOpacity(0.12),
+                          ),
+                          child: Icon(
+                            Icons.library_music,
+                            size: 22,
+                            color: colorScheme.primary,
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Presets',
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color: colorScheme.onSurface,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              if (audio.equalizerEnabled)
+                                Text(
+                                  '${presets.length} available',
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              if (!audio.equalizerEnabled)
+                                Text(
+                                  'Enable the equalizer to apply presets',
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: colorScheme.onSurfaceVariant.withOpacity(0.6),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    childrenPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                    children: [
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: presets.map((preset) {
+                          final cleanPreset = preset.replaceAll(RegExp(r'[^ -]'), '');
+                          return FilterChip(
+                            label: Text(cleanPreset),
+                            selected: false,
+                            onSelected: audio.equalizerEnabled
+                                ? (selected) async {
+                                    try {
+                                      await CustomEqualizer.setPreset(preset);
+                                      audio.resetEqualizer();
+                                    } catch (e) {
+                                      // ignore preset load failures silently
+                                    }
+                                  }
+                                : null,
+                            backgroundColor: colorScheme.surfaceContainerHighest,
+                            selectedColor: colorScheme.primaryContainer,
+                            checkmarkColor: colorScheme.onPrimaryContainer,
+                          );
+                        }).toList(),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
             );
           },
@@ -348,84 +444,138 @@ class EqualizerWidget extends StatelessWidget {
     required ValueChanged<double> onChanged,
     double min = 0.0,
     double max = 1.0,
+    int? divisions,
     String? valueLabel,
     VoidCallback? resetAction,
+    bool enabled = true,
   }) {
+    return _buildMaterialSliderTile(
+      context,
+      icon: icon,
+      label: label,
+      value: value,
+      min: min,
+      max: max,
+      divisions: divisions,
+      valueLabel: valueLabel,
+      onChanged: onChanged,
+      resetAction: resetAction,
+      enabled: enabled,
+    );
+  }
+
+  Widget _buildMaterialSliderTile(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+    required double value,
+    required ValueChanged<double> onChanged,
+    double min = 0.0,
+    double max = 1.0,
+    int? divisions,
+    String? valueLabel,
+    VoidCallback? resetAction,
+    bool enabled = true,
+  }) {
+    final theme = Theme.of(context);
+    final clampedValue = value.clamp(min, max).toDouble();
+    final showReset = resetAction != null;
+    final effectiveValueLabel = valueLabel ?? clampedValue.toStringAsFixed(2);
+
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(12),
+        color: theme.colorScheme.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: [
+          BoxShadow(
+            color: theme.colorScheme.shadow.withOpacity(0.04),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Row(
-                children: [
-                  Icon(
-                    icon,
-                    size: 18,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    label,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primary.withOpacity(enabled ? 0.15 : 0.06),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  icon,
+                  color: enabled
+                      ? theme.colorScheme.primary
+                      : theme.colorScheme.onSurfaceVariant,
+                ),
               ),
-              Row(
-                children: [
-                  if (resetAction != null)
-                    IconButton(
-                      icon: Icon(
-                        Icons.refresh,
-                        size: 24,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                      onPressed: resetAction,
-                      tooltip: 'Reset',
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                    ),
-                  Text(
-                    valueLabel ?? value.toStringAsFixed(2),
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.primary,
-                      fontWeight: FontWeight.w600,
-                    ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Text(
+                  label,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: enabled
+                        ? theme.colorScheme.onSurface
+                        : theme.colorScheme.onSurfaceVariant,
                   ),
-                ],
+                ),
               ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primaryContainer.withOpacity(enabled ? 1 : 0.4),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  effectiveValueLabel,
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: theme.colorScheme.onPrimaryContainer,
+                  ),
+                ),
+              ),
+              if (showReset)
+                IconButton(
+                  onPressed: enabled ? resetAction : null,
+                  icon: Icon(
+                    Icons.refresh,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                  tooltip: 'Reset',
+                ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           SliderTheme(
             data: SliderTheme.of(context).copyWith(
-              trackHeight: 4,
-              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
-              overlayShape: const RoundSliderOverlayShape(overlayRadius: 16),
-              activeTrackColor: Theme.of(context).colorScheme.primary,
-              inactiveTrackColor: Theme.of(context).colorScheme.outline.withOpacity(0.5),
-              thumbColor: Theme.of(context).colorScheme.primary,
+              trackHeight: 12,
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 12),
+              overlayShape: const RoundSliderOverlayShape(overlayRadius: 22),
+              activeTrackColor: theme.colorScheme.primary,
+              inactiveTrackColor: theme.colorScheme.surfaceVariant.withOpacity(0.5),
+              thumbColor: theme.colorScheme.primary,
+              overlayColor: theme.colorScheme.primary.withOpacity(0.12),
+              valueIndicatorColor: theme.colorScheme.primaryContainer,
+              valueIndicatorTextStyle: theme.textTheme.labelMedium?.copyWith(
+                color: theme.colorScheme.onPrimaryContainer,
+                fontWeight: FontWeight.w600,
+              ),
+              showValueIndicator: ShowValueIndicator.always,
             ),
-            child: Container(
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.5),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: Slider(
-                value: value,
-                min: min,
-                max: max,
-                onChanged: onChanged,
-              ),
+            child: Slider(
+              value: clampedValue,
+              min: min,
+              max: max,
+              divisions: divisions,
+              label: effectiveValueLabel,
+              onChanged: enabled ? onChanged : null,
             ),
           ),
         ],

@@ -9,6 +9,7 @@ import 'package:flutter_chrome_cast/flutter_chrome_cast.dart';
 
 import '../providers/audio_provider.dart';
 import '../services/local_media_server.dart';
+import '../utils/hero_transitions.dart';
 
 class MiniPlayer extends StatefulWidget {
   final VoidCallback onTap;
@@ -285,6 +286,8 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
                               children: [
                                 Hero(
                                   tag: 'album_art_${track.id}',
+                                  createRectTween: albumArtRectTween,
+                                  flightShuttleBuilder: albumArtFlightShuttleBuilder,
                                   child: ClipRRect(
                                     borderRadius: BorderRadius.circular(6),
                                     child: Container(
