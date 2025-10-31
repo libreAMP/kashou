@@ -11,16 +11,26 @@ Widget albumArtFlightShuttleBuilder(
   BuildContext fromHeroContext,
   BuildContext toHeroContext,
 ) {
-  final Widget targetWidget =
-      flightDirection == HeroFlightDirection.push ? toHeroContext.widget : fromHeroContext.widget;
+  final targetWidget = flightDirection == HeroFlightDirection.push
+      ? toHeroContext.widget
+      : fromHeroContext.widget;
 
-  final curvedAnimation = animation.drive(CurveTween(curve: Curves.easeInOut));
+  final curvedAnimation = CurvedAnimation(
+    parent: animation,
+    curve: Curves.fastEaseInToSlowEaseOut,
+    reverseCurve: Curves.easeInOut,
+  );
 
-  return FadeTransition(
-    opacity: curvedAnimation,
-    child: ScaleTransition(
-      scale: Tween<double>(begin: 0.95, end: 1.0).animate(curvedAnimation),
-      child: targetWidget,
-    ),
+  return AnimatedBuilder(
+    animation: curvedAnimation,
+    child: targetWidget,
+    builder: (context, child) {
+      final scale = 0.96 + (curvedAnimation.value * 0.04);
+      return Transform.scale(
+        scale: scale,
+        alignment: Alignment.center,
+        child: child,
+      );
+    },
   );
 }

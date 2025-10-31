@@ -5,6 +5,7 @@ import '../widgets/equalizer_widget.dart';
 import 'metadata_editor_screen.dart';
 import 'dart:ui';
 
+import '../models/track.dart';
 import '../providers/library_provider.dart';
 import '../utils/hero_transitions.dart';
 
@@ -14,6 +15,7 @@ class NowPlayingScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Theme.of(context).colorScheme.surface,
       body: Consumer2<AudioProvider, LibraryProvider>(
         builder: (context, audio, library, child) {
           final track = audio.currentTrack;
@@ -22,160 +24,118 @@ class NowPlayingScreen extends StatelessWidget {
             return const Center(child: Text('No track playing'));
           }
 
-          return CustomScrollView(
-            slivers: [
-              SliverAppBar(
-                expandedHeight: 400,
-                pinned: true,
-                backgroundColor: Colors.transparent,
-                flexibleSpace: FlexibleSpaceBar(
-                  background: Stack(
-                    fit: StackFit.expand,
+  Widget _buildAmbientBackground(BuildContext context, Track track) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    final placeholder = Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            colorScheme.primaryContainer,
+            colorScheme.surface,
+          ],
+        ),
+      ),
+    );
+
+    if (track.albumArt == null) {
+      return placeholder;
+    }
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Image.memory(
+          track.albumArt!,
+          fit: BoxFit.cover,
+          filterQuality: FilterQuality.low,
+          errorBuilder: (_, __, ___) => placeholder,
+        ),
+        BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 45, sigmaY: 45),
+          child: Container(
+            color: colorScheme.surface.withOpacity(0.12),
+          ),
+        ),
+      ],
+    );
+  }
+
+          final mediaQuery = MediaQuery.of(context);
+          final size = mediaQuery.size;
+          final theme = Theme.of(context);
+          final colorScheme = theme.colorScheme;
+          final bottomInset = mediaQuery.padding.bottom;
+
+          return Stack(
+            children: [
+              Positioned.fill(child: _buildAmbientBackground(context, track)),
+              Positioned.fill(
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        colorScheme.surface.withOpacity(0.85),
+                        colorScheme.surface,
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              Positioned.fill(
+                child: SafeArea(
+                  top: true,
+                  bottom: false,
+                  child: Column(
                     children: [
-                      if (track.albumArt != null)
-                        Hero(
-                          tag: 'album_art_${track.id}',
-                          createRectTween: albumArtRectTween,
-                          flightShuttleBuilder: albumArtFlightShuttleBuilder,
-                          child: Image.memory(
-                            track.albumArt!,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) {
-                              return Container(
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    begin: Alignment.topCenter,
-                                    end: Alignment.bottomCenter,
-                                    colors: [
-                                      Theme.of(context).colorScheme.primaryContainer,
-                                      Theme.of(context).colorScheme.surface,
-                                    ],
-                                  ),
-                                ),
-                                child: Icon(
-                                  Icons.music_note,
-                                  size: 120,
-                                  color: Theme.of(context).colorScheme.onPrimaryContainer.withOpacity(0.3),
-                                ),
-                              );
-                            },
-                          ),
-                        )
-                      else
-                        Hero(
-                          tag: 'album_art_${track.id}',
-                          createRectTween: albumArtRectTween,
-                          flightShuttleBuilder: albumArtFlightShuttleBuilder,
-                          child: Container(
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                                colors: [
-                                  Theme.of(context).colorScheme.primaryContainer,
-                                  Theme.of(context).colorScheme.surface,
-                                ],
-                              ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        child: _buildTopBar(context, track),
+                      ),
+                      Expanded(
+                        child: SingleChildScrollView(
+                          child: Padding(
+                            padding: EdgeInsets.fromLTRB(
+                              20,
+                              0,
+                              20,
+                              bottomInset + 212,
                             ),
-                            child: Icon(
-                              Icons.music_note,
-                              size: 120,
-                              color: Theme.of(context).colorScheme.onPrimaryContainer.withOpacity(0.3),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                _buildArtworkCard(context, track, size),
+                                const SizedBox(height: 28),
+                                _buildTrackMeta(context, track, audio),
+                                const SizedBox(height: 28),
+                                _buildAudioInfoCard(context, track),
+                                const SizedBox(height: 32),
+                              ],
                             ),
                           ),
                         ),
-                      Container(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [
-                              Colors.black.withOpacity(0.3),
-                              Theme.of(context).colorScheme.surface.withOpacity(0.9),
+                      ),
+                      SafeArea(
+                        top: false,
+                        minimum: const EdgeInsets.only(bottom: 12),
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 14, 20, 8),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _buildProgressStrip(context, audio),
+                              const SizedBox(height: 18),
+                              _buildPrimaryControls(context, audio),
+                              const SizedBox(height: 30),
+                              _buildSecondaryControlRow(context, audio, library),
                             ],
                           ),
                         ),
                       ),
-                    ],
-                  ),
-                ),
-                leading: Container(
-                  margin: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.3),
-                    shape: BoxShape.circle,
-                  ),
-                  child: BackButton(
-                    color: Colors.white,
-                  ),
-                ),
-                actions: [
-                  Container(
-                    margin: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.3),
-                      shape: BoxShape.circle,
-                    ),
-                    child: IconButton(
-                      icon: const Icon(Icons.equalizer, color: Colors.white),
-                      onPressed: () {
-                        _showEqualizerSheet(context);
-                      },
-                    ),
-                  ),
-                  Container(
-                    margin: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.3),
-                      shape: BoxShape.circle,
-                    ),
-                    child: IconButton(
-                      icon: const Icon(Icons.more_vert, color: Colors.white),
-                      onPressed: () {
-                        _showMoreOptions(context);
-                      },
-                    ),
-                  ),
-                ],
-              ),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.all(24.0),
-                  child: Column(
-                    children: [
-                      Text(
-                        track.title,
-                        style: Theme.of(context).textTheme.headlineMedium
-                            ?.copyWith(fontWeight: FontWeight.bold),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        track.artist,
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.onSurfaceVariant,
-                            ),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        track.album,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 32),
-                      _buildProgressBar(context, audio),
-                      const SizedBox(height: 32),
-                      _buildControls(context, audio),
-                      const SizedBox(height: 24),
-                      _buildSecondaryControls(context, audio, library),
-                      const SizedBox(height: 32),
-                      _buildAudioInfo(context, track),
                     ],
                   ),
                 ),
@@ -187,183 +147,556 @@ class NowPlayingScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildProgressBar(BuildContext context, AudioProvider audio) {
-    final position = audio.position;
-    final duration = audio.duration;
+  Widget _buildTopBar(BuildContext context, Track track) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Row(
+      children: [
+        _buildSurfaceIconButton(
+          context,
+          icon: Icons.keyboard_arrow_down_rounded,
+          tooltip: 'Collapse player',
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        Expanded(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Now Playing',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                track.album,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+        _buildSurfaceIconButton(
+          context,
+          icon: Icons.equalizer,
+          tooltip: 'Equalizer',
+          onPressed: () => _showEqualizerSheet(context),
+        ),
+        const SizedBox(width: 8),
+        _buildSurfaceIconButton(
+          context,
+          icon: Icons.more_vert,
+          tooltip: 'More options',
+          onPressed: () => _showMoreOptions(context),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildArtworkCard(BuildContext context, Track track, Size size) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final dimension = size.width * 0.78;
+    final borderRadius = BorderRadius.circular(36);
+
+    Widget buildFallback() {
+      return Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              colorScheme.primaryContainer,
+              colorScheme.surface,
+            ],
+          ),
+        ),
+        child: Icon(
+          Icons.music_note,
+          size: 120,
+          color: colorScheme.onPrimaryContainer.withOpacity(0.35),
+        ),
+      );
+    }
+
+    final Widget image = track.albumArt != null
+        ? Image.memory(
+            track.albumArt!,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => buildFallback(),
+          )
+        : buildFallback();
+
+    return Hero(
+      tag: 'album_art_${track.id}',
+      createRectTween: albumArtRectTween,
+      flightShuttleBuilder: albumArtFlightShuttleBuilder,
+      child: Container(
+        width: dimension,
+        height: dimension,
+        decoration: BoxDecoration(
+          borderRadius: borderRadius,
+          boxShadow: [
+            BoxShadow(
+              color: colorScheme.shadow.withOpacity(0.18),
+              blurRadius: 28,
+              offset: const Offset(0, 20),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: borderRadius,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              image,
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                height: dimension * 0.35,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.bottomCenter,
+                      end: Alignment.topCenter,
+                      colors: [
+                        Colors.black.withOpacity(0.35),
+                        Colors.transparent,
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAmbientBackground(BuildContext context, Track track) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    final placeholder = Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            colorScheme.primaryContainer,
+            colorScheme.surface,
+          ],
+        ),
+      ),
+    );
+
+    if (track.albumArt == null) {
+      return placeholder;
+    }
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Image.memory(
+          track.albumArt!,
+          fit: BoxFit.cover,
+          filterQuality: FilterQuality.low,
+          errorBuilder: (_, __, ___) => placeholder,
+        ),
+        BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 45, sigmaY: 45),
+          child: Container(
+            color: colorScheme.surface.withOpacity(0.12),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTrackMeta(BuildContext context, Track track, AudioProvider audio) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
 
     return Column(
       children: [
+        Text(
+          track.title,
+          textAlign: TextAlign.center,
+          style: theme.textTheme.headlineSmall?.copyWith(
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.2,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          track.artist,
+          textAlign: TextAlign.center,
+          style: theme.textTheme.titleMedium?.copyWith(
+            color: colorScheme.onSurfaceVariant,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        const SizedBox(height: 10),
+        Wrap(
+          alignment: WrapAlignment.center,
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            _buildMetaAssistChip(context, icon: Icons.album_rounded, label: track.album),
+            if (track.genre != null && track.genre!.isNotEmpty)
+              _buildMetaAssistChip(context, icon: Icons.style_outlined, label: track.genre!),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMetaAssistChip(BuildContext context, {required IconData icon, required String label}) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: colorScheme.primary),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+              color: colorScheme.onSurface,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProgressStrip(BuildContext context, AudioProvider audio) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final position = audio.position.inMilliseconds.toDouble();
+    final duration = audio.duration.inMilliseconds.toDouble().clamp(1.0, double.infinity);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              _formatDuration(audio.position),
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+            Text(
+              _formatDuration(audio.duration),
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
         SliderTheme(
           data: SliderTheme.of(context).copyWith(
-            trackHeight: 4,
-            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+            trackHeight: 5,
+            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 9),
+            overlayShape: const RoundSliderOverlayShape(overlayRadius: 16),
+            activeTrackColor: colorScheme.primary,
+            inactiveTrackColor: colorScheme.surfaceVariant.withOpacity(0.4),
+            thumbColor: colorScheme.primary,
+            overlayColor: colorScheme.primary.withOpacity(0.16),
           ),
           child: Slider(
-            value: position.inMilliseconds.toDouble(),
-            max: duration.inMilliseconds.toDouble().clamp(1.0, double.infinity),
+            value: position.clamp(0, duration),
+            max: duration,
             onChanged: (value) {
               audio.seek(Duration(milliseconds: value.toInt()));
             },
           ),
         ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                _formatDuration(position),
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-              Text(
-                _formatDuration(duration),
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ],
-          ),
-        ),
       ],
     );
   }
 
-  Widget _buildControls(BuildContext context, AudioProvider audio) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: [
-        IconButton(
-          icon: const Icon(Icons.skip_previous),
-          iconSize: 48,
-          onPressed: audio.skipPrevious,
-        ),
-        Container(
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.primaryContainer,
-            shape: BoxShape.circle,
+  Widget _buildPrimaryControls(BuildContext context, AudioProvider audio) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHigh.withOpacity(0.92),
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: colorScheme.shadow.withOpacity(0.05),
+            blurRadius: 16,
+            offset: const Offset(0, 10),
           ),
-          child: IconButton(
-            icon: Icon(audio.isPlaying ? Icons.pause : Icons.play_arrow),
-            iconSize: 56,
-            color: Theme.of(context).colorScheme.onPrimaryContainer,
-            onPressed: audio.togglePlayPause,
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          _buildCircleIconButton(
+            context,
+            icon: Icons.skip_previous_rounded,
+            onTap: audio.skipPrevious,
           ),
-        ),
-        IconButton(
-          icon: const Icon(Icons.skip_next),
-          iconSize: 48,
-          onPressed: audio.skipNext,
-        ),
-      ],
+          _buildPlayButton(context, audio),
+          _buildCircleIconButton(
+            context,
+            icon: Icons.skip_next_rounded,
+            onTap: audio.skipNext,
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _buildSecondaryControls(BuildContext context, AudioProvider audio, LibraryProvider library) {
+  Widget _buildCircleIconButton(BuildContext context, {required IconData icon, required VoidCallback onTap}) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Material(
+      color: colorScheme.surfaceContainerHigh.withOpacity(0.8),
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(9),
+          child: Icon(
+            icon,
+            size: 24,
+            color: colorScheme.onSurface,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPlayButton(BuildContext context, AudioProvider audio) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isPlaying = audio.isPlaying;
+
+    final targetSize = 64.0;
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutQuad,
+      width: targetSize,
+      height: targetSize,
+      decoration: BoxDecoration(
+        color: colorScheme.primary,
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: colorScheme.primary.withOpacity(isPlaying ? 0.28 : 0.2),
+            blurRadius: isPlaying ? 22 : 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        shape: const CircleBorder(),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: audio.togglePlayPause,
+          child: Center(
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 180),
+              transitionBuilder: (child, animation) => FadeTransition(
+                opacity: animation,
+                child: ScaleTransition(scale: animation, child: child),
+              ),
+              child: Icon(
+                isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                key: ValueKey<bool>(isPlaying),
+                size: 30,
+                color: colorScheme.onPrimary,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSecondaryControlRow(BuildContext context, AudioProvider audio, LibraryProvider library) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isShuffle = audio.shuffleMode != ShuffleMode.off;
+    final isRepeatActive = audio.repeatMode != RepeatMode.off;
+    final isFavorite = library.isTrackFavorite(audio.currentTrack?.id ?? '');
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
-        IconButton(
-          icon: Icon(
-            _getShuffleIcon(audio.shuffleMode),
-            color: audio.shuffleMode != ShuffleMode.off
-                ? Theme.of(context).colorScheme.primary
-                : null,
-          ),
-          onPressed: () {
-            final newMode = audio.shuffleMode == ShuffleMode.off
-                ? ShuffleMode.songs
-                : ShuffleMode.off;
+        _buildSecondaryIconButton(
+          context,
+          icon: _getShuffleIcon(audio.shuffleMode),
+          tooltip: 'Shuffle',
+          active: isShuffle,
+          onTap: () {
+            final newMode = audio.shuffleMode == ShuffleMode.off ? ShuffleMode.songs : ShuffleMode.off;
             audio.setShuffleMode(newMode);
           },
         ),
-        IconButton(
-          icon: Icon(
-            _getRepeatIcon(audio.repeatMode),
-            color: audio.repeatMode != RepeatMode.off
-                ? Theme.of(context).colorScheme.primary
-                : null,
-          ),
-          onPressed: () {
+        _buildSecondaryIconButton(
+          context,
+          icon: _getRepeatIcon(audio.repeatMode),
+          tooltip: _repeatLabel(audio.repeatMode),
+          active: isRepeatActive,
+          onTap: () {
             final modes = RepeatMode.values;
             final currentIndex = modes.indexOf(audio.repeatMode);
             final nextIndex = (currentIndex + 1) % modes.length;
             audio.setRepeatMode(modes[nextIndex]);
           },
         ),
-        IconButton(
-          icon: const Icon(Icons.queue_music),
-          onPressed: () {
-            _showQueueSheet(context);
+        _buildSecondaryIconButton(
+          context,
+          icon: isFavorite ? Icons.favorite : Icons.favorite_border,
+          tooltip: isFavorite ? 'Remove from likes' : 'Add to likes',
+          active: isFavorite,
+          onTap: () {
+            if (audio.currentTrack != null) {
+              library.toggleFavorite(audio.currentTrack!);
+            }
           },
         ),
-        IconButton(
-          icon: Icon(
-            library.isTrackFavorite(audio.currentTrack?.id ?? '')
-                ? Icons.favorite
-                : Icons.favorite_border,
-            color: library.isTrackFavorite(audio.currentTrack?.id ?? '')
-                ? Theme.of(context).colorScheme.primary
-                : null,
-          ),
-          onPressed: audio.currentTrack == null
-              ? null
-              : () {
-                  library.toggleFavorite(audio.currentTrack!);
-                },
+        _buildSecondaryIconButton(
+          context,
+          icon: Icons.queue_music_rounded,
+          tooltip: 'View queue',
+          active: false,
+          onTap: () => _showQueueSheet(context),
         ),
       ],
     );
   }
 
-  Widget _buildAudioInfo(BuildContext context, track) {
-    return Card(
+  Widget _buildAudioInfoCard(BuildContext context, Track track) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    final infoRows = <MapEntry<String, String>>[
+      MapEntry('Format', track.codec ?? 'Unknown'),
+      MapEntry('Bitrate', track.bitrate != null ? '${track.bitrate} kbps' : 'Unknown'),
+      MapEntry('Sample Rate', track.sampleRate != null ? '${track.sampleRate} Hz' : 'Unknown'),
+      MapEntry('Duration', _formatDuration(track.duration)),
+    ];
+
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(32),
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Audio Info',
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+              'Audio details',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
             ),
-            const SizedBox(height: 12),
-            _buildInfoRow(context, 'Format', track.codec ?? 'Unknown'),
-            _buildInfoRow(
-              context,
-              'Bitrate',
-              track.bitrate != null ? '${track.bitrate} kbps' : 'Unknown',
-            ),
-            _buildInfoRow(
-              context,
-              'Sample Rate',
-              track.sampleRate != null ? '${track.sampleRate} Hz' : 'Unknown',
-            ),
-            _buildInfoRow(context, 'Duration', _formatDuration(track.duration)),
+            const SizedBox(height: 16),
+            ...infoRows.map((entry) => Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        entry.key,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      Text(
+                        entry.value,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                )),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildInfoRow(BuildContext context, String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            label,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
+  Widget _buildSurfaceIconButton(
+    BuildContext context, {
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback onPressed,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        shape: const CircleBorder(),
+        color: colorScheme.surfaceContainerHigh,
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onPressed,
+          child: Padding(
+            padding: const EdgeInsets.all(10),
+            child: Icon(
+              icon,
+              size: 22,
+              color: colorScheme.onSurface,
             ),
           ),
-          Text(
-            value,
-            style: Theme.of(
-              context,
-            ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSecondaryIconButton(
+    BuildContext context, {
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback onTap,
+    bool active = false,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    final backgroundColor = active
+        ? colorScheme.primary.withOpacity(0.15)
+        : colorScheme.surfaceContainerHigh;
+    final iconColor = active ? colorScheme.primary : colorScheme.onSurfaceVariant;
+
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: backgroundColor,
+        shape: const CircleBorder(),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Icon(icon, color: iconColor, size: 22),
           ),
-        ],
+        ),
       ),
     );
   }
@@ -378,6 +711,17 @@ class NowPlayingScreen extends StatelessWidget {
       return '$hours:${twoDigits(minutes)}:${twoDigits(seconds)}';
     }
     return '$minutes:${twoDigits(seconds)}';
+  }
+
+  String _repeatLabel(RepeatMode mode) {
+    switch (mode) {
+      case RepeatMode.off:
+        return 'Repeat off';
+      case RepeatMode.all:
+        return 'Repeat all';
+      case RepeatMode.one:
+        return 'Repeat one';
+    }
   }
 
   IconData _getShuffleIcon(ShuffleMode mode) {

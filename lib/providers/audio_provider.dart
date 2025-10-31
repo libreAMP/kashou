@@ -28,6 +28,7 @@ class AudioProvider extends ChangeNotifier {
 
   bool _isPlaying = false;
   Duration _position = Duration.zero;
+  Duration _bufferedPosition = Duration.zero;
   Duration _duration = Duration.zero;
 
   RepeatMode _repeatMode = RepeatMode.off;
@@ -51,6 +52,7 @@ class AudioProvider extends ChangeNotifier {
   bool get isPlaying => _isPlaying;
   Duration get position => _position;
   Duration get duration => _duration;
+  Duration get bufferedPosition => _bufferedPosition;
   RepeatMode get repeatMode => _repeatMode;
   ShuffleMode get shuffleMode => _shuffleMode;
   List<double> get equalizerBands => _equalizerBands;
@@ -96,6 +98,11 @@ class AudioProvider extends ChangeNotifier {
   void _initializePlayer() {
     audioPlayer.positionStream.listen((position) {
       _position = position;
+      notifyListeners();
+    });
+
+    audioPlayer.bufferedPositionStream.listen((buffered) {
+      _bufferedPosition = buffered;
       notifyListeners();
     });
 
@@ -283,11 +290,29 @@ class AudioProvider extends ChangeNotifier {
 
   void setRepeatMode(RepeatMode mode) {
     _repeatMode = mode;
+    try {
+      final loopMode = switch (mode) {
+        RepeatMode.off => LoopMode.off,
+        RepeatMode.all => LoopMode.all,
+        RepeatMode.one => LoopMode.one,
+      };
+      audioPlayer.setLoopMode(loopMode);
+    } catch (e) {
+      debugPrint('Failed to set repeat mode: $e');
+    }
     notifyListeners();
   }
 
   void setShuffleMode(ShuffleMode mode) {
     _shuffleMode = mode;
+    try {
+      audioPlayer.setShuffleModeEnabled(mode != ShuffleMode.off);
+      if (mode != ShuffleMode.off) {
+        audioPlayer.shuffle();
+      }
+    } catch (e) {
+      debugPrint('Failed to set shuffle mode: $e');
+    }
     if (mode == ShuffleMode.songs && _queue.isNotEmpty) {
       final currentTrack = _queue[_currentIndex];
       _queue.shuffle();
