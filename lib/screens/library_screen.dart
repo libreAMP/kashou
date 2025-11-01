@@ -88,77 +88,111 @@ class _LibraryScreenState extends State<LibraryScreen>
 
                   return Container(
                     padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: Theme.of(context).colorScheme.primaryContainer,
-                                shape: BoxShape.circle,
-                              ),
-                              child: Icon(
-                                Icons.bar_chart,
-                                color: Theme.of(context).colorScheme.onPrimaryContainer,
-                              ),
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final isWide = constraints.maxWidth > 640;
+                        return Align(
+                          alignment: isWide ? Alignment.topCenter : Alignment.topLeft,
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(
+                              maxWidth: isWide ? 640 : double.infinity,
                             ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    '$songCount songs • $albumCount albums • $artistCount artists',
-                                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color: Theme.of(context).colorScheme.primaryContainer,
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: Icon(
+                                        Icons.bar_chart,
+                                        color: Theme.of(context).colorScheme.onPrimaryContainer,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 16),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            '$songCount songs • $albumCount albums • $artistCount artists',
+                                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                            ),
+                                          ),
+                                          Text(
+                                            '$playlistCount playlists',
+                                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 16),
+                                Material(
+                                  color: Colors.transparent,
+                                  borderRadius: BorderRadius.circular(24),
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        colors: [
+                                          Theme.of(context).colorScheme.primary.withValues(alpha: 0.15),
+                                          Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
+                                        ],
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                      ),
+                                      borderRadius: BorderRadius.circular(24),
+                                      border: Border.all(
+                                        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
+                                        width: 1,
+                                      ),
+                                    ),
+                                    child: SearchBar(
+                                      controller: _searchController,
+                                      leading: const Padding(
+                                        padding: EdgeInsets.only(left: 8),
+                                        child: Icon(Icons.search),
+                                      ),
+                                      trailing: _searchController.text.isNotEmpty
+                                          ? [
+                                              IconButton(
+                                                icon: const Icon(Icons.clear),
+                                                onPressed: () {
+                                                  _searchController.clear();
+                                                  setState(() {});
+                                                },
+                                              ),
+                                            ]
+                                          : null,
+                                      hintText: 'Search music...',
+                                      elevation: const WidgetStatePropertyAll(0),
+                                      shape: WidgetStatePropertyAll(
+                                        RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(24),
+                                        ),
+                                      ),
+                                      padding: const WidgetStatePropertyAll(
+                                        EdgeInsets.symmetric(horizontal: 16),
+                                      ),
+                                      onChanged: (value) {
+                                        setState(() {});
+                                      },
                                     ),
                                   ),
-                                  Text(
-                                    '$playlistCount playlists',
-                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        SearchBar(
-                          controller: _searchController,
-                          leading: const Padding(
-                            padding: EdgeInsets.only(left: 8),
-                            child: Icon(Icons.search),
-                          ),
-                          trailing: _searchController.text.isNotEmpty
-                              ? [
-                                  IconButton(
-                                    icon: const Icon(Icons.clear),
-                                    onPressed: () {
-                                      _searchController.clear();
-                                      setState(() {});
-                                    },
-                                  ),
-                                ]
-                              : null,
-                          hintText: 'Search music...',
-                          elevation: const WidgetStatePropertyAll(1),
-                          shape: WidgetStatePropertyAll(
-                            RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(24),
+                                ),
+                              ],
                             ),
                           ),
-                          padding: const WidgetStatePropertyAll(
-                            EdgeInsets.symmetric(horizontal: 16),
-                          ),
-                          onChanged: (value) {
-                            setState(() {});
-                          },
-                        ),
-                      ],
+                        );
+                      },
                     ),
                   );
                 },
@@ -184,14 +218,30 @@ class _LibraryScreenState extends State<LibraryScreen>
               );
             }
 
-            return TabBarView(
-              controller: _tabController,
-              children: [
-                _buildSongsTab(library),
-                _buildAlbumsTab(library),
-                _buildArtistsTab(library),
-                _buildPlaylistsTab(library),
-              ],
+            return LayoutBuilder(
+              builder: (context, constraints) {
+                final isWide = constraints.maxWidth > 640;
+                return Padding(
+                  padding: const EdgeInsets.fromLTRB(0, 0, 0, 20),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxWidth: isWide ? 640 : double.infinity,
+                    ),
+                    child: Align(
+                      alignment: isWide ? Alignment.topCenter : Alignment.topLeft,
+                      child: TabBarView(
+                        controller: _tabController,
+                        children: [
+                          _buildSongsTab(library),
+                          _buildAlbumsTab(library),
+                          _buildArtistsTab(library),
+                          _buildPlaylistsTab(library),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
             );
           },
         ),

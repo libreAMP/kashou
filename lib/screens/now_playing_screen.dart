@@ -362,7 +362,6 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                 const SizedBox(height: 28),
                                 _buildTrackMeta(context, track, audio),
                                 const SizedBox(height: 28),
-                                _buildAudioInfoCard(context, track), // Audio details at bottom
                               ],
                             ),
                           ),
@@ -896,61 +895,6 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     );
   }
 
-  Widget _buildAudioInfoCard(BuildContext context, Track track) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
-    final infoRows = <MapEntry<String, String>>[
-      MapEntry('Format', track.codec ?? 'Unknown'),
-      MapEntry('Bitrate', track.bitrate != null ? '${track.bitrate} kbps' : 'Unknown'),
-      MapEntry('Sample Rate', track.sampleRate != null ? '${track.sampleRate} Hz' : 'Unknown'),
-      MapEntry('Duration', _formatDuration(track.duration)),
-    ];
-
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(32),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Audio details',
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 16),
-            ...infoRows.map((entry) => Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        entry.key,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                      Text(
-                        entry.value,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                )),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildSurfaceIconButton(
     BuildContext context, {
     required IconData icon,
@@ -1186,10 +1130,197 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                 title: const Text('Track Info'),
                 onTap: () {
                   Navigator.pop(context);
+                  _showTrackInfo(context, track!);
                 },
               ),
             ],
           ),
+        );
+      },
+    );
+  }
+
+  void _showTrackInfo(BuildContext context, Track track) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.6,
+          minChildSize: 0.4,
+          maxChildSize: 0.8,
+          expand: false,
+          builder: (context, scrollController) {
+            final infoRows = <MapEntry<String, String>>[
+              MapEntry('Title', track.title),
+              MapEntry('Artist', track.artist),
+              MapEntry('Album', track.album),
+              MapEntry('Format', track.codec ?? 'Unknown'),
+              MapEntry('Bitrate', track.bitrate != null ? '${track.bitrate} kbps' : 'Unknown'),
+              MapEntry('Sample Rate', track.sampleRate != null ? '${track.sampleRate} Hz' : 'Unknown'),
+              MapEntry('Duration', _formatDuration(track.duration)),
+              MapEntry('Path', track.path),
+            ];
+
+            return Container(
+              decoration: BoxDecoration(
+                color: colorScheme.surface,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: Column(
+                children: [
+                  // Handle bar
+                  Container(
+                    margin: const EdgeInsets.only(top: 8),
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: colorScheme.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  // Header
+                  Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      children: [
+                        Text(
+                          'Track Information',
+                          style: theme.textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: colorScheme.onSurface,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        // Track info summary
+                        Row(
+                          children: [
+                            // Album art
+                            Container(
+                              width: 60,
+                              height: 60,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(8),
+                                image: track.albumArt != null
+                                    ? DecorationImage(
+                                        image: MemoryImage(track.albumArt!),
+                                        fit: BoxFit.cover,
+                                      )
+                                    : null,
+                                color: track.albumArt == null
+                                    ? colorScheme.primaryContainer
+                                    : null,
+                              ),
+                              child: track.albumArt == null
+                                  ? Icon(
+                                      Icons.music_note,
+                                      color: colorScheme.onPrimaryContainer,
+                                      size: 24,
+                                    )
+                                  : null,
+                            ),
+                            const SizedBox(width: 16),
+                            // Track details
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    track.title,
+                                    style: theme.textTheme.titleMedium?.copyWith(
+                                      fontWeight: FontWeight.w600,
+                                      color: colorScheme.onSurface,
+                                    ),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    track.artist,
+                                    style: theme.textTheme.bodyMedium?.copyWith(
+                                      color: colorScheme.onSurfaceVariant,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    track.album,
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: colorScheme.onSurfaceVariant,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Details list
+                  Expanded(
+                    child: ListView(
+                      controller: scrollController,
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      children: [
+                        ...infoRows.map((entry) => Container(
+                              margin: const EdgeInsets.only(bottom: 16),
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [
+                                    colorScheme.surfaceContainerHighest.withValues(alpha: 0.8),
+                                    colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+                                  ],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: colorScheme.outline.withValues(alpha: 0.1),
+                                  width: 1,
+                                ),
+                              ),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  SizedBox(
+                                    width: 100,
+                                    child: Text(
+                                      '${entry.key}:',
+                                      style: theme.textTheme.bodyMedium?.copyWith(
+                                        color: colorScheme.onSurfaceVariant,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Text(
+                                      entry.value,
+                                      style: theme.textTheme.bodyMedium?.copyWith(
+                                        color: colorScheme.onSurface,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )),
+                        const SizedBox(height: 24),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
         );
       },
     );

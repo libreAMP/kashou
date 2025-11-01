@@ -15,107 +15,203 @@ class TrackListItem extends StatelessWidget {
       builder: (context, audio, child) {
         final isPlaying = audio.currentTrack?.id == track.id && audio.isPlaying;
         final isCurrent = audio.currentTrack?.id == track.id;
+        final colorScheme = Theme.of(context).colorScheme;
 
-        return ListTile(
-          leading: ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: Container(
-              width: 48,
-              height: 48,
-              color: Theme.of(context).colorScheme.surfaceContainerHighest,
-              child: track.albumArt != null
-                  ? Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        Image.memory(
-                          track.albumArt!,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return Icon(
-                              Icons.music_note,
-                              color: Theme.of(context).colorScheme.onSurfaceVariant,
-                            );
-                          },
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 4),
+          child: Material(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(16),
+            child: InkWell(
+              onTap: () {
+                final library = Provider.of<LibraryProvider>(
+                  context,
+                  listen: false,
+                );
+                audio.playTrack(track, playlist: library.allTracks);
+              },
+              borderRadius: BorderRadius.circular(16),
+              splashColor: colorScheme.primary.withValues(alpha: 0.05),
+              highlightColor: colorScheme.primary.withValues(alpha: 0.03),
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      isCurrent
+                          ? colorScheme.primary.withValues(alpha: 0.08)
+                          : colorScheme.surface.withValues(alpha: 0.8),
+                      isCurrent
+                          ? colorScheme.primary.withValues(alpha: 0.04)
+                          : colorScheme.surface.withValues(alpha: 0.4),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: isCurrent
+                        ? colorScheme.primary.withValues(alpha: 0.3)
+                        : colorScheme.outline.withValues(alpha: 0.1),
+                    width: 1,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: (isCurrent ? colorScheme.primary : colorScheme.shadow)
+                          .withValues(alpha: 0.05),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                      spreadRadius: 0,
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    // Album art with enhanced styling
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: Container(
+                        width: 50,
+                        height: 50,
+                        decoration: BoxDecoration(
+                          color: colorScheme.surfaceContainerHighest,
+                          boxShadow: [
+                            BoxShadow(
+                              color: colorScheme.shadow.withValues(alpha: 0.1),
+                              blurRadius: 6,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
                         ),
-                        if (isPlaying)
-                          Container(
-                            color: Colors.black54,
-                            child: Icon(
-                              Icons.graphic_eq,
-                              color: Colors.white,
+                        child: track.albumArt != null
+                            ? Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  Image.memory(
+                                    track.albumArt!,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (context, error, stackTrace) {
+                                      return Icon(
+                                        Icons.music_note,
+                                        color: colorScheme.onSurfaceVariant,
+                                        size: 24,
+                                      );
+                                    },
+                                  ),
+                                  if (isPlaying)
+                                    Container(
+                                      color: Colors.black.withValues(alpha: 0.4),
+                                      child: Icon(
+                                        Icons.graphic_eq,
+                                        color: Colors.white,
+                                        size: 20,
+                                      ),
+                                    ),
+                                ],
+                              )
+                            : Icon(
+                                isPlaying ? Icons.graphic_eq : Icons.music_note,
+                                color: isCurrent
+                                    ? colorScheme.onPrimaryContainer
+                                    : colorScheme.onSurfaceVariant,
+                                size: 24,
+                              ),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    // Track info
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            track.title,
+                            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                              color: isCurrent ? colorScheme.primary : colorScheme.onSurface,
+                              fontWeight: isCurrent ? FontWeight.w600 : FontWeight.w500,
+                              height: 1.2,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${track.artist} • ${track.album}',
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                              fontSize: 12,
+                              height: 1.3,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                    // Menu button with enhanced styling
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                        shape: BoxShape.circle,
+                      ),
+                      child: PopupMenuButton(
+                        icon: Icon(
+                          Icons.more_vert,
+                          size: 18,
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                        padding: EdgeInsets.zero,
+                        itemBuilder: (context) => [
+                          const PopupMenuItem(
+                            value: 'play_next',
+                            child: ListTile(
+                              leading: Icon(Icons.queue_play_next, size: 20),
+                              title: Text('Play Next', style: TextStyle(fontSize: 14)),
+                              contentPadding: EdgeInsets.zero,
+                              dense: true,
                             ),
                           ),
-                      ],
-                    )
-                  : Icon(
-                      isPlaying ? Icons.graphic_eq : Icons.music_note,
-                      color: isCurrent
-                          ? Theme.of(context).colorScheme.onPrimaryContainer
-                          : Theme.of(context).colorScheme.onSurfaceVariant,
+                          const PopupMenuItem(
+                            value: 'add_to_queue',
+                            child: ListTile(
+                              leading: Icon(Icons.playlist_add, size: 20),
+                              title: Text('Add to Queue', style: TextStyle(fontSize: 14)),
+                              contentPadding: EdgeInsets.zero,
+                              dense: true,
+                            ),
+                          ),
+                          const PopupMenuItem(
+                            value: 'add_to_playlist',
+                            child: ListTile(
+                              leading: Icon(Icons.playlist_add, size: 20),
+                              title: Text('Add to Playlist', style: TextStyle(fontSize: 14)),
+                              contentPadding: EdgeInsets.zero,
+                              dense: true,
+                            ),
+                          ),
+                          const PopupMenuItem(
+                            value: 'info',
+                            child: ListTile(
+                              leading: Icon(Icons.info_outline, size: 20),
+                              title: Text('Track Info', style: TextStyle(fontSize: 14)),
+                              contentPadding: EdgeInsets.zero,
+                              dense: true,
+                            ),
+                          ),
+                        ],
+                        onSelected: (value) {
+                          _handleMenuAction(context, value.toString());
+                        },
+                      ),
                     ),
+                  ],
+                ),
+              ),
             ),
           ),
-          title: Text(
-            track.title,
-            style: TextStyle(
-              color: isCurrent ? Theme.of(context).colorScheme.primary : null,
-              fontWeight: isCurrent ? FontWeight.w600 : null,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          subtitle: Text(
-            '${track.artist} • ${track.album}',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          trailing: PopupMenuButton(
-            icon: const Icon(Icons.more_vert),
-            itemBuilder: (context) => [
-              const PopupMenuItem(
-                value: 'play_next',
-                child: ListTile(
-                  leading: Icon(Icons.queue_play_next),
-                  title: Text('Play Next'),
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'add_to_queue',
-                child: ListTile(
-                  leading: Icon(Icons.playlist_add),
-                  title: Text('Add to Queue'),
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'add_to_playlist',
-                child: ListTile(
-                  leading: Icon(Icons.playlist_add),
-                  title: Text('Add to Playlist'),
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'info',
-                child: ListTile(
-                  leading: Icon(Icons.info_outline),
-                  title: Text('Track Info'),
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ),
-            ],
-            onSelected: (value) {
-              _handleMenuAction(context, value.toString());
-            },
-          ),
-          onTap: () {
-            final library = Provider.of<LibraryProvider>(
-              context,
-              listen: false,
-            );
-            audio.playTrack(track, playlist: library.allTracks);
-          },
         );
       },
     );
