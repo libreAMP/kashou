@@ -41,15 +41,12 @@ class AudioProvider extends ChangeNotifier {
   RepeatMode _repeatMode = RepeatMode.off;
   ShuffleMode _shuffleMode = ShuffleMode.off;
 
-  // Recently played tracks
   static const int _maxRecentTracks = 20;
   List<String> _recentTrackIds = [];
 
-  // Equalizer
   List<double> _equalizerBands = [];
   bool _equalizerEnabled = false;
 
-  // Audio effects
   double _bassBoost = 0.0;
   double _trebleBoost = 0.0;
   double _reverbLevel = 0.0;
@@ -60,7 +57,6 @@ class AudioProvider extends ChangeNotifier {
 
   bool _isHlsStream(String path) => path.contains('.m3u8') || path.contains('playlist.m3u8');
 
-  // Getters
   Track? get currentTrack => _currentTrack ?? _pendingTrack;
   List<Track> get queue => _queue;
   int get currentIndex => _currentIndex;
@@ -160,11 +156,8 @@ class AudioProvider extends ChangeNotifier {
   }
 
   void _addToRecentTracks(String trackId) {
-    // Remove if already exists to move to front
     _recentTrackIds.remove(trackId);
-    // Add to beginning
     _recentTrackIds.insert(0, trackId);
-    // Limit size
     if (_recentTrackIds.length > _maxRecentTracks) {
       _recentTrackIds = _recentTrackIds.sublist(0, _maxRecentTracks);
     }
@@ -195,19 +188,16 @@ class AudioProvider extends ChangeNotifier {
     
     await audio_svc.AudioPlayerService.initialize();
     
-    // Get the audio handler
     final handler = audio_svc.AudioPlayerService.audioHandler;
     if (handler is audio_svc.AudioPlayerHandler) {
       _audioHandler = handler;
       _audioPlayer = handler.player;
       
-      // Set up skip callbacks
       handler.onSkipNext = skipNext;
       handler.onSkipPrevious = skipPrevious;
       
       _initializePlayer();
     } else {
-      // Fallback to regular player
       _audioPlayer = AudioPlayer();
       _initializePlayer();
     }
@@ -330,7 +320,7 @@ class AudioProvider extends ChangeNotifier {
       _isLoadingTrack = false;
       _lastCommittedTrack = track;
       _clearPendingSnapshot();
-      _addToRecentTracks(track.id);  // Add to recently played
+      _addToRecentTracks(track.id);
       final queueIndex = _queue.indexWhere((t) => t.id == track.id);
       if (queueIndex != -1) {
         _queue[queueIndex] = track;
@@ -559,16 +549,13 @@ class AudioProvider extends ChangeNotifier {
   Future<void> _loadEqualizerBands() async {
     try {
       final freqs = await CustomEqualizer.getCenterBandFreqs();
-      // Always set to 10 bands, pad with zeros if less
       _equalizerBands = List.filled(10, 0.0);
     } catch (e) {
-      // Fallback to 10 bands
       _equalizerBands = List.filled(10, 0.0);
     }
     notifyListeners();
   }
 
-  // Equalizer controls
   void setEqualizerBand(int index, double value) async {
     if (index >= 0 && index < _equalizerBands.length) {
       _equalizerBands[index] = value;
@@ -576,7 +563,6 @@ class AudioProvider extends ChangeNotifier {
         try {
           await CustomEqualizer.setBandLevel(index, (value * 100).toInt());
         } catch (e) {
-          // Handle error
         }
       }
       notifyListeners();
@@ -605,7 +591,6 @@ class AudioProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Audio effects
   void setBassBoost(double value) async {
     _bassBoost = value;
     try {
@@ -645,7 +630,6 @@ class AudioProvider extends ChangeNotifier {
 
   @override
   void dispose() {
-    // Don't dispose the audio player if it's managed by AudioHandler
     if (_audioHandler == null && _audioPlayer != null) {
       _audioPlayer!.dispose();
     }

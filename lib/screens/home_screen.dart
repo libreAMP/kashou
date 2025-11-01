@@ -203,7 +203,7 @@ class HomeScreen extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(20),
       child: Container(
-        padding: const EdgeInsets.all(12), // Reduced from 16
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [
@@ -226,24 +226,24 @@ class HomeScreen extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              padding: const EdgeInsets.all(6), // Reduced from 8
+              padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
                 color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
                 shape: BoxShape.circle,
               ),
               child: Icon(
                 icon,
-                size: 20, // Reduced from 24
+                size: 20,
                 color: Theme.of(context).colorScheme.primary,
               ),
             ),
-            const SizedBox(height: 6), // Reduced from 8
+            const SizedBox(height: 6),
             Text(
               label,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith( // Changed from bodyMedium
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: Theme.of(context).colorScheme.onPrimaryContainer,
                 fontWeight: FontWeight.w600,
-                fontSize: 12, // Explicit smaller size
+                fontSize: 12,
               ),
               textAlign: TextAlign.center,
             ),
@@ -375,7 +375,7 @@ class HomeScreen extends StatelessWidget {
         final favoriteTracks = library.favoriteTracks;
 
         if (favoriteTracks.isEmpty) {
-          return const SizedBox.shrink(); // Don't show section if no favorites
+          return const SizedBox.shrink();
         }
 
         return Column(
@@ -465,7 +465,6 @@ class HomeScreen extends StatelessWidget {
                 ),
               ],
             ),
-            // const SizedBox(height: 16),
             GridView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),

@@ -4,23 +4,18 @@ import 'dart:io';
 
 class PermissionService {
   static Future<void> initialize() async {
-    // Don't request permissions during initialization
-    // They will be requested when needed
   }
 
   static Future<bool> requestPermissions() async {
     try {
       List<Permission> permissions = [];
       
-      // Add audio permission for Android 13+
       if (Platform.isAndroid) {
         permissions.add(Permission.audio);
       }
       
-      // Add notification permission (Android 13+)
       permissions.add(Permission.notification);
       
-      // Add bluetooth permission (Android 12+)
       permissions.add(Permission.bluetoothConnect);
 
       Map<Permission, PermissionStatus> statuses = await permissions.request();
@@ -31,7 +26,6 @@ class PermissionService {
 
       if (!allGranted) {
         debugPrint('Some permissions were not granted');
-        // Log which permissions were denied
         statuses.forEach((permission, status) {
           if (!status.isGranted && !status.isLimited) {
             debugPrint('Permission denied: $permission - $status');

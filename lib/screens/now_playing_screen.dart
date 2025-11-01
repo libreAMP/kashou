@@ -4,14 +4,308 @@ import '../providers/audio_provider.dart';
 import '../widgets/equalizer_widget.dart';
 import 'metadata_editor_screen.dart';
 import 'dart:ui';
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
+import 'package:http/http.dart' as http;
+import 'package:permission_handler/permission_handler.dart';
 
 import '../models/track.dart';
 import '../providers/library_provider.dart';
 import '../utils/hero_transitions.dart';
 import '../providers/settings_provider.dart';
 
-class NowPlayingScreen extends StatelessWidget {
+class NowPlayingScreen extends StatefulWidget {
   const NowPlayingScreen({super.key});
+
+  @override
+  State<NowPlayingScreen> createState() => _NowPlayingScreenState();
+}
+
+class _NowPlayingScreenState extends State<NowPlayingScreen> {
+  bool _isDownloading = false;
+  double _downloadProgress = 0.0;
+
+  Future<void> _downloadTrack(BuildContext context, Track track) async {
+    if (_isDownloading) return;
+
+    // Check if it's an online track
+    final isOnlineTrack = track.path.contains('youtube.com') || 
+                         track.path.contains('youtu.be') || 
+                         !track.path.startsWith('/');
+
+    if (!isOnlineTrack) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Only online tracks can be downloaded')),
+        );
+      }
+      return;
+    }
+
+    // Check if YouTube integration is enabled
+    final settings = Provider.of<SettingsProvider>(context, listen: false);
+    if (!settings.enableYouTubeIntegration) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('YouTube integration is disabled. Enable it in settings to download online tracks.')),
+        );
+      }
+      return;
+    }
+
+    // Request storage permission with user feedback
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Requesting storage permission...')),
+      );
+    }
+
+    try {
+      final status = await Permission.storage.request();
+      
+      if (!status.isGranted) {
+        if (status.isPermanentlyDenied) {
+          if (context.mounted) {
+            _showPermissionDialog(context);
+          }
+        } else {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: const Text('Storage permission is required to download. Please grant permission and try again.'),
+                duration: const Duration(seconds: 5),
+                action: SnackBarAction(
+                  label: 'Retry',
+                  onPressed: () => _downloadTrack(context, track),
+                ),
+              ),
+            );
+          }
+        }
+        setState(() {
+          _isDownloading = false;
+          _downloadProgress = 0.0;
+        });
+        return;
+      }
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Permission granted. Starting download...')),
+        );
+      }
+
+      // Create safe filename first
+      final safeTitle = track.title.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_');
+      final safeArtist = track.artist.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_');
+      final extension = _getFileExtension(track.codec);
+      final filename = '$safeTitle - $safeArtist$extension';
+
+      // Show progress dialog
+      if (context.mounted) {
+        _showDownloadProgressDialog(context, filename);
+      }
+
+      // Try different storage locations
+      Directory? downloadDir;
+      
+      // Try external storage first
+      try {
+        final externalDir = await getExternalStorageDirectory();
+        if (externalDir != null) {
+          downloadDir = Directory('${externalDir.path}/Download');
+          if (!await downloadDir.exists()) {
+            await downloadDir.create(recursive: true);
+          }
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('External storage not available: $e')),
+          );
+        }
+        // Fallback to application documents directory
+        final appDir = await getApplicationDocumentsDirectory();
+        downloadDir = Directory('${appDir.path}/Downloads');
+        if (!await downloadDir.exists()) {
+          await downloadDir.create(recursive: true);
+        }
+      }
+
+      if (downloadDir == null) {
+        throw Exception('Could not access storage directory');
+      }
+
+      final filePath = '${downloadDir.path}/$filename';
+
+      // Check if file already exists
+      final file = File(filePath);
+      if (await file.exists()) {
+        if (context.mounted) {
+          Navigator.of(context).pop(); // Close progress dialog
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('File already exists: $filename')),
+          );
+        }
+        setState(() {
+          _isDownloading = false;
+          _downloadProgress = 0.0;
+        });
+        return;
+      }
+
+      // Download the file with progress indication
+      setState(() {
+        _downloadProgress = 0.1; // Starting download
+      });
+
+      final response = await http.get(Uri.parse(track.path));
+      
+      setState(() {
+        _downloadProgress = 0.5; // Download in progress
+      });
+      
+      if (response.statusCode == 200) {
+        setState(() {
+          _downloadProgress = 0.8; // Writing file
+        });
+        
+        await file.writeAsBytes(response.bodyBytes);
+        
+        setState(() {
+          _isDownloading = false;
+          _downloadProgress = 1.0; // Completed
+        });
+
+        // Close progress dialog and show success
+        if (context.mounted) {
+          Navigator.of(context).pop(); // Close progress dialog
+          
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Download complete'),
+              duration: const Duration(seconds: 3),
+              action: SnackBarAction(
+                label: 'Show File',
+                onPressed: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Saved to: ${downloadDir?.path ?? 'Unknown location'}')),
+                  );
+                },
+              ),
+            ),
+          );
+        }
+      } else {
+        throw Exception('Download failed: HTTP ${response.statusCode}');
+      }
+    } catch (e) {
+      setState(() {
+        _isDownloading = false;
+        _downloadProgress = 0.0;
+      });
+      
+      // Close progress dialog and show error
+      if (context.mounted) {
+        Navigator.of(context).pop(); // Close progress dialog
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Download failed: ${e.toString()}'),
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
+    }
+  }
+
+  void _showDownloadProgressDialog(BuildContext context, String filename) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Downloading'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                filename,
+                style: Theme.of(context).textTheme.bodySmall,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 16),
+              LinearProgressIndicator(
+                value: _downloadProgress,
+                backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  Theme.of(context).colorScheme.primary,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '${(_downloadProgress * 100).toInt()}%',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: _isDownloading ? null : () => Navigator.of(dialogContext).pop(),
+              child: Text(_isDownloading ? 'Downloading...' : 'Close'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showPermissionDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Storage Permission Required'),
+        content: const Text(
+          'Storage permission is needed to download tracks. Please grant permission in app settings.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(dialogContext).pop();
+              openAppSettings();
+            },
+            child: const Text('Open Settings'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _getFileExtension(String? codec) {
+    if (codec == null) return '.mp3';
+    
+    switch (codec.toLowerCase()) {
+      case 'mp3':
+        return '.mp3';
+      case 'flac':
+        return '.flac';
+      case 'aac':
+      case 'm4a':
+        return '.m4a';
+      case 'ogg':
+        return '.ogg';
+      case 'wav':
+        return '.wav';
+      default:
+        return '.mp3';
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -31,25 +325,24 @@ class NowPlayingScreen extends StatelessWidget {
           final colorScheme = theme.colorScheme;
           final bottomInset = mediaQuery.padding.bottom;
 
-          return Stack(
-            children: [
-              Positioned.fill(child: _buildAmbientBackground(context, track)),
-              Positioned.fill(
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        colorScheme.surface.withOpacity(0.85),
-                        colorScheme.surface,
-                      ],
-                    ),
-                  ),
-                ),
+          return Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  colorScheme.surface.withOpacity(0.9),
+                  colorScheme.surface,
+                ],
               ),
-              Positioned.fill(
-                child: SafeArea(
+            ),
+            child: Stack(
+              children: [
+                // Ambient background covering entire screen
+                Positioned.fill(child: _buildAmbientBackground(context, track)),
+                
+                // Content overlay
+                SafeArea(
                   top: true,
                   bottom: false,
                   child: Column(
@@ -95,8 +388,8 @@ class NowPlayingScreen extends StatelessWidget {
                     ],
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           );
         },
       ),
@@ -270,7 +563,7 @@ class NowPlayingScreen extends StatelessWidget {
         BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 45, sigmaY: 45),
           child: Container(
-            color: colorScheme.surface.withOpacity(0.12),
+            color: colorScheme.surface.withOpacity(0.8),
           ),
         ),
       ],
@@ -312,6 +605,7 @@ class NowPlayingScreen extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             _buildMetaAssistChip(context, icon: Icons.album_rounded, label: track.album),
+            const SizedBox(height: 6),
             if (track.genre != null && track.genre!.isNotEmpty)
               _buildMetaAssistChip(context, icon: Icons.style_outlined, label: track.genre!),
             if (track.path.contains('youtube.com') || track.path.contains('youtu.be'))
@@ -326,7 +620,7 @@ class NowPlayingScreen extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Container(
-      constraints: const BoxConstraints(maxWidth: 280), // Prevent overflow
+      constraints: const BoxConstraints(maxWidth: 280),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainerHigh,
@@ -406,11 +700,11 @@ class NowPlayingScreen extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
       decoration: BoxDecoration(
-        color: colorScheme.surface,
+        color: colorScheme.surface.withOpacity(0),
         borderRadius: BorderRadius.circular(28),
         boxShadow: [
           BoxShadow(
-            color: colorScheme.shadow.withOpacity(0.05),
+            color: colorScheme.shadow.withOpacity(0.04),
             blurRadius: 16,
             offset: const Offset(0, 10),
           ),
@@ -538,6 +832,10 @@ class NowPlayingScreen extends StatelessWidget {
     final isShuffle = audio.shuffleMode != ShuffleMode.off;
     final isRepeatActive = audio.repeatMode != RepeatMode.off;
     final isFavorite = library.isTrackFavorite(audio.currentTrack?.id ?? '');
+    final isOnlineTrack = audio.currentTrack != null && 
+                         (audio.currentTrack!.path.contains('youtube.com') || 
+                          audio.currentTrack!.path.contains('youtu.be') || 
+                          !audio.currentTrack!.path.startsWith('/'));
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -582,6 +880,18 @@ class NowPlayingScreen extends StatelessWidget {
           active: false,
           onTap: () => _showQueueSheet(context),
         ),
+        if (isOnlineTrack)
+          _buildSecondaryIconButton(
+            context,
+            icon: _isDownloading ? Icons.downloading : Icons.download,
+            tooltip: 'Download track',
+            active: _isDownloading,
+            onTap: () {
+              if (audio.currentTrack != null) {
+                _downloadTrack(context, audio.currentTrack!);
+              }
+            },
+          ),
       ],
     );
   }
@@ -816,7 +1126,6 @@ class NowPlayingScreen extends StatelessWidget {
                             ),
                             subtitle: Text(track.artist),
                             onTap: () {
-                              // Play this track
                             },
                           );
                         },
