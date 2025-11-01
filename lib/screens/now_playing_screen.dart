@@ -99,12 +99,7 @@ class NowPlayingScreen extends StatelessWidget {
                       Expanded(
                         child: SingleChildScrollView(
                           child: Padding(
-                            padding: EdgeInsets.fromLTRB(
-                              20,
-                              0,
-                              20,
-                              bottomInset + 212,
-                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 20),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.center,
                               children: [
@@ -113,7 +108,6 @@ class NowPlayingScreen extends StatelessWidget {
                                 _buildTrackMeta(context, track, audio),
                                 const SizedBox(height: 28),
                                 _buildAudioInfoCard(context, track),
-                                const SizedBox(height: 32),
                               ],
                             ),
                           ),
@@ -123,14 +117,14 @@ class NowPlayingScreen extends StatelessWidget {
                         top: false,
                         minimum: const EdgeInsets.only(bottom: 12),
                         child: Padding(
-                          padding: const EdgeInsets.fromLTRB(20, 14, 20, 8),
+                          padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               _buildProgressStrip(context, audio),
                               const SizedBox(height: 18),
                               _buildPrimaryControls(context, audio),
-                              const SizedBox(height: 30),
+                              const SizedBox(height: 34),
                               _buildSecondaryControlRow(context, audio, library),
                             ],
                           ),
@@ -433,10 +427,10 @@ class NowPlayingScreen extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
       decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHigh.withOpacity(0.92),
-        borderRadius: BorderRadius.circular(24),
+        color: colorScheme.surface,
+        borderRadius: BorderRadius.circular(28),
         boxShadow: [
           BoxShadow(
             color: colorScheme.shadow.withOpacity(0.05),
@@ -446,14 +440,16 @@ class NowPlayingScreen extends StatelessWidget {
         ],
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           _buildCircleIconButton(
             context,
             icon: Icons.skip_previous_rounded,
             onTap: audio.skipPrevious,
           ),
+          const SizedBox(width: 20),
           _buildPlayButton(context, audio),
+          const SizedBox(width: 20),
           _buildCircleIconButton(
             context,
             icon: Icons.skip_next_rounded,
@@ -468,17 +464,31 @@ class NowPlayingScreen extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Material(
-      color: colorScheme.surfaceContainerHigh.withOpacity(0.8),
+      color: Colors.transparent,
       shape: const CircleBorder(),
       child: InkWell(
         customBorder: const CircleBorder(),
         onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(9),
-          child: Icon(
-            icon,
-            size: 24,
-            color: colorScheme.onSurface,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: colorScheme.surfaceContainerHighest.withOpacity(0.9),
+            border: Border.all(color: colorScheme.outlineVariant.withOpacity(0.5)),
+            boxShadow: [
+              BoxShadow(
+                color: colorScheme.shadow.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Icon(
+              icon,
+              size: 24,
+              color: colorScheme.onSurface,
+            ),
           ),
         ),
       ),
@@ -491,40 +501,53 @@ class NowPlayingScreen extends StatelessWidget {
 
     final targetSize = 64.0;
 
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 220),
-      curve: Curves.easeOutQuad,
-      width: targetSize,
-      height: targetSize,
-      decoration: BoxDecoration(
-        color: colorScheme.primary,
-        shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-            color: colorScheme.primary.withOpacity(isPlaying ? 0.28 : 0.2),
-            blurRadius: isPlaying ? 22 : 18,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        shape: const CircleBorder(),
-        child: InkWell(
-          customBorder: const CircleBorder(),
-          onTap: audio.togglePlayPause,
-          child: Center(
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 180),
-              transitionBuilder: (child, animation) => FadeTransition(
-                opacity: animation,
-                child: ScaleTransition(scale: animation, child: child),
-              ),
-              child: Icon(
-                isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                key: ValueKey<bool>(isPlaying),
-                size: 30,
-                color: colorScheme.onPrimary,
+    return AnimatedScale(
+      duration: const Duration(milliseconds: 240),
+      curve: Curves.easeOutBack,
+      scale: isPlaying ? 1.04 : 1.0,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 260),
+        curve: Curves.easeOutCubic,
+        width: targetSize,
+        height: targetSize,
+        decoration: BoxDecoration(
+          color: colorScheme.primary,
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: colorScheme.primary.withOpacity(isPlaying ? 0.32 : 0.22),
+              blurRadius: isPlaying ? 24 : 18,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          shape: const CircleBorder(),
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: audio.togglePlayPause,
+            child: Center(
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 240),
+                switchInCurve: Curves.easeOutBack,
+                switchOutCurve: Curves.easeIn,
+                transitionBuilder: (child, animation) {
+                  final curved = CurvedAnimation(parent: animation, curve: Curves.easeOutBack);
+                  return RotationTransition(
+                    turns: Tween<double>(begin: -0.08, end: 0).animate(curved),
+                    child: ScaleTransition(
+                      scale: Tween<double>(begin: 0.75, end: 1).animate(curved),
+                      child: FadeTransition(opacity: animation, child: child),
+                    ),
+                  );
+                },
+                child: Icon(
+                  isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                  key: ValueKey<bool>(isPlaying),
+                  size: 30,
+                  color: colorScheme.onPrimary,
+                ),
               ),
             ),
           ),
