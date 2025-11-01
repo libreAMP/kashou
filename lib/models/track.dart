@@ -31,6 +31,38 @@ class Track {
     this.codec,
   });
 
+  Track copyWith({
+    String? id,
+    String? title,
+    String? artist,
+    String? album,
+    String? path,
+    Duration? duration,
+    Uint8List? albumArt,
+    int? trackNumber,
+    int? year,
+    String? genre,
+    int? bitrate,
+    int? sampleRate,
+    String? codec,
+  }) {
+    return Track(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      artist: artist ?? this.artist,
+      album: album ?? this.album,
+      path: path ?? this.path,
+      duration: duration ?? this.duration,
+      albumArt: albumArt ?? this.albumArt,
+      trackNumber: trackNumber ?? this.trackNumber,
+      year: year ?? this.year,
+      genre: genre ?? this.genre,
+      bitrate: bitrate ?? this.bitrate,
+      sampleRate: sampleRate ?? this.sampleRate,
+      codec: codec ?? this.codec,
+    );
+  }
+
   factory Track.fromMap(Map<String, dynamic> map) {
     return Track(
       id: map['id'] as String,

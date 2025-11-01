@@ -8,6 +8,7 @@ import 'dart:ui';
 import '../models/track.dart';
 import '../providers/library_provider.dart';
 import '../utils/hero_transitions.dart';
+import '../providers/settings_provider.dart';
 
 class NowPlayingScreen extends StatelessWidget {
   const NowPlayingScreen({super.key});
@@ -23,45 +24,6 @@ class NowPlayingScreen extends StatelessWidget {
           if (track == null) {
             return const Center(child: Text('No track playing'));
           }
-
-  Widget _buildAmbientBackground(BuildContext context, Track track) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    final placeholder = Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            colorScheme.primaryContainer,
-            colorScheme.surface,
-          ],
-        ),
-      ),
-    );
-
-    if (track.albumArt == null) {
-      return placeholder;
-    }
-
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        Image.memory(
-          track.albumArt!,
-          fit: BoxFit.cover,
-          filterQuality: FilterQuality.low,
-          errorBuilder: (_, __, ___) => placeholder,
-        ),
-        BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 45, sigmaY: 45),
-          child: Container(
-            color: colorScheme.surface.withOpacity(0.12),
-          ),
-        ),
-      ],
-    );
-  }
 
           final mediaQuery = MediaQuery.of(context);
           final size = mediaQuery.size;
@@ -107,7 +69,7 @@ class NowPlayingScreen extends StatelessWidget {
                                 const SizedBox(height: 28),
                                 _buildTrackMeta(context, track, audio),
                                 const SizedBox(height: 28),
-                                _buildAudioInfoCard(context, track),
+                                _buildAudioInfoCard(context, track), // Audio details at bottom
                               ],
                             ),
                           ),
@@ -156,22 +118,25 @@ class NowPlayingScreen extends StatelessWidget {
         Expanded(
           child: Column(
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Text(
                 'Now Playing',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
+                textAlign: TextAlign.center,
+                style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 2),
-              Text(
-                track.album,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
+              // SizedBox(
+              //   width: double.infinity,
+              //   child: Text(
+              //     track.title,
+              //     textAlign: TextAlign.center,
+              //     style: theme.textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant),
+              //     maxLines: 1,
+              //     overflow: TextOverflow.ellipsis,
+              //     softWrap: false,
+              //   ),
+              // ),
             ],
           ),
         ),
@@ -324,9 +289,13 @@ class NowPlayingScreen extends StatelessWidget {
           style: theme.textTheme.headlineSmall?.copyWith(
             fontWeight: FontWeight.w700,
             letterSpacing: 0.2,
+            fontSize: 20,
           ),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          softWrap: true,
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 2),
         Text(
           track.artist,
           textAlign: TextAlign.center,
@@ -334,16 +303,19 @@ class NowPlayingScreen extends StatelessWidget {
             color: colorScheme.onSurfaceVariant,
             fontWeight: FontWeight.w500,
           ),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          softWrap: true,
         ),
-        const SizedBox(height: 10),
-        Wrap(
-          alignment: WrapAlignment.center,
-          spacing: 8,
-          runSpacing: 8,
+        const SizedBox(height: 6),
+        Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
             _buildMetaAssistChip(context, icon: Icons.album_rounded, label: track.album),
             if (track.genre != null && track.genre!.isNotEmpty)
               _buildMetaAssistChip(context, icon: Icons.style_outlined, label: track.genre!),
+            if (track.path.contains('youtube.com') || track.path.contains('youtu.be'))
+              _buildMetaAssistChip(context, icon: Icons.play_circle_outline, label: 'YouTube'),
           ],
         ),
       ],
@@ -354,7 +326,8 @@ class NowPlayingScreen extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      constraints: const BoxConstraints(maxWidth: 280), // Prevent overflow
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainerHigh,
         borderRadius: BorderRadius.circular(999),
@@ -362,12 +335,16 @@ class NowPlayingScreen extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 16, color: colorScheme.primary),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: Theme.of(context).textTheme.labelLarge?.copyWith(
-              color: colorScheme.onSurface,
+          Icon(icon, size: 14, color: colorScheme.primary),
+          const SizedBox(width: 4),
+          Flexible(
+            child: Text(
+              label,
+              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                color: colorScheme.onSurface,
+                fontSize: 12,
+              ),
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ],

@@ -26,6 +26,7 @@ class LibraryProvider extends ChangeNotifier {
   bool get isScanning => _isScanning;
   double get scanProgress => _scanProgress;
   Set<String> get favoriteTrackIds => _favoriteTrackIds;
+  List<Track> get favoriteTracks => _allTracks.where((track) => _favoriteTrackIds.contains(track.id)).toList();
 
   LibraryProvider() {
     _loadLibrary();

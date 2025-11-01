@@ -26,55 +26,96 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar.medium(
-            title: Row(
-              children: [
-                Icon(Icons.home, color: Theme.of(context).colorScheme.primary),
-                const SizedBox(width: 12),
-                Text(_getGreeting()),
-              ],
-            ),
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.search),
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const SearchScreen(),
+      resizeToAvoidBottomInset: false,
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          return Stack(
+            children: [
+              NestedScrollView(
+                headerSliverBuilder: (context, innerBoxIsScrolled) {
+                  return [
+                    SliverAppBar.medium(
+                      title: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const SizedBox(height: 8),  // Top spacing
+                          Row(
+                            children: [
+                              Icon(Icons.home, color: Theme.of(context).colorScheme.primary),
+                              const SizedBox(width: 12),
+                              Text(_getGreeting()),
+                            ],
+                          ),
+                        ],
+                      ),
+                      actions: [
+                        IconButton(
+                          icon: const Icon(Icons.settings_outlined),
+                          onPressed: () {
+                            Navigator.pushNamed(context, '/settings');
+                          },
+                        ),
+                      ],
+                      bottom: PreferredSize(
+                        preferredSize: const Size.fromHeight(96),  // Increased height
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),  // Top padding
+                          child: SearchBar(
+                            leading: const Padding(
+                              padding: EdgeInsets.only(left: 8),
+                              child: Icon(Icons.search),
+                            ),
+                            hintText: 'Search music...',
+                            elevation: const WidgetStatePropertyAll(1),
+                            shape: WidgetStatePropertyAll(
+                              RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(24),
+                              ),
+                            ),
+                            padding: const WidgetStatePropertyAll(
+                              EdgeInsets.symmetric(horizontal: 16),
+                            ),
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const SearchScreen(),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ),
                     ),
-                  );
+                  ];
                 },
-              ),
-              IconButton(
-                icon: const Icon(Icons.settings_outlined),
-                onPressed: () {
-                  Navigator.pushNamed(context, '/settings');
-                },
+                body: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 120),
+                  child: _buildHomeContent(context),
+                ),
               ),
             ],
-          ),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 120),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildQuickActions(context),
-                  const SizedBox(height: 40),
-                  _buildRecentlyPlayed(context),
-                  const SizedBox(height: 40),
-                  _buildRecentlyAdded(context),
-                  const SizedBox(height: 40),
-                  _buildTopAlbums(context),
-                ],
-              ),
-            ),
-          ),
-        ],
+          );
+        },
       ),
+    );
+  }
+
+  Widget _buildHomeContent(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 20),
+        _buildQuickActions(context),
+        const SizedBox(height: 40),
+        _buildRecentlyPlayed(context),
+        const SizedBox(height: 40),
+        _buildRecentlyAdded(context),
+        const SizedBox(height: 40),
+        _buildFavoriteSongs(context),
+        const SizedBox(height: 40),
+        _buildTopAlbums(context),
+      ],
     );
   }
 
@@ -162,7 +203,7 @@ class HomeScreen extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(20),
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(12), // Reduced from 16
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [
@@ -185,23 +226,24 @@ class HomeScreen extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(6), // Reduced from 8
               decoration: BoxDecoration(
                 color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
                 shape: BoxShape.circle,
               ),
               child: Icon(
                 icon,
-                size: 24,
+                size: 20, // Reduced from 24
                 color: Theme.of(context).colorScheme.primary,
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6), // Reduced from 8
             Text(
               label,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              style: Theme.of(context).textTheme.bodySmall?.copyWith( // Changed from bodyMedium
                 color: Theme.of(context).colorScheme.onPrimaryContainer,
                 fontWeight: FontWeight.w600,
+                fontSize: 12, // Explicit smaller size
               ),
               textAlign: TextAlign.center,
             ),
@@ -212,9 +254,9 @@ class HomeScreen extends StatelessWidget {
   }
 
   Widget _buildRecentlyPlayed(BuildContext context) {
-    return Consumer<LibraryProvider>(
-      builder: (context, library, child) {
-        final recentTracks = library.allTracks.take(5).toList();
+    return Consumer2<LibraryProvider, AudioProvider>(
+      builder: (context, library, audio, child) {
+        final recentTracks = audio.getRecentlyPlayedTracks(library);
 
         if (recentTracks.isEmpty) {
           return const SizedBox.shrink();
@@ -327,6 +369,65 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
+  Widget _buildFavoriteSongs(BuildContext context) {
+    return Consumer<LibraryProvider>(
+      builder: (context, library, child) {
+        final favoriteTracks = library.favoriteTracks;
+
+        if (favoriteTracks.isEmpty) {
+          return const SizedBox.shrink(); // Don't show section if no favorites
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.favorite, color: Theme.of(context).colorScheme.primary, size: 24),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Your Favorite Songs',
+                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
+                    ),
+                  ],
+                ),
+                TextButton(
+                  onPressed: () {},
+                  child: Text(
+                    'See All',
+                    style: TextStyle(color: Theme.of(context).colorScheme.primary),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Container(
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surfaceContainerLow,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: favoriteTracks.length,
+                padding: EdgeInsets.zero,
+                itemBuilder: (context, index) {
+                  return TrackListItem(track: favoriteTracks[index]);
+                },
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Widget _buildTopAlbums(BuildContext context) {
     return Consumer<LibraryProvider>(
       builder: (context, library, child) {
@@ -364,7 +465,7 @@ class HomeScreen extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            // const SizedBox(height: 16),
             GridView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/track.dart';
 import '../services/audio_service.dart' as audio_svc;
 import '../providers/settings_provider.dart';
+import '../providers/library_provider.dart';
 import '../services/custom_equalizer.dart';
 
 enum RepeatMode { off, all, one }
@@ -23,6 +25,10 @@ class AudioProvider extends ChangeNotifier {
   }
 
   Track? _currentTrack;
+  Track? _pendingTrack;
+  Track? _lastCommittedTrack;
+  List<Track>? _queueBeforePending;
+  int? _indexBeforePending;
   List<Track> _queue = [];
   int _currentIndex = 0;
 
@@ -30,9 +36,14 @@ class AudioProvider extends ChangeNotifier {
   Duration _position = Duration.zero;
   Duration _bufferedPosition = Duration.zero;
   Duration _duration = Duration.zero;
+  bool _isLoadingTrack = false;
 
   RepeatMode _repeatMode = RepeatMode.off;
   ShuffleMode _shuffleMode = ShuffleMode.off;
+
+  // Recently played tracks
+  static const int _maxRecentTracks = 20;
+  List<String> _recentTrackIds = [];
 
   // Equalizer
   List<double> _equalizerBands = [];
@@ -45,14 +56,19 @@ class AudioProvider extends ChangeNotifier {
   double _tempoControl = 1.0;
   double _masterVolume = 1.0;
 
+  bool _isRemotePath(String path) => path.startsWith('http://') || path.startsWith('https://');
+
+  bool _isHlsStream(String path) => path.contains('.m3u8') || path.contains('playlist.m3u8');
+
   // Getters
-  Track? get currentTrack => _currentTrack;
+  Track? get currentTrack => _currentTrack ?? _pendingTrack;
   List<Track> get queue => _queue;
   int get currentIndex => _currentIndex;
   bool get isPlaying => _isPlaying;
   Duration get position => _position;
-  Duration get duration => _duration;
   Duration get bufferedPosition => _bufferedPosition;
+  Duration get duration => _duration;
+  bool get isLoadingTrack => _isLoadingTrack;
   RepeatMode get repeatMode => _repeatMode;
   ShuffleMode get shuffleMode => _shuffleMode;
   List<double> get equalizerBands => _equalizerBands;
@@ -66,10 +82,112 @@ class AudioProvider extends ChangeNotifier {
   AudioProvider({SettingsProvider? settingsProvider}) {
     _settingsProvider = settingsProvider;
     _initializeAudioService();
+    _loadRecentTracks();
   }
   
   void updateSettings(SettingsProvider settings) {
     _settingsProvider = settings;
+  }
+
+  void _storePendingSnapshot() {
+    _queueBeforePending = List<Track>.from(_queue);
+    _indexBeforePending = _queue.isNotEmpty ? _currentIndex : null;
+    _lastCommittedTrack ??= _currentTrack;
+  }
+
+  void _clearPendingSnapshot() {
+    _queueBeforePending = null;
+    _indexBeforePending = null;
+  }
+
+  void _restorePendingSnapshot() {
+    if (_queueBeforePending != null) {
+      _queue = List<Track>.from(_queueBeforePending!);
+      if (_queue.isNotEmpty) {
+        final restoredIndex = (_indexBeforePending ?? 0).clamp(0, _queue.length - 1);
+        _currentIndex = restoredIndex;
+        _currentTrack = _queue[_currentIndex];
+      } else {
+        _currentIndex = 0;
+        _currentTrack = null;
+      }
+    }
+    _clearPendingSnapshot();
+  }
+
+  void cancelPendingTrack() {
+    if (_pendingTrack == null) return;
+    _isLoadingTrack = false;
+    _restorePendingSnapshot();
+    _pendingTrack = null;
+    if (_currentTrack == null) {
+      _currentTrack = _lastCommittedTrack;
+    }
+    notifyListeners();
+  }
+
+  void updateTrackMetadata(Track track) {
+    bool updated = false;
+    if (_currentTrack != null && _currentTrack!.id == track.id) {
+      _currentTrack = track;
+      updated = true;
+    }
+    if (_pendingTrack != null && _pendingTrack!.id == track.id) {
+      _pendingTrack = track;
+      updated = true;
+    }
+    final queueIndex = _queue.indexWhere((t) => t.id == track.id);
+    if (queueIndex != -1) {
+      _queue[queueIndex] = track;
+      updated = true;
+    }
+    if (updated) {
+      _lastCommittedTrack = track;
+      notifyListeners();
+    }
+  }
+
+  Future<void> _loadRecentTracks() async {
+    final prefs = await SharedPreferences.getInstance();
+    final storedRecent = prefs.getStringList('recent_tracks') ?? [];
+    _recentTrackIds = storedRecent;
+    notifyListeners();
+  }
+
+  Future<void> _saveRecentTracks() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList('recent_tracks', _recentTrackIds);
+  }
+
+  void _addToRecentTracks(String trackId) {
+    // Remove if already exists to move to front
+    _recentTrackIds.remove(trackId);
+    // Add to beginning
+    _recentTrackIds.insert(0, trackId);
+    // Limit size
+    if (_recentTrackIds.length > _maxRecentTracks) {
+      _recentTrackIds = _recentTrackIds.sublist(0, _maxRecentTracks);
+    }
+    _saveRecentTracks();
+    notifyListeners();
+  }
+
+  List<Track> getRecentlyPlayedTracks(LibraryProvider library) {
+    final tracks = <Track>[];
+    for (final id in _recentTrackIds) {
+      final track = library.allTracks.firstWhere((track) => track.id == id, orElse: () => Track(
+        id: '',
+        title: '',
+        artist: '',
+        album: '',
+        path: '',
+        duration: Duration.zero,
+      ));
+      if (track.id.isNotEmpty) {
+        tracks.add(track);
+      }
+    }
+    return tracks;
   }
 
   Future<void> _initializeAudioService() async {
@@ -98,6 +216,10 @@ class AudioProvider extends ChangeNotifier {
   void _initializePlayer() {
     audioPlayer.positionStream.listen((position) {
       _position = position;
+      if (_isLoadingTrack && _pendingTrack != null && position > Duration.zero) {
+        _isLoadingTrack = false;
+        _pendingTrack = null;
+      }
       notifyListeners();
     });
 
@@ -135,16 +257,42 @@ class AudioProvider extends ChangeNotifier {
     });
   }
 
-  Future<void> playTrack(Track track, {List<Track>? playlist}) async {
-    _currentTrack = track;
+  bool preparePendingTrack(Track track, {List<Track>? playlist}) {
+    final isNewPending = _pendingTrack == null || _pendingTrack!.id != track.id;
+    if (isNewPending) {
+      _storePendingSnapshot();
+    }
 
     if (playlist != null) {
-      _queue = playlist;
-      _currentIndex = playlist.indexOf(track);
+      _queue = List<Track>.from(playlist);
+      _currentIndex = _queue.indexWhere((t) => t.id == track.id);
+      if (_currentIndex == -1) {
+        _queue.insert(0, track);
+        _currentIndex = 0;
+      }
     } else {
       _queue = [track];
       _currentIndex = 0;
     }
+
+    final wasPlaying = _isPlaying;
+    final shouldUseExisting = _shouldUseExistingSource(track, wasPlaying);
+
+    _pendingTrack = track;
+    _currentTrack = track;
+    _isLoadingTrack = !shouldUseExisting;
+    notifyListeners();
+
+    if (shouldUseExisting) {
+      _pendingTrack = null;
+      _clearPendingSnapshot();
+    }
+
+    return wasPlaying;
+  }
+
+  Future<void> playTrack(Track track, {List<Track>? playlist}) async {
+    final wasPlaying = preparePendingTrack(track, playlist: playlist);
 
     try {
       if (_audioHandler != null) {
@@ -156,36 +304,55 @@ class AudioProvider extends ChangeNotifier {
       final crossfadeDuration = _settingsProvider?.crossfadeDuration ?? 3.0;
       final enableReplayGain = _settingsProvider?.enableReplayGain ?? false;
       
-      if (enableGapless && _queue.length > 1) {
+      if (enableGapless && _queue.length > 1 && !_isRemotePath(track.path)) {
         await _setupGaplessPlayback();
       } else {
+        _playlist = null;
         double volume = 1.0;
         if (enableReplayGain) {
           // TODO read the actual gain tag, flat cut for now
           volume = 0.8;
         }
-        
+
         await audioPlayer.setVolume(volume);
-        
-        if (enableCrossfade && _isPlaying) {
+
+        if (enableCrossfade && wasPlaying && !_isRemotePath(track.path)) {
           await _crossfadeToTrack(track, crossfadeDuration);
         } else {
-          await audioPlayer.setFilePath(track.path);
+          await _loadTrackIntoPlayer(track);
           await audioPlayer.play();
         }
       }
       
       _isPlaying = true;
+      _currentTrack = track;
+      _pendingTrack = null;
+      _isLoadingTrack = false;
+      _lastCommittedTrack = track;
+      _clearPendingSnapshot();
+      _addToRecentTracks(track.id);  // Add to recently played
+      final queueIndex = _queue.indexWhere((t) => t.id == track.id);
+      if (queueIndex != -1) {
+        _queue[queueIndex] = track;
+        _currentIndex = queueIndex;
+      }
       notifyListeners();
     } catch (e) {
       debugPrint('Error playing track: $e');
+      _isLoadingTrack = false;
+      _pendingTrack = null;
+      if (_lastCommittedTrack != null) {
+        _currentTrack = _lastCommittedTrack;
+        _restorePendingSnapshot();
+      }
+      notifyListeners();
     }
   }
   
   Future<void> _setupGaplessPlayback() async {
     _playlist = ConcatenatingAudioSource(
       children: _queue.map((track) {
-        return AudioSource.file(track.path);
+        return _createAudioSource(track);
       }).toList(),
     );
     
@@ -196,6 +363,10 @@ class AudioProvider extends ChangeNotifier {
       if (index != null && index < _queue.length) {
         _currentIndex = index;
         _currentTrack = _queue[index];
+        _lastCommittedTrack = _currentTrack;
+        _pendingTrack = null;
+        _isLoadingTrack = false;
+        _clearPendingSnapshot();
         if (_audioHandler != null) {
           _audioHandler!.setTrackMediaItem(_queue[index]);
         }
@@ -213,7 +384,7 @@ class AudioProvider extends ChangeNotifier {
       await Future.delayed(Duration(milliseconds: (duration * 100).toInt()));
     }
     
-    await audioPlayer.setFilePath(track.path);
+    await _loadTrackIntoPlayer(track);
     await audioPlayer.play();
     
     for (int i = 0; i <= 10; i++) {
@@ -222,6 +393,58 @@ class AudioProvider extends ChangeNotifier {
     }
   }
   
+  bool _playlistIsMatchingQueue() {
+    if (_playlist == null) return false;
+    final children = _playlist!.children;
+    if (children.length != _queue.length) return false;
+    for (int i = 0; i < children.length; i++) {
+      final source = children[i];
+      final track = _queue[i];
+      if (source is UriAudioSource) {
+        if (source.uri.toString() != track.path) {
+          return false;
+        }
+      } else if (_isRemotePath(track.path)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  bool _shouldUseExistingSource(Track track, bool wasPlaying) {
+    if (!_isRemotePath(track.path)) {
+      return wasPlaying && _playlistIsMatchingQueue();
+    }
+
+    if (!wasPlaying) return false;
+
+    if (_playlist != null && _playlistIsMatchingQueue()) {
+      final currentSource = _playlist!.children[_currentIndex];
+      if (currentSource is UriAudioSource) {
+        return currentSource.uri.toString() == track.path;
+      }
+    }
+
+    return false;
+  }
+
+  AudioSource _createAudioSource(Track track) {
+    final path = track.path;
+    if (_isRemotePath(path)) {
+      final uri = Uri.parse(path);
+      if (_isHlsStream(path)) {
+        return HlsAudioSource(uri);
+      }
+      return AudioSource.uri(uri);
+    }
+    return AudioSource.file(path);
+  }
+
+  Future<void> _loadTrackIntoPlayer(Track track) async {
+    final source = _createAudioSource(track);
+    await audioPlayer.setAudioSource(source);
+  }
+
   Future<void> togglePlayPause() async {
     if (_isPlaying) {
       await audioPlayer.pause();
@@ -236,6 +459,9 @@ class AudioProvider extends ChangeNotifier {
     await audioPlayer.stop();
     _isPlaying = false;
     _currentTrack = null;
+    _pendingTrack = null;
+    _lastCommittedTrack = null;
+    _clearPendingSnapshot();
     _position = Duration.zero;
     _duration = Duration.zero;
     notifyListeners();

@@ -144,7 +144,7 @@ class _LibraryScreenState extends State<LibraryScreen>
                                   ),
                                 ]
                               : null,
-                          hintText: 'Search library...',
+                          hintText: 'Search music...',
                           elevation: const WidgetStatePropertyAll(1),
                           shape: WidgetStatePropertyAll(
                             RoundedRectangleBorder(

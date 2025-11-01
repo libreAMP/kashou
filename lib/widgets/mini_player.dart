@@ -8,8 +8,12 @@ import 'package:provider/provider.dart';
 import 'package:flutter_chrome_cast/flutter_chrome_cast.dart';
 
 import '../providers/audio_provider.dart';
+import '../providers/settings_provider.dart';
 import '../services/local_media_server.dart';
 import '../utils/hero_transitions.dart';
+import '../services/ytdl_service.dart';
+import 'package:http/http.dart' as http;
+import '../models/track.dart';
 
 class MiniPlayer extends StatefulWidget {
   final VoidCallback onTap;
@@ -70,7 +74,11 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
       }
     });
 
-    GoogleCastDiscoveryManager.instance.startDiscovery();
+    // Only start Chromecast discovery if enabled in settings
+    final settings = Provider.of<SettingsProvider>(context, listen: false);
+    if (settings.enableCasting) {
+      GoogleCastDiscoveryManager.instance.startDiscovery();
+    }
   }
 
   Future<void> _onCastConnected() async {
@@ -117,7 +125,11 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
 
   @override
   void dispose() {
-    GoogleCastDiscoveryManager.instance.stopDiscovery();
+    // Only stop Chromecast discovery if it was enabled
+    final settings = Provider.of<SettingsProvider>(context, listen: false);
+    if (settings.enableCasting) {
+      GoogleCastDiscoveryManager.instance.stopDiscovery();
+    }
     final audioProvider = Provider.of<AudioProvider>(context, listen: false);
     audioProvider.audioPlayer.setVolume(1.0);
     audioProvider.audioPlayer.play();
@@ -196,6 +208,7 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
         }
 
         final track = audioProvider.currentTrack!;
+        final isLoading = audioProvider.isLoadingTrack;
         final progress = audioProvider.duration.inMilliseconds > 0
             ? audioProvider.position.inMilliseconds /
                 audioProvider.duration.inMilliseconds
@@ -208,7 +221,13 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
           child: SlideTransition(
             position: _slideAnimation,
             child: GestureDetector(
-              onTap: widget.onTap,
+              onTap: () {
+                if (_isYouTubeTrack(track)) {
+                  _handleYouTubeTrack(track);
+                } else {
+                  widget.onTap();
+                }
+              },
               onVerticalDragUpdate: _handleVerticalDragUpdate,
               onVerticalDragEnd: _handleVerticalDragEnd,
               onHorizontalDragStart: _handleHorizontalDragStart,
@@ -355,45 +374,66 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
                                   ),
                                 ),
                                 const SizedBox(width: 8),
-                                IconButton(
-                                  icon: Icon(
-                                    audioProvider.isPlaying
-                                        ? Icons.pause_rounded
-                                        : Icons.play_arrow_rounded,
-                                    color: useWhiteText
-                                        ? Colors.white
-                                        : Theme.of(context).colorScheme.onSurface,
-                                  ),
-                                  iconSize: 26,
-                                  onPressed: audioProvider.togglePlayPause,
-                                ),
-                                IconButton(
-                                  icon: Icon(
-                                    Icons.skip_next_rounded,
-                                    color: useWhiteText
-                                        ? Colors.white
-                                        : Theme.of(context).colorScheme.onSurface,
-                                  ),
-                                  iconSize: 26,
-                                  onPressed: audioProvider.skipNext,
-                                ),
-                                StreamBuilder<GoogleCastSession?>(
-                                  stream: GoogleCastSessionManager.instance.currentSessionStream,
-                                  builder: (context, snapshot) {
-                                    final isConnected = snapshot.data != null;
-                                    final iconColor = isConnected
-                                        ? Theme.of(context).colorScheme.tertiary
-                                        : (useWhiteText
-                                            ? Colors.white
-                                            : Theme.of(context).colorScheme.onSurface);
-
-                                    return IconButton(
-                                      icon: Icon(
-                                        isConnected ? Icons.cast_connected : Icons.cast,
-                                        color: iconColor,
+                                if (isLoading) ...[
+                                  SizedBox(
+                                    width: 28,
+                                    height: 28,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2.6,
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                        Theme.of(context).colorScheme.primary,
                                       ),
-                                      iconSize: 22,
-                                      onPressed: () => _showCastDialog(context),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                ] else ...[
+                                  IconButton(
+                                    icon: Icon(
+                                      audioProvider.isPlaying
+                                          ? Icons.pause_rounded
+                                          : Icons.play_arrow_rounded,
+                                      color: useWhiteText
+                                          ? Colors.white
+                                          : Theme.of(context).colorScheme.onSurface,
+                                    ),
+                                    iconSize: 26,
+                                    onPressed: audioProvider.togglePlayPause,
+                                  ),
+                                  IconButton(
+                                    icon: Icon(
+                                      Icons.skip_next_rounded,
+                                      color: useWhiteText
+                                          ? Colors.white
+                                          : Theme.of(context).colorScheme.onSurface,
+                                    ),
+                                    iconSize: 26,
+                                    onPressed: audioProvider.skipNext,
+                                  ),
+                                ],
+                                Consumer<SettingsProvider>(
+                                  builder: (context, settings, child) {
+                                    if (!settings.enableCasting) {
+                                      return const SizedBox.shrink();
+                                    }
+                                    return StreamBuilder<GoogleCastSession?>(
+                                      stream: GoogleCastSessionManager.instance.currentSessionStream,
+                                      builder: (context, snapshot) {
+                                        final isConnected = snapshot.data != null;
+                                        final iconColor = isConnected
+                                            ? Theme.of(context).colorScheme.tertiary
+                                            : (useWhiteText
+                                                ? Colors.white
+                                                : Theme.of(context).colorScheme.onSurface);
+
+                                        return IconButton(
+                                          icon: Icon(
+                                            isConnected ? Icons.cast_connected : Icons.cast,
+                                            color: iconColor,
+                                          ),
+                                          iconSize: 22,
+                                          onPressed: () => _showCastDialog(context),
+                                        );
+                                      },
                                     );
                                   },
                                 ),
@@ -413,32 +453,81 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
     );
   }
 
-  bool _isAlbumArtDark(Uint8List? albumArt) {
-    if (albumArt == null) return true;
+  bool _isYouTubeTrack(Track track) {
+    return track.path.contains('youtube.com') || track.path.contains('youtu.be');
+  }
+
+  Future<void> _handleYouTubeTrack(Track track) async {
+    final settings = Provider.of<SettingsProvider>(context, listen: false);
+    if (!settings.enableYouTubeIntegration) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('YouTube integration is disabled in settings')),
+      );
+      return;
+    }
+
+    final ytdlService = YtdlWrapperService(settings.ytdlBaseUrl);
+    final audioProvider = Provider.of<AudioProvider>(context, listen: false);
 
     try {
-      int totalBrightness = 0;
-      int sampleCount = 0;
-
-      final step = (albumArt.length / 600).ceil().clamp(1, albumArt.length);
-
-      for (int i = 0; i < albumArt.length && sampleCount < 200; i += step) {
-        if (i + 2 < albumArt.length) {
-          final r = albumArt[i];
-          final g = albumArt[i + 1];
-          final b = albumArt[i + 2];
-          final brightness = (0.299 * r + 0.587 * g + 0.114 * b).round();
-          totalBrightness += brightness;
-          sampleCount++;
-        }
+      final details = await ytdlService.fetchAudioDetails(track.path);
+      if (details == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Unable to load YouTube audio stream')),
+        );
+        return;
       }
 
-      if (sampleCount == 0) return true;
-      final avgBrightness = totalBrightness / sampleCount;
-      return avgBrightness < 140;
+      String? downloadUrl;
+      final audio = details['audio'];
+      if (audio is Map) {
+        downloadUrl = audio['download_url'] as String?;
+      } else if (audio is String) {
+        downloadUrl = audio;
+      }
+      downloadUrl ??= details['download_url'] as String?;
+      downloadUrl ??= details['audio_url'] as String?;
+
+      if (downloadUrl == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('YouTube audio stream unavailable')),
+        );
+        return;
+      }
+
+      Uint8List? albumArt;
+      final thumbUrl = details['thumbnail'] as String?;
+      if (thumbUrl != null && thumbUrl.isNotEmpty) {
+        try {
+          final thumbnailResponse = await http.get(Uri.parse(thumbUrl));
+          if (thumbnailResponse.statusCode == 200) {
+            albumArt = thumbnailResponse.bodyBytes;
+          }
+        } catch (_) {}
+      }
+
+      final updatedTrack = track.copyWith(
+        title: details['title'] as String? ?? track.title,
+        artist: details['channel'] as String? ?? track.artist,
+        album: details['title'] as String? ?? track.album,
+        path: downloadUrl,
+        duration: Duration(seconds: _asInt(details['duration']) ?? track.duration.inSeconds),
+        albumArt: albumArt ?? track.albumArt,
+      );
+
+      await audioProvider.playTrack(updatedTrack);
     } catch (e) {
-      return true;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error loading YouTube track: $e')),
+      );
     }
+  }
+
+  int _asInt(dynamic value) {
+    if (value is int) return value;
+    if (value is double) return value.round();
+    if (value is String) return int.tryParse(value) ?? 0;
+    return 0;
   }
 
   void _showCastDialog(BuildContext context) {
