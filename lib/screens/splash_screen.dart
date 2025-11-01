@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/library_provider.dart';
 import '../services/permission_service.dart';
 import '../services/audio_service.dart';
@@ -43,8 +44,18 @@ class _SplashScreenState extends State<SplashScreen>
       final hasPermissions = await PermissionService.requestPermissions();
 
       if (hasPermissions && mounted) {
+        // Check if welcome screen has been shown
+        final prefs = await SharedPreferences.getInstance();
+        final hasSeenWelcome = prefs.getBool('has_seen_welcome') ?? false;
+
+        if (!hasSeenWelcome) {
+          // Show welcome screen for first-time users
+          Navigator.pushReplacementNamed(context, '/welcome');
+          return;
+        }
+
         await _initializeAudioService();
-        
+
         // Start library scan
         final libraryProvider = Provider.of<LibraryProvider>(
           context,

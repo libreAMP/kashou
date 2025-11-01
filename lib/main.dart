@@ -15,6 +15,7 @@ import 'screens/library_screen.dart';
 import 'screens/now_playing_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/stream_screen.dart';
+import 'screens/welcome_screen.dart';
 import 'widgets/mini_player.dart';
 
 void main() async {
@@ -158,6 +159,7 @@ class KashouApp extends StatelessWidget {
                 ),
                 home: const SplashScreen(),
                 routes: {
+                  '/welcome': (context) => const WelcomeScreen(),
                   '/home': (context) => const MainNavigationScreen(),
                   '/now-playing': (context) => const NowPlayingScreen(),
                   '/settings': (context) => const SettingsScreen(),
