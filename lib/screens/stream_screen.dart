@@ -216,7 +216,7 @@ class _StreamScreenState extends State<StreamScreen>
     final finalTrack = placeholderTrack.copyWith(
       title: details['title'] as String? ?? placeholderTrack.title,
       artist: details['channel'] as String? ?? placeholderTrack.artist,
-      album: details['title'] as String? ?? placeholderTrack.album,
+      album: 'YouTube',
       path: downloadUrl,
       duration: Duration(seconds: _asInt(details['duration']) ?? durationSeconds),
       albumArt: albumArt ?? placeholderTrack.albumArt,
@@ -275,7 +275,6 @@ class _StreamScreenState extends State<StreamScreen>
             ),
             child: Row(
               children: [
-                // Enhanced thumbnail with shadow
                 ClipRRect(
                   borderRadius: BorderRadius.circular(10),
                   child: Container(
@@ -371,8 +370,8 @@ class _StreamScreenState extends State<StreamScreen>
                     ],
                   ),
                 ),
-                // Enhanced play button
-                Container(
+                // Video info
+                Expanded(
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
