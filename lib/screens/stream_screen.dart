@@ -370,28 +370,31 @@ class _StreamScreenState extends State<StreamScreen>
                     ],
                   ),
                 ),
-                // Video info
-                Expanded(
-                  child: Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.8),
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: colorScheme.outline.withValues(alpha: 0.2),
-                        width: 1,
+                SizedBox(
+                  width: 48,
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.8),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: colorScheme.outline.withValues(alpha: 0.2),
+                          width: 1,
+                        ),
                       ),
-                    ),
-                    child: IconButton(
-                      icon: Icon(
-                        Icons.play_arrow_rounded,
-                        color: colorScheme.primary,
-                        size: 20,
+                      child: IconButton(
+                        icon: Icon(
+                          Icons.play_arrow_rounded,
+                          color: colorScheme.primary,
+                          size: 20,
+                        ),
+                        onPressed: () => _playVideo(video),
+                        tooltip: 'Play',
+                        padding: EdgeInsets.zero,
                       ),
-                      onPressed: () => _playVideo(video),
-                      tooltip: 'Play',
-                      padding: EdgeInsets.zero,
                     ),
                   ),
                 ),

@@ -54,10 +54,11 @@ class _LibraryScreenState extends State<LibraryScreen>
                 IconButton(
                   icon: const Icon(Icons.refresh),
                   onPressed: () {
-                    Provider.of<LibraryProvider>(
+                    final provider = Provider.of<LibraryProvider>(
                       context,
                       listen: false,
-                    ).scanLibrary();
+                    );
+                    provider.scanLibrary(force: true);
                   },
                 ),
                 IconButton(
@@ -304,7 +305,7 @@ class _LibraryScreenState extends State<LibraryScreen>
               const SizedBox(height: 16),
               FilledButton(
                 onPressed: () {
-                  library.scanLibrary();
+                  library.scanLibrary(force: true);
                 },
                 child: const Text('Scan Library'),
               ),
@@ -495,10 +496,11 @@ class _LibraryScreenState extends State<LibraryScreen>
                 title: const Text('Rescan Library'),
                 onTap: () {
                   Navigator.pop(context);
-                  Provider.of<LibraryProvider>(
+                  final provider = Provider.of<LibraryProvider>(
                     context,
                     listen: false,
-                  ).scanLibrary();
+                  );
+                  provider.scanLibrary(force: true);
                 },
               ),
               ListTile(

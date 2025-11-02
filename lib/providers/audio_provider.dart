@@ -314,7 +314,7 @@ class AudioProvider extends ChangeNotifier {
         }
       }
       
-      _isPlaying = true;
+      _isPlaying = audioPlayer.playing;
       _currentTrack = track;
       _pendingTrack = null;
       _isLoadingTrack = false;
@@ -436,12 +436,12 @@ class AudioProvider extends ChangeNotifier {
   }
 
   Future<void> togglePlayPause() async {
-    if (_isPlaying) {
+    if (audioPlayer.playing) {
       await audioPlayer.pause();
     } else {
       await audioPlayer.play();
     }
-    _isPlaying = !_isPlaying;
+    _isPlaying = audioPlayer.playing;
     notifyListeners();
   }
 

@@ -80,9 +80,11 @@ class _WelcomeScreenState extends State<WelcomeScreen>
 
     if (mounted) {
       final libraryProvider = Provider.of<LibraryProvider>(context, listen: false);
-      libraryProvider.scanLibrary();
+      await libraryProvider.scanLibrary(force: true);
 
-      Navigator.pushReplacementNamed(context, '/home');
+      if (mounted) {
+        Navigator.pushReplacementNamed(context, '/home');
+      }
     }
   }
 

@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -18,6 +20,8 @@ class LibraryProvider extends ChangeNotifier {
   bool _isScanning = false;
   double _scanProgress = 0.0;
 
+  static const _libraryCacheKey = 'library_cache_v1';
+
   // Getters
   List<Track> get allTracks => _allTracks;
   List<Album> get albums => _albums;
@@ -34,6 +38,76 @@ class LibraryProvider extends ChangeNotifier {
   }
 
   Future<void> _loadLibrary() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cached = prefs.getString(_libraryCacheKey);
+      if (cached != null && cached.isNotEmpty) {
+        final List<dynamic> data = jsonDecode(cached) as List<dynamic>;
+        _allTracks = data
+            .map((item) => Track.fromMap(Map<String, dynamic>.from(item as Map)))
+            .toList();
+        _rebuildCollections();
+        _scanProgress = 1.0;
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint('Error loading cached library: $e');
+    }
+  }
+
+  void _rebuildCollections() {
+    final Map<String, List<Track>> albumMap = {};
+    final Map<String, List<Track>> artistMap = {};
+
+    for (final track in _allTracks) {
+      final albumKey = '${track.album}_${track.artist}';
+      albumMap.putIfAbsent(albumKey, () => <Track>[]).add(track);
+      artistMap.putIfAbsent(track.artist, () => <Track>[]).add(track);
+    }
+
+    _albums = albumMap.entries.map((entry) {
+      final tracks = entry.value;
+      return Album(
+        id: entry.key,
+        name: tracks.first.album,
+        artist: tracks.first.artist,
+        tracks: tracks,
+        albumArt: tracks.first.albumArt,
+        year: tracks.first.year,
+      );
+    }).toList();
+
+    _artists = artistMap.entries.map((entry) {
+      final tracks = entry.value;
+      final artistAlbums = <Album>{};
+      for (final track in tracks) {
+        final albumTracks = tracks.where((t) => t.album == track.album).toList();
+        artistAlbums.add(Album(
+          id: track.album,
+          name: track.album,
+          artist: entry.key,
+          tracks: albumTracks,
+          albumArt: albumTracks.first.albumArt,
+          year: albumTracks.first.year,
+        ));
+      }
+      return Artist(
+        id: entry.key,
+        name: entry.key,
+        albums: artistAlbums.toList(),
+        tracks: tracks,
+      );
+    }).toList();
+  }
+
+  Future<void> _saveLibraryCache() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final payload = jsonEncode(_allTracks.map((track) => track.toMap()).toList());
+      await prefs.setString(_libraryCacheKey, payload);
+    } catch (e) {
+      debugPrint('Error saving library cache: $e');
+    }
   }
 
   Future<void> _loadFavorites() async {
@@ -56,7 +130,11 @@ class LibraryProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> scanLibrary() async {
+  Future<void> scanLibrary({bool force = false}) async {
+    if (_isScanning) return;
+    if (!force && _allTracks.isNotEmpty && _scanProgress == 1.0) {
+      return;
+    }
     _isScanning = true;
     _scanProgress = 0.0;
     notifyListeners();
@@ -72,7 +150,11 @@ class LibraryProvider extends ChangeNotifier {
       _allTracks = await scanner.getAllTracks();
       _albums = await scanner.getAlbums();
       _artists = await scanner.getArtists();
-
+      if (_albums.isEmpty || _artists.isEmpty) {
+        _rebuildCollections();
+      }
+      await _saveLibraryCache();
+      _scanProgress = 1.0;
       _isScanning = false;
       notifyListeners();
     } catch (e) {

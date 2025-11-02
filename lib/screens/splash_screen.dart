@@ -66,11 +66,10 @@ class _SplashScreenState extends State<SplashScreen>
         await Future.delayed(const Duration(milliseconds: 500));
 
         if (mounted) {
-          libraryProvider.scanLibrary();
-        }
-
-        if (mounted) {
-          Navigator.pushReplacementNamed(context, '/home');
+          await libraryProvider.scanLibrary(force: true);
+          if (mounted) {
+            Navigator.pushReplacementNamed(context, '/home');
+          }
         }
       } else {
         _showPermissionDialog();

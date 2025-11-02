@@ -231,26 +231,25 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) => const NowPlayingScreen(),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          const begin = Offset(0.0, 1.0);
-          const end = Offset.zero;
-          const curve = Curves.easeOutExpo;
+          final primaryCurve = CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOutCubic,
+            reverseCurve: Curves.easeInOutCubic,
+          );
 
-          var slideAnimation = Tween(begin: begin, end: end).chain(CurveTween(curve: curve)).animate(animation);
-
-          var fadeAnimation = Tween<double>(begin: 0.8, end: 1.0).chain(CurveTween(curve: Curves.easeOut)).animate(animation);
-
-          var reverseFadeAnimation = Tween<double>(begin: 1.0, end: 0.3).chain(CurveTween(curve: Curves.easeIn)).animate(secondaryAnimation);
+          final slideAnimation = Tween(begin: const Offset(0.0, 1.0), end: Offset.zero).animate(primaryCurve);
+          final scaleAnimation = Tween<double>(begin: 0.96, end: 1.0).animate(primaryCurve);
 
           return SlideTransition(
             position: slideAnimation,
-            child: FadeTransition(
-              opacity: secondaryAnimation.status == AnimationStatus.forward ? reverseFadeAnimation : fadeAnimation,
+            child: ScaleTransition(
+              scale: scaleAnimation,
               child: child,
             ),
           );
         },
-        transitionDuration: const Duration(milliseconds: 280),
-        reverseTransitionDuration: const Duration(milliseconds: 220),
+        transitionDuration: const Duration(milliseconds: 320),
+        reverseTransitionDuration: const Duration(milliseconds: 260),
       ),
     ).then((_) {
       setState(() {

@@ -53,14 +53,16 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
       end: const Offset(0, 1),
     ).animate(CurvedAnimation(
       parent: _slideController,
-      curve: Curves.easeOutExpo,
+      curve: Curves.easeInOutCubic,
+      reverseCurve: Curves.easeInOutCubic,
     ));
     _fadeAnimation = Tween<double>(
       begin: 1.0,
       end: 0.0,
     ).animate(CurvedAnimation(
       parent: _slideController,
-      curve: Curves.easeOutExpo,
+      curve: Curves.easeInOutCubic,
+      reverseCurve: Curves.easeInOutCubic,
     ));
 
     GoogleCastSessionManager.instance.currentSessionStream.listen((session) {
@@ -155,8 +157,8 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
     setState(() {
       _dragDistance += details.primaryDelta ?? 0;
       if (_dragDistance > 0) {
-        _slideController.value = (_dragDistance / 120).clamp(0.0, 1.0);
-      } else if (_dragDistance < -100) {
+        _slideController.value = (_dragDistance / 160).clamp(0.0, 1.0);
+      } else if (_dragDistance < -90) {
         widget.onTap();
         _dragDistance = 0;
         _slideController.value = 0;
@@ -166,7 +168,7 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
 
   void _handleVerticalDragEnd(DragEndDetails details) {
     if (_isSwipingHorizontal) return;
-    if (_dragDistance > 80) {
+    if (_dragDistance > 70 || details.primaryVelocity != null && details.primaryVelocity! > 500) {
       _slideController.forward().then((_) {
         widget.onDismiss();
         _slideController.reset();
