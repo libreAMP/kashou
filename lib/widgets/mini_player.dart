@@ -42,25 +42,25 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
     super.initState();
     _slideController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 300),
+      duration: const Duration(milliseconds: 240),
     );
     _swipeController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 200),
+      duration: const Duration(milliseconds: 160),
     );
     _slideAnimation = Tween<Offset>(
       begin: Offset.zero,
       end: const Offset(0, 1),
     ).animate(CurvedAnimation(
       parent: _slideController,
-      curve: Curves.easeInOut,
+      curve: Curves.easeOutExpo,
     ));
     _fadeAnimation = Tween<double>(
       begin: 1.0,
       end: 0.0,
     ).animate(CurvedAnimation(
       parent: _slideController,
-      curve: Curves.easeOut,
+      curve: Curves.easeOutExpo,
     ));
 
     GoogleCastSessionManager.instance.currentSessionStream.listen((session) {
@@ -155,8 +155,8 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
     setState(() {
       _dragDistance += details.primaryDelta ?? 0;
       if (_dragDistance > 0) {
-        _slideController.value = (_dragDistance / 100).clamp(0.0, 1.0);
-      } else if (_dragDistance < -80) {
+        _slideController.value = (_dragDistance / 120).clamp(0.0, 1.0);
+      } else if (_dragDistance < -100) {
         widget.onTap();
         _dragDistance = 0;
         _slideController.value = 0;
@@ -184,7 +184,7 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
   void _handleHorizontalDragEnd(
       DragEndDetails details, AudioProvider audioProvider) {
     final velocity = details.primaryVelocity ?? 0;
-    if (velocity.abs() > 500) {
+    if (velocity.abs() > 400) {
       _swipeController.forward().then((_) {
         if (velocity < 0) {
           audioProvider.skipNext();

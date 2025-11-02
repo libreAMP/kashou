@@ -13,6 +13,7 @@ import '../models/track.dart';
 import '../providers/library_provider.dart';
 import '../utils/hero_transitions.dart';
 import '../providers/settings_provider.dart';
+import '../services/ytdl_service.dart';
 
 class NowPlayingScreen extends StatefulWidget {
   const NowPlayingScreen({super.key});
@@ -28,10 +29,14 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
   Future<void> _downloadTrack(BuildContext context, Track track) async {
     if (_isDownloading) return;
 
-    // Check if it's an online track
+    setState(() {
+      _isDownloading = true;
+      _downloadProgress = 0.0;
+    });
+
     final isOnlineTrack = track.path.contains('youtube.com') || 
-                         track.path.contains('youtu.be') || 
-                         !track.path.startsWith('/');
+                         track.path.contains('youtu.be') ||
+                         track.album == 'YouTube';
 
     if (!isOnlineTrack) {
       if (context.mounted) {
@@ -39,48 +44,79 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           const SnackBar(content: Text('Only online tracks can be downloaded')),
         );
       }
+      setState(() {
+        _isDownloading = false;
+      });
       return;
-    }
-
-    // Check if YouTube integration is enabled
-    final settings = Provider.of<SettingsProvider>(context, listen: false);
-    if (!settings.enableYouTubeIntegration) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('YouTube integration is disabled. Enable it in settings to download online tracks.')),
-        );
-      }
-      return;
-    }
-
-    // Request storage permission with user feedback
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Requesting storage permission...')),
-      );
     }
 
     try {
+      final settings = Provider.of<SettingsProvider>(context, listen: false);
+      if (!settings.enableYouTubeIntegration) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('YouTube integration is disabled')),
+          );
+        }
+        setState(() {
+          _isDownloading = false;
+        });
+        return;
+      }
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Extracting audio stream...')),
+        );
+      }
+
+      setState(() => _downloadProgress = 0.1);
+
+      final ytdlService = YtdlWrapperService(settings.ytdlBaseUrl);
+      final details = await ytdlService.fetchAudioDetails(track.path);
+
+      if (details == null) {
+        throw Exception('Failed to extract audio stream');
+      }
+
+      setState(() => _downloadProgress = 0.2);
+
+      String? downloadUrl;
+      final audio = details['audio'];
+      if (audio is Map) {
+        downloadUrl = audio['download_url'] as String?;
+      } else if (audio is String) {
+        downloadUrl = audio;
+      }
+      downloadUrl ??= details['download_url'] as String?;
+      downloadUrl ??= details['audio_url'] as String?;
+
+      final download = details['download'];
+      if (downloadUrl == null && download is Map) {
+        downloadUrl = download['url'] as String? ?? download['download_url'] as String?;
+      } else if (downloadUrl == null && download is String) {
+        downloadUrl = download;
+      }
+
+      if (downloadUrl == null) {
+        throw Exception('No audio stream available');
+      }
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Requesting storage permission...')),
+        );
+      }
+
+      setState(() => _downloadProgress = 0.3);
+
       final status = await Permission.storage.request();
-      
+
       if (!status.isGranted) {
-        if (status.isPermanentlyDenied) {
-          if (context.mounted) {
-            _showPermissionDialog(context);
-          }
-        } else {
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: const Text('Storage permission is required to download. Please grant permission and try again.'),
-                duration: const Duration(seconds: 5),
-                action: SnackBarAction(
-                  label: 'Retry',
-                  onPressed: () => _downloadTrack(context, track),
-                ),
-              ),
-            );
-          }
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Storage permission required')),
+          );
         }
         setState(() {
           _isDownloading = false;
@@ -91,108 +127,48 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
 
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Permission granted. Starting download...')),
+          const SnackBar(content: Text('Downloading...')),
         );
       }
 
-      // Create safe filename first
-      final safeTitle = track.title.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_');
-      final safeArtist = track.artist.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_');
-      final extension = _getFileExtension(track.codec);
+      setState(() => _downloadProgress = 0.4);
+
+      final safeTitle = (details['title'] as String? ?? track.title)
+          .replaceAll(RegExp(r'[<>:"/\\|?*]'), '_')
+          .trim();
+      final safeArtist = (details['channel'] as String? ?? track.artist)
+          .replaceAll(RegExp(r'[<>:"/\\|?*]'), '_')
+          .trim();
+
+      final codec = details['codec'] as String? ?? 'mp3';
+      final extension = _getFileExtension(codec);
       final filename = '$safeTitle - $safeArtist$extension';
 
-      // Show progress dialog
-      if (context.mounted) {
-        _showDownloadProgressDialog(context, filename);
-      }
+      setState(() => _downloadProgress = 0.5);
 
-      // Try different storage locations
-      Directory? downloadDir;
-      
-      // Try external storage first
-      try {
-        final externalDir = await getExternalStorageDirectory();
-        if (externalDir != null) {
-          downloadDir = Directory('${externalDir.path}/Download');
-          if (!await downloadDir.exists()) {
-            await downloadDir.create(recursive: true);
-          }
-        }
-      } catch (e) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('External storage not available: $e')),
-          );
-        }
-        // Fallback to application documents directory
-        final appDir = await getApplicationDocumentsDirectory();
-        downloadDir = Directory('${appDir.path}/Downloads');
-        if (!await downloadDir.exists()) {
-          await downloadDir.create(recursive: true);
-        }
-      }
-
-      if (downloadDir == null) {
-        throw Exception('Could not access storage directory');
-      }
-
+      final downloadDir = await _getDownloadDirectory();
       final filePath = '${downloadDir.path}/$filename';
-
-      // Check if file already exists
       final file = File(filePath);
-      if (await file.exists()) {
-        if (context.mounted) {
-          Navigator.of(context).pop(); // Close progress dialog
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('File already exists: $filename')),
-          );
-        }
-        setState(() {
-          _isDownloading = false;
-          _downloadProgress = 0.0;
-        });
-        return;
-      }
 
-      // Download the file with progress indication
-      setState(() {
-        _downloadProgress = 0.1; // Starting download
-      });
+      setState(() => _downloadProgress = 0.6);
 
-      final response = await http.get(Uri.parse(track.path));
+      final response = await http.get(Uri.parse(downloadUrl));
       
-      setState(() {
-        _downloadProgress = 0.5; // Download in progress
-      });
+      setState(() => _downloadProgress = 0.8);
       
       if (response.statusCode == 200) {
-        setState(() {
-          _downloadProgress = 0.8; // Writing file
-        });
-        
         await file.writeAsBytes(response.bodyBytes);
         
         setState(() {
           _isDownloading = false;
-          _downloadProgress = 1.0; // Completed
+          _downloadProgress = 1.0;
         });
 
-        // Close progress dialog and show success
         if (context.mounted) {
-          Navigator.of(context).pop(); // Close progress dialog
-          
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: const Text('Download complete'),
+              content: const Text('Download completed!'),
               duration: const Duration(seconds: 3),
-              action: SnackBarAction(
-                label: 'Show File',
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Saved to: ${downloadDir?.path ?? 'Unknown location'}')),
-                  );
-                },
-              ),
             ),
           );
         }
@@ -205,10 +181,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
         _downloadProgress = 0.0;
       });
       
-      // Close progress dialog and show error
       if (context.mounted) {
-        Navigator.of(context).pop(); // Close progress dialog
-        
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Download failed: ${e.toString()}'),
@@ -217,6 +190,37 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
         );
       }
     }
+  }
+
+  Future<Directory> _getDownloadDirectory() async {
+    try {
+      final externalDir = await getExternalStorageDirectory();
+      if (externalDir != null) {
+        final downloadDir = Directory('${externalDir.path}/Download');
+        if (!await downloadDir.exists()) {
+          await downloadDir.create(recursive: true);
+        }
+        return downloadDir;
+      }
+    } catch (e) {
+    }
+
+    try {
+      final appDir = await getApplicationDocumentsDirectory();
+      final downloadDir = Directory('${appDir.path}/Downloads');
+      if (!await downloadDir.exists()) {
+        await downloadDir.create(recursive: true);
+      }
+      return downloadDir;
+    } catch (e) {
+    }
+
+    final tempDir = await getTemporaryDirectory();
+    final downloadDir = Directory('${tempDir.path}/Downloads');
+    if (!await downloadDir.exists()) {
+      await downloadDir.create(recursive: true);
+    }
+    return downloadDir;
   }
 
   void _showDownloadProgressDialog(BuildContext context, String filename) {
@@ -771,54 +775,31 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
 
     final targetSize = 64.0;
 
-    return AnimatedScale(
-      duration: const Duration(milliseconds: 240),
-      curve: Curves.easeOutBack,
-      scale: isPlaying ? 1.04 : 1.0,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 260),
-        curve: Curves.easeOutCubic,
-        width: targetSize,
-        height: targetSize,
-        decoration: BoxDecoration(
-          color: colorScheme.primary,
-          shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-              color: colorScheme.primary.withOpacity(isPlaying ? 0.32 : 0.22),
-              blurRadius: isPlaying ? 24 : 18,
-              offset: const Offset(0, 8),
-            ),
-          ],
-        ),
-        child: Material(
-          color: Colors.transparent,
-          shape: const CircleBorder(),
-          child: InkWell(
-            customBorder: const CircleBorder(),
-            onTap: audio.togglePlayPause,
-            child: Center(
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 240),
-                switchInCurve: Curves.easeOutBack,
-                switchOutCurve: Curves.easeIn,
-                transitionBuilder: (child, animation) {
-                  final curved = CurvedAnimation(parent: animation, curve: Curves.easeOutBack);
-                  return RotationTransition(
-                    turns: Tween<double>(begin: -0.08, end: 0).animate(curved),
-                    child: ScaleTransition(
-                      scale: Tween<double>(begin: 0.75, end: 1).animate(curved),
-                      child: FadeTransition(opacity: animation, child: child),
-                    ),
-                  );
-                },
-                child: Icon(
-                  isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                  key: ValueKey<bool>(isPlaying),
-                  size: 30,
-                  color: colorScheme.onPrimary,
-                ),
-              ),
+    return Container(
+      width: targetSize,
+      height: targetSize,
+      decoration: BoxDecoration(
+        color: colorScheme.primary,
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: colorScheme.primary.withOpacity(0.22),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        shape: const CircleBorder(),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: audio.togglePlayPause,
+          child: Center(
+            child: Icon(
+              isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+              size: 30,
+              color: colorScheme.onPrimary,
             ),
           ),
         ),
@@ -834,7 +815,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     final isOnlineTrack = audio.currentTrack != null && 
                          (audio.currentTrack!.path.contains('youtube.com') || 
                           audio.currentTrack!.path.contains('youtu.be') || 
-                          !audio.currentTrack!.path.startsWith('/'));
+                          audio.currentTrack!.album == 'YouTube');
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,

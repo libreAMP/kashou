@@ -31,15 +31,13 @@ class _StreamScreenState extends State<StreamScreen>
   @override
   bool get wantKeepAlive => true;
 
-  void _onSearchFieldChanged() {
-    if (mounted) setState(() {});
-  }
-
   @override
   void initState() {
     super.initState();
     _initializeService();
-    _searchController.addListener(_onSearchFieldChanged);
+    if (_currentQuery.isNotEmpty) {
+      _searchController.text = _currentQuery;
+    }
   }
 
   void _initializeService() {
@@ -49,6 +47,14 @@ class _StreamScreenState extends State<StreamScreen>
     _service = YtdlWrapperService(settings.ytdlBaseUrl);
     _isInitialized = true;
     _loadFeatured();
+  }
+
+  @override
+  void didUpdateWidget(StreamScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (_currentQuery.isNotEmpty && _searchController.text != _currentQuery) {
+      _searchController.text = _currentQuery;
+    }
   }
 
   @override
@@ -63,17 +69,21 @@ class _StreamScreenState extends State<StreamScreen>
         _loadFeatured();
       }
     }
+    if (_currentQuery.isNotEmpty && _searchController.text != _currentQuery) {
+      _searchController.text = _currentQuery;
+    }
   }
 
   @override
   void dispose() {
     _searchDebounceTimer?.cancel();
-    _searchController.removeListener(_onSearchFieldChanged);
     _searchController.dispose();
     super.dispose();
   }
 
   Future<void> _loadFeatured() async {
+    if (_featured.isNotEmpty) return;
+
     setState(() {
       _isLoading = true;
       _error = null;
@@ -613,24 +623,34 @@ class _StreamScreenState extends State<StreamScreen>
 
     return RefreshIndicator(
       onRefresh: showingSearch ? () async => _search(_currentQuery) : _loadFeatured,
-      child: ListView.builder(
-        padding: const EdgeInsets.only(bottom: 16),
-        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-        itemCount: videos.length + 1,
-        itemBuilder: (context, index) {
-          if (index == 0) {
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Text(
-                title,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: Theme.of(context).colorScheme.onSurface,
-                ),
-              ),
-            );
-          }
-          return _buildVideoTile(videos[index - 1]);
+      child: Consumer<AudioProvider>(
+        builder: (context, audioProvider, child) {
+          final hasMiniPlayer = audioProvider.currentTrack != null;
+          final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
+          final shouldShowMiniPlayer = hasMiniPlayer && keyboardHeight == 0;
+
+          return ListView.builder(
+            padding: EdgeInsets.only(
+              bottom: shouldShowMiniPlayer ? 120 : 16,
+            ),
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            itemCount: videos.length + 1,
+            itemBuilder: (context, index) {
+              if (index == 0) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Text(
+                    title,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
+                  ),
+                );
+              }
+              return _buildVideoTile(videos[index - 1]);
+            },
+          );
         },
       ),
     );

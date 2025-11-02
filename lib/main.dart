@@ -226,7 +226,33 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   }
 
   void _openNowPlaying() {
-    Navigator.pushNamed(context, '/now-playing').then((_) {
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) => const NowPlayingScreen(),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          const begin = Offset(0.0, 1.0);
+          const end = Offset.zero;
+          const curve = Curves.easeOutExpo;
+
+          var slideAnimation = Tween(begin: begin, end: end).chain(CurveTween(curve: curve)).animate(animation);
+
+          var fadeAnimation = Tween<double>(begin: 0.8, end: 1.0).chain(CurveTween(curve: Curves.easeOut)).animate(animation);
+
+          var reverseFadeAnimation = Tween<double>(begin: 1.0, end: 0.3).chain(CurveTween(curve: Curves.easeIn)).animate(secondaryAnimation);
+
+          return SlideTransition(
+            position: slideAnimation,
+            child: FadeTransition(
+              opacity: secondaryAnimation.status == AnimationStatus.forward ? reverseFadeAnimation : fadeAnimation,
+              child: child,
+            ),
+          );
+        },
+        transitionDuration: const Duration(milliseconds: 280),
+        reverseTransitionDuration: const Duration(milliseconds: 220),
+      ),
+    ).then((_) {
       setState(() {
         _showMiniPlayer = true;
       });
@@ -271,9 +297,11 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       floatingActionButton: Consumer<AudioProvider>(
         builder: (context, audioProvider, child) {
           final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
+          final route = ModalRoute.of(context);
+          final isModalOpen = route != null && !route.isFirst;
           final hasPlayer = audioProvider.currentTrack != null && _showMiniPlayer;
-          
-          if (!hasPlayer || keyboardHeight > 0) {
+
+          if (!hasPlayer || keyboardHeight > 0 || isModalOpen) {
             return const SizedBox.shrink();
           }
 

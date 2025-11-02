@@ -232,10 +232,10 @@ class _LibraryScreenState extends State<LibraryScreen>
                       child: TabBarView(
                         controller: _tabController,
                         children: [
-                          _buildSongsTab(library),
-                          _buildAlbumsTab(library),
-                          _buildArtistsTab(library),
-                          _buildPlaylistsTab(library),
+                          _buildSongsTab(library, 160),
+                          _buildAlbumsTab(library, 160),
+                          _buildArtistsTab(library, 160),
+                          _buildPlaylistsTab(library, 160),
                         ],
                       ),
                     ),
@@ -270,7 +270,7 @@ class _LibraryScreenState extends State<LibraryScreen>
     );
   }
 
-  Widget _buildSongsTab(LibraryProvider library) {
+  Widget _buildSongsTab(LibraryProvider library, int bottomPadding) {
     final tracks = _searchController.text.isEmpty
         ? library.allTracks
         : library.searchTracks(_searchController.text);
@@ -317,7 +317,7 @@ class _LibraryScreenState extends State<LibraryScreen>
     return Container(
       color: Theme.of(context).colorScheme.surface,
       child: ListView.builder(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 160),
+        padding: EdgeInsets.fromLTRB(16, 0, 16, bottomPadding.toDouble()),
         itemCount: tracks.length,
         itemBuilder: (context, index) {
           return TrackListItem(track: tracks[index]);
@@ -326,7 +326,7 @@ class _LibraryScreenState extends State<LibraryScreen>
     );
   }
 
-  Widget _buildAlbumsTab(LibraryProvider library) {
+  Widget _buildAlbumsTab(LibraryProvider library, int bottomPadding) {
     final albums = _searchController.text.isEmpty
         ? library.albums
         : library.searchAlbums(_searchController.text);
@@ -354,7 +354,7 @@ class _LibraryScreenState extends State<LibraryScreen>
     return Container(
       color: Theme.of(context).colorScheme.surface,
       child: GridView.builder(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 160),
+        padding: EdgeInsets.fromLTRB(16, 16, 16, bottomPadding.toDouble()),
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 2,
           childAspectRatio: 0.75,
@@ -369,7 +369,7 @@ class _LibraryScreenState extends State<LibraryScreen>
     );
   }
 
-  Widget _buildArtistsTab(LibraryProvider library) {
+  Widget _buildArtistsTab(LibraryProvider library, int bottomPadding) {
     final artists = _searchController.text.isEmpty
         ? library.artists
         : library.searchArtists(_searchController.text);
@@ -397,7 +397,7 @@ class _LibraryScreenState extends State<LibraryScreen>
     return Container(
       color: Theme.of(context).colorScheme.surface,
       child: ListView.builder(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 160),
+        padding: EdgeInsets.fromLTRB(16, 16, 16, bottomPadding.toDouble()),
         itemCount: artists.length,
         itemBuilder: (context, index) {
           return ArtistCard(artist: artists[index]);
@@ -406,7 +406,7 @@ class _LibraryScreenState extends State<LibraryScreen>
     );
   }
 
-  Widget _buildPlaylistsTab(LibraryProvider library) {
+  Widget _buildPlaylistsTab(LibraryProvider library, int bottomPadding) {
     if (library.playlists.isEmpty) {
       return Center(
         child: Column(
@@ -445,7 +445,7 @@ class _LibraryScreenState extends State<LibraryScreen>
     return Container(
       color: Theme.of(context).colorScheme.surface,
       child: ListView.builder(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 160),
+        padding: EdgeInsets.fromLTRB(16, 16, 16, bottomPadding.toDouble()),
         itemCount: library.playlists.length,
         itemBuilder: (context, index) {
           final playlist = library.playlists[index];

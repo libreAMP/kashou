@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/library_provider.dart';
+import '../providers/audio_provider.dart';
 import '../services/permission_service.dart';
 import '../services/audio_service.dart';
 
@@ -61,7 +62,12 @@ class _SplashScreenState extends State<SplashScreen>
           context,
           listen: false,
         );
-        libraryProvider.scanLibrary();
+
+        await Future.delayed(const Duration(milliseconds: 500));
+
+        if (mounted) {
+          libraryProvider.scanLibrary();
+        }
 
         if (mounted) {
           Navigator.pushReplacementNamed(context, '/home');

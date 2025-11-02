@@ -1,14 +1,33 @@
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
+import 'local_ytdlp_server.dart';
 
 class YtdlWrapperService {
-  final String baseUrl;
+  String _serverUrl = 'https://ytdl-wrapper.onrender.com';
 
-  const YtdlWrapperService(this.baseUrl);
+  YtdlWrapperService([String? serverUrl]) {
+    if (serverUrl != null) {
+      _serverUrl = serverUrl.replaceAll(RegExp(r'/$'), '');
+    } else {
+      _initializeLocalServer();
+    }
+  }
+
+  String get baseUrl => _serverUrl;
+
+  Future<void> _initializeLocalServer() async {
+    try {
+      await LocalYtdlpServer.start();
+      if (LocalYtdlpServer.isRunning) {
+        _serverUrl = LocalYtdlpServer.serverUrl;
+      }
+    } catch (e) {
+    }
+  }
 
   Uri _buildUri(String path, [Map<String, dynamic>? query]) {
-    final normalizedBase = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
+    final normalizedBase = _serverUrl.endsWith('/') ? _serverUrl.substring(0, _serverUrl.length - 1) : _serverUrl;
     return Uri.parse('$normalizedBase$path').replace(
       queryParameters: query?.map((key, value) => MapEntry(key, value?.toString() ?? '')),
     );

@@ -110,9 +110,22 @@ class HomeScreen extends StatelessWidget {
                     ),
                   ];
                 },
-                body: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 120),
-                  child: _buildHomeContent(context),
+                body: Consumer<AudioProvider>(
+                  builder: (context, audioProvider, child) {
+                    final hasMiniPlayer = audioProvider.currentTrack != null;
+                    final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
+                    final shouldShowMiniPlayer = hasMiniPlayer && keyboardHeight == 0;
+
+                    return SingleChildScrollView(
+                      padding: EdgeInsets.fromLTRB(
+                        20,
+                        0,
+                        20,
+                        shouldShowMiniPlayer ? 120 : 20, // Dynamic padding for mini player
+                      ),
+                      child: _buildHomeContent(context),
+                    );
+                  },
                 ),
               ),
             ],
@@ -300,55 +313,7 @@ class HomeScreen extends StatelessWidget {
         final recentTracks = audio.getRecentlyPlayedTracks(library);
 
         if (recentTracks.isEmpty) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(Icons.history, color: Theme.of(context).colorScheme.primary, size: 24),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Recently Played',
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: Theme.of(context).colorScheme.onSurface,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Center(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.history_outlined,
-                        size: 32,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        'No recently played songs',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Play some music to see it here',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          );
+          return const SizedBox.shrink();
         }
 
         return Column(
@@ -380,14 +345,18 @@ class HomeScreen extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 16),
-            ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: recentTracks.length,
-              padding: EdgeInsets.zero,
-              itemBuilder: (context, index) {
-                return TrackListItem(track: recentTracks[index]);
-              },
+            SizedBox(
+              height: 165,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: recentTracks.length,
+                itemBuilder: (context, index) {
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 16, bottom: 12),
+                    child: _buildTrackCard(context, recentTracks[index]),
+                  );
+                },
+              ),
             ),
           ],
         );

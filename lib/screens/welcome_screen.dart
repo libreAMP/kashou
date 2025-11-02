@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:provider/provider.dart';
+import '../providers/library_provider.dart';
 
 class WelcomeScreen extends StatefulWidget {
   const WelcomeScreen({super.key});
@@ -77,6 +79,9 @@ class _WelcomeScreenState extends State<WelcomeScreen>
     await prefs.setBool('has_seen_welcome', true);
 
     if (mounted) {
+      final libraryProvider = Provider.of<LibraryProvider>(context, listen: false);
+      libraryProvider.scanLibrary();
+
       Navigator.pushReplacementNamed(context, '/home');
     }
   }
