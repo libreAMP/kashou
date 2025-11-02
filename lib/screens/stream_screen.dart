@@ -216,7 +216,7 @@ class _StreamScreenState extends State<StreamScreen>
     final finalTrack = placeholderTrack.copyWith(
       title: details['title'] as String? ?? placeholderTrack.title,
       artist: details['channel'] as String? ?? placeholderTrack.artist,
-      album: details['title'] as String? ?? placeholderTrack.album,
+      album: 'YouTube',
       path: downloadUrl,
       duration: Duration(seconds: _asInt(details['duration']) ?? durationSeconds),
       albumArt: albumArt ?? placeholderTrack.albumArt,
@@ -275,7 +275,6 @@ class _StreamScreenState extends State<StreamScreen>
             ),
             child: Row(
               children: [
-                // Enhanced thumbnail with shadow
                 ClipRRect(
                   borderRadius: BorderRadius.circular(10),
                   child: Container(
@@ -371,27 +370,29 @@ class _StreamScreenState extends State<StreamScreen>
                     ],
                   ),
                 ),
-                // Enhanced play button
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.8),
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: colorScheme.outline.withValues(alpha: 0.2),
-                      width: 1,
+                // Video info
+                Expanded(
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.8),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: colorScheme.outline.withValues(alpha: 0.2),
+                        width: 1,
+                      ),
                     ),
-                  ),
-                  child: IconButton(
-                    icon: Icon(
-                      Icons.play_arrow_rounded,
-                      color: colorScheme.primary,
-                      size: 20,
+                    child: IconButton(
+                      icon: Icon(
+                        Icons.play_arrow_rounded,
+                        color: colorScheme.primary,
+                        size: 20,
+                      ),
+                      onPressed: () => _playVideo(video),
+                      tooltip: 'Play',
+                      padding: EdgeInsets.zero,
                     ),
-                    onPressed: () => _playVideo(video),
-                    tooltip: 'Play',
-                    padding: EdgeInsets.zero,
                   ),
                 ),
               ],

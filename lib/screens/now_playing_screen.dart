@@ -83,20 +83,15 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
 
       String? downloadUrl;
       final audio = details['audio'];
-      if (audio is Map) {
+      
+      if (audio is Map<String, dynamic>) {
         downloadUrl = audio['download_url'] as String?;
       } else if (audio is String) {
         downloadUrl = audio;
       }
+      
       downloadUrl ??= details['download_url'] as String?;
       downloadUrl ??= details['audio_url'] as String?;
-
-      final download = details['download'];
-      if (downloadUrl == null && download is Map) {
-        downloadUrl = download['url'] as String? ?? download['download_url'] as String?;
-      } else if (downloadUrl == null && download is String) {
-        downloadUrl = download;
-      }
 
       if (downloadUrl == null) {
         throw Exception('No audio stream available');
@@ -110,18 +105,38 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
 
       setState(() => _downloadProgress = 0.3);
 
-      final status = await Permission.storage.request();
-
-      if (!status.isGranted) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Storage permission required')),
-          );
+      bool hasPermission = false;
+      
+      try {
+        if (await Permission.manageExternalStorage.isGranted) {
+          hasPermission = true;
+        } else {
+          final manageStatus = await Permission.manageExternalStorage.request();
+          if (manageStatus.isGranted) {
+            hasPermission = true;
+          } else {
+            _showPermissionDialog(context);
+            setState(() => _isDownloading = false);
+            return;
+          }
         }
-        setState(() {
-          _isDownloading = false;
-          _downloadProgress = 0.0;
-        });
+      } catch (e) {
+        final storageStatus = await Permission.storage.request();
+        if (storageStatus.isGranted) {
+          hasPermission = true;
+        } else if (storageStatus.isPermanentlyDenied) {
+          _showPermissionDialog(context);
+          setState(() => _isDownloading = false);
+          return;
+        } else {
+          _showPermissionDialog(context);
+          setState(() => _isDownloading = false);
+          return;
+        }
+      }
+
+      if (!hasPermission) {
+        setState(() => _isDownloading = false);
         return;
       }
 
@@ -152,28 +167,10 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
 
       setState(() => _downloadProgress = 0.6);
 
-      final response = await http.get(Uri.parse(downloadUrl));
-      
-      setState(() => _downloadProgress = 0.8);
-      
-      if (response.statusCode == 200) {
-        await file.writeAsBytes(response.bodyBytes);
-        
-        setState(() {
-          _isDownloading = false;
-          _downloadProgress = 1.0;
-        });
-
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('Download completed!'),
-              duration: const Duration(seconds: 3),
-            ),
-          );
-        }
+      if (downloadUrl!.contains('.m3u8')) {
+        await _downloadHLSStream(downloadUrl!, file, downloadDir.path);
       } else {
-        throw Exception('Download failed: HTTP ${response.statusCode}');
+        await _downloadDirectFile(downloadUrl!, file, downloadDir.path);
       }
     } catch (e) {
       setState(() {
@@ -194,24 +191,34 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
 
   Future<Directory> _getDownloadDirectory() async {
     try {
-      final externalDir = await getExternalStorageDirectory();
-      if (externalDir != null) {
-        final downloadDir = Directory('${externalDir.path}/Download');
-        if (!await downloadDir.exists()) {
-          await downloadDir.create(recursive: true);
-        }
-        return downloadDir;
+      final downloadsDir = await getDownloadsDirectory();
+      if (downloadsDir != null) {
+        return downloadsDir;
       }
     } catch (e) {
     }
 
     try {
-      final appDir = await getApplicationDocumentsDirectory();
-      final downloadDir = Directory('${appDir.path}/Downloads');
-      if (!await downloadDir.exists()) {
-        await downloadDir.create(recursive: true);
+      final externalDir = await getExternalStorageDirectory();
+      if (externalDir != null) {
+        final musicDir = Directory('${externalDir.path}/Music');
+        if (!await musicDir.exists()) {
+          await musicDir.create(recursive: true);
+        }
+        return musicDir;
       }
-      return downloadDir;
+    } catch (e) {
+    }
+
+    try {
+      final externalDir = await getExternalStorageDirectory();
+      if (externalDir != null) {
+        final mediaDir = Directory('${externalDir.path}/Android/media/com.libreamp.kashou');
+        if (!await mediaDir.exists()) {
+          await mediaDir.create(recursive: true);
+        }
+        return mediaDir;
+      }
     } catch (e) {
     }
 
@@ -266,13 +273,151 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     );
   }
 
+  Future<void> _downloadHLSStream(String playlistUrl, File outputFile, String downloadPath) async {
+    final client = http.Client();
+    try {
+      final playlistResponse = await client.get(Uri.parse(playlistUrl));
+      if (playlistResponse.statusCode != 200) {
+        throw Exception('Failed to download playlist');
+      }
+
+      final playlistContent = playlistResponse.body;
+      final segmentUrls = <String>[];
+
+      final lines = playlistContent.split('\n');
+      for (final line in lines) {
+        final trimmed = line.trim();
+        if (trimmed.isNotEmpty && 
+            !trimmed.startsWith('#') && 
+            (trimmed.endsWith('.ts') || trimmed.endsWith('.aac') || trimmed.endsWith('.mp4'))) {
+          // Convert relative URLs to absolute
+          if (trimmed.startsWith('http')) {
+            segmentUrls.add(trimmed);
+          } else {
+            // Handle relative URLs
+            final baseUri = Uri.parse(playlistUrl);
+            final segmentUri = baseUri.resolve(trimmed);
+            segmentUrls.add(segmentUri.toString());
+          }
+        }
+      }
+
+      if (segmentUrls.isEmpty) {
+        throw Exception('No segments found in playlist');
+      }
+
+      final sink = outputFile.openWrite();
+      int totalSegments = segmentUrls.length;
+      int downloadedSegments = 0;
+
+      for (final segmentUrl in segmentUrls) {
+        final segmentResponse = await client.get(Uri.parse(segmentUrl));
+        if (segmentResponse.statusCode == 200) {
+          sink.add(segmentResponse.bodyBytes);
+        }
+
+        downloadedSegments++;
+        if (mounted) {
+          final progress = 0.6 + (downloadedSegments / totalSegments) * 0.3;
+          setState(() => _downloadProgress = progress.clamp(0.6, 0.9));
+        }
+      }
+
+      await sink.close();
+
+      setState(() {
+        _isDownloading = false;
+        _downloadProgress = 1.0;
+      });
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Download completed! Saved to: $downloadPath'),
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
+    } finally {
+      client.close();
+    }
+  }
+
+  Future<void> _downloadDirectFile(String fileUrl, File outputFile, String downloadPath) async {
+    final client = http.Client();
+    try {
+      final request = http.Request('GET', Uri.parse(fileUrl));
+      final response = await client.send(request);
+
+      if (response.statusCode == 200) {
+        final contentLength = response.contentLength ?? 0;
+        int downloadedBytes = 0;
+        
+        final sink = outputFile.openWrite();
+        
+        await response.stream.listen(
+          (List<int> chunk) {
+            sink.add(chunk);
+            downloadedBytes += chunk.length;
+            
+            if (contentLength > 0 && mounted) {
+              final progress = 0.6 + (downloadedBytes / contentLength) * 0.3;
+              setState(() => _downloadProgress = progress.clamp(0.6, 0.9));
+            }
+          },
+          onDone: () async {
+            await sink.close();
+            setState(() {
+              _isDownloading = false;
+              _downloadProgress = 1.0;
+            });
+
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Download completed! Saved to: $downloadPath'),
+                  duration: const Duration(seconds: 5),
+                ),
+              );
+            }
+          },
+          onError: (error) {
+            sink.close();
+            setState(() {
+              _isDownloading = false;
+              _downloadProgress = 0.0;
+            });
+            
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Download failed: $error'),
+                  duration: const Duration(seconds: 5),
+                ),
+              );
+            }
+          },
+        ).asFuture();
+      } else {
+        throw Exception('Download failed: HTTP ${response.statusCode}');
+      }
+    } finally {
+      client.close();
+    }
+  }
+
   void _showPermissionDialog(BuildContext context) {
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Storage Permission Required'),
         content: const Text(
-          'Storage permission is needed to download tracks. Please grant permission in app settings.',
+          'To download tracks, the app needs access to your storage.\n\n'
+          'On Android 11 and above:\n'
+          '1. Go to Settings > Apps > Kashou\n'
+          '2. Tap "Permissions" or "Special access"\n'
+          '3. Enable "All files access" or "Manage external storage"\n\n'
+          'On older Android versions, grant storage permission when prompted.',
         ),
         actions: [
           TextButton(
