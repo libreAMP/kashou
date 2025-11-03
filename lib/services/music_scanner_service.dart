@@ -1,6 +1,7 @@
 import 'dart:io';
+import 'dart:isolate';
 import 'dart:typed_data';
-import 'package:path_provider/path_provider.dart';
+
 import 'package:flutter/foundation.dart';
 import 'package:audiotags/audiotags.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -17,8 +18,144 @@ class ScanProgress {
   ScanProgress(this.current, this.total, this.progress);
 }
 
+class _ScanMusicParams {
+  const _ScanMusicParams({
+    required this.sendPort,
+    required this.directoryPaths,
+    required this.supportedExtensions,
+  });
+
+  final SendPort sendPort;
+  final List<String> directoryPaths;
+  final List<String> supportedExtensions;
+}
+
+Future<void> _scanMusicEntryPoint(_ScanMusicParams params) async {
+  final sendPort = params.sendPort;
+  try {
+    final supportedExtensions = params.supportedExtensions.toSet();
+    final List<String> filePaths = [];
+
+    for (final path in params.directoryPaths) {
+      final directory = Directory(path);
+      if (!await directory.exists()) continue;
+
+      await for (final entity in directory.list(recursive: true, followLinks: false)) {
+        if (entity is File) {
+          final ext = entity.path.split('.').last.toLowerCase();
+          if (supportedExtensions.contains(ext)) {
+            filePaths.add(entity.path);
+          }
+        }
+      }
+    }
+
+    final total = filePaths.length;
+    int current = 0;
+    final List<Map<String, dynamic>> trackMaps = [];
+
+    for (final path in filePaths) {
+      final trackMap = await _parseTrackToMap(path);
+      current++;
+      sendPort.send({
+        'type': 'progress',
+        'current': current,
+        'total': total,
+        'progress': total == 0 ? 1.0 : current / total,
+      });
+
+      if (trackMap != null) {
+        trackMaps.add(trackMap);
+      }
+    }
+
+    sendPort.send({'type': 'complete', 'tracks': trackMaps});
+  } catch (e) {
+    sendPort.send({'type': 'error', 'message': e.toString()});
+  }
+}
+
+Future<Map<String, dynamic>?> _parseTrackToMap(String path) async {
+  try {
+    final file = File(path);
+    if (!await file.exists()) return null;
+
+    final fileName = file.path.split('/').last;
+    final titleWithExt = fileName.split('.').first;
+
+    Tag? tag;
+    try {
+      tag = await AudioTags.read(file.path);
+    } catch (_) {}
+
+    Uint8List? albumArtBytes;
+    if (tag?.pictures != null && tag!.pictures.isNotEmpty) {
+      albumArtBytes = MusicScannerService._compressAlbumArt(tag.pictures.first.bytes);
+    }
+
+    String? codec;
+    final ext = file.path.split('.').last.toLowerCase();
+    switch (ext) {
+      case 'mp3':
+        codec = 'MP3';
+        break;
+      case 'flac':
+        codec = 'FLAC';
+        break;
+      case 'wav':
+        codec = 'WAV';
+        break;
+      case 'ogg':
+        codec = 'OGG Vorbis';
+        break;
+      case 'opus':
+        codec = 'Opus';
+        break;
+      case 'm4a':
+      case 'aac':
+        codec = 'AAC';
+        break;
+      case 'wma':
+        codec = 'WMA';
+        break;
+      case 'ape':
+        codec = 'APE';
+        break;
+      case 'wv':
+        codec = 'WavPack';
+        break;
+      case 'alac':
+        codec = 'ALAC';
+        break;
+      default:
+        codec = ext.toUpperCase();
+    }
+
+    final track = Track(
+      id: file.path.hashCode.toString(),
+      title: tag?.title?.isNotEmpty == true ? tag!.title! : titleWithExt,
+      artist: tag?.trackArtist?.isNotEmpty == true ? tag!.trackArtist! : 'Unknown Artist',
+      album: tag?.album?.isNotEmpty == true ? tag!.album! : 'Unknown Album',
+      path: file.path,
+      duration: tag?.duration != null ? Duration(seconds: tag!.duration!) : Duration.zero,
+      albumArt: albumArtBytes,
+      year: tag?.year,
+      trackNumber: tag?.trackNumber,
+      genre: tag?.genre,
+      bitrate: null,
+      sampleRate: null,
+      codec: codec,
+    );
+
+    return track.toMap();
+  } catch (e) {
+    debugPrint('Error parsing track: $e');
+    return null;
+  }
+}
+
 class MusicScannerService {
-  final List<String> _supportedExtensions = [
+  static const List<String> supportedExtensions = [
     'mp3',
     'flac',
     'wav',
@@ -41,40 +178,43 @@ class MusicScannerService {
     _tracks.clear();
 
     try {
-      // Get common music directories
       final directories = await _getMusicDirectories();
-      List<FileSystemEntity> allFiles = [];
+      final directoryPaths = directories.map((dir) => dir.path).toList();
 
-      for (var dir in directories) {
-        if (await dir.exists()) {
-          allFiles.addAll(
-            dir.listSync(recursive: true).where((entity) {
-              if (entity is File) {
-                final ext = entity.path.split('.').last.toLowerCase();
-                return _supportedExtensions.contains(ext);
-              }
-              return false;
-            }),
-          );
-        }
-      }
+      final receivePort = ReceivePort();
+      final isolate = await Isolate.spawn<_ScanMusicParams>(
+        _scanMusicEntryPoint,
+        _ScanMusicParams(
+          sendPort: receivePort.sendPort,
+          directoryPaths: directoryPaths,
+          supportedExtensions: supportedExtensions,
+        ),
+      );
 
-      final total = allFiles.length;
-      int current = 0;
-
-      for (var file in allFiles) {
-        try {
-          final track = await _parseTrack(file as File);
-          if (track != null) {
-            _tracks.add(track);
+      await for (final message in receivePort) {
+        if (message is Map) {
+          final type = message['type'];
+          if (type == 'progress') {
+            final current = message['current'] as int? ?? 0;
+            final total = message['total'] as int? ?? 0;
+            final progress = (message['progress'] as num?)?.toDouble() ??
+                (total == 0 ? 1.0 : current / total);
+            yield ScanProgress(current, total, progress);
+          } else if (type == 'complete') {
+            final tracks = (message['tracks'] as List)
+                .cast<Map<String, dynamic>>()
+                .map(Track.fromMap)
+                .toList();
+            _tracks = tracks;
+            receivePort.close();
+          } else if (type == 'error') {
+            receivePort.close();
+            throw Exception(message['message']);
           }
-        } catch (e) {
-          debugPrint('Error parsing file ${file.path}: $e');
         }
-
-        current++;
-        yield ScanProgress(current, total, current / total);
       }
+
+      isolate.kill(priority: Isolate.immediate);
     } catch (e) {
       debugPrint('Error scanning music: $e');
     }
@@ -102,82 +242,6 @@ class MusicScannerService {
     }
 
     return uniquePaths.map((path) => Directory(path)).toList();
-  }
-
-  Future<Track?> _parseTrack(File file) async {
-    try {
-      final fileName = file.path.split('/').last;
-      final titleWithExt = fileName.split('.').first;
-      
-      Tag? tag;
-      try {
-        tag = await AudioTags.read(file.path);
-      } catch (e) {
-        debugPrint('Error reading tags for ${file.path}: $e');
-      }
-
-      Uint8List? albumArtBytes;
-      if (tag?.pictures != null && tag!.pictures.isNotEmpty) {
-        albumArtBytes = _compressAlbumArt(tag.pictures.first.bytes);
-      }
-
-      String? codec;
-      final ext = file.path.split('.').last.toLowerCase();
-      switch (ext) {
-        case 'mp3':
-          codec = 'MP3';
-          break;
-        case 'flac':
-          codec = 'FLAC';
-          break;
-        case 'wav':
-          codec = 'WAV';
-          break;
-        case 'ogg':
-          codec = 'OGG Vorbis';
-          break;
-        case 'opus':
-          codec = 'Opus';
-          break;
-        case 'm4a':
-        case 'aac':
-          codec = 'AAC';
-          break;
-        case 'wma':
-          codec = 'WMA';
-          break;
-        case 'ape':
-          codec = 'APE';
-          break;
-        case 'wv':
-          codec = 'WavPack';
-          break;
-        case 'alac':
-          codec = 'ALAC';
-          break;
-        default:
-          codec = ext.toUpperCase();
-      }
-
-      return Track(
-        id: file.path.hashCode.toString(),
-        title: tag?.title?.isNotEmpty == true ? tag!.title! : titleWithExt,
-        artist: tag?.trackArtist?.isNotEmpty == true ? tag!.trackArtist! : 'Unknown Artist',
-        album: tag?.album?.isNotEmpty == true ? tag!.album! : 'Unknown Album',
-        path: file.path,
-        duration: tag?.duration != null ? Duration(seconds: tag!.duration!) : Duration.zero,
-        albumArt: albumArtBytes,
-        year: tag?.year,
-        trackNumber: tag?.trackNumber,
-        genre: tag?.genre,
-        bitrate: null,
-        sampleRate: null,
-        codec: codec,
-      );
-    } catch (e) {
-      debugPrint('Error parsing track: $e');
-      return null;
-    }
   }
 
   Future<List<Track>> getAllTracks() async {
@@ -253,7 +317,7 @@ class MusicScannerService {
     }).toList();
   }
 
-  Uint8List? _compressAlbumArt(Uint8List bytes) {
+  static Uint8List? _compressAlbumArt(Uint8List bytes) {
     try {
       final image = img.decodeImage(bytes);
       if (image == null) return bytes;

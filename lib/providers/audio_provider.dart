@@ -439,6 +439,10 @@ class AudioProvider extends ChangeNotifier {
     if (audioPlayer.playing) {
       await audioPlayer.pause();
     } else {
+      final completed = _position >= _duration && _duration > Duration.zero;
+      if (completed) {
+        await audioPlayer.seek(Duration.zero);
+      }
       await audioPlayer.play();
     }
     _isPlaying = audioPlayer.playing;

@@ -233,23 +233,19 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           final primaryCurve = CurvedAnimation(
             parent: animation,
-            curve: Curves.easeOutCubic,
+            curve: Curves.easeInOutCubic,
             reverseCurve: Curves.easeInOutCubic,
           );
 
           final slideAnimation = Tween(begin: const Offset(0.0, 1.0), end: Offset.zero).animate(primaryCurve);
-          final scaleAnimation = Tween<double>(begin: 0.96, end: 1.0).animate(primaryCurve);
 
           return SlideTransition(
             position: slideAnimation,
-            child: ScaleTransition(
-              scale: scaleAnimation,
-              child: child,
-            ),
+            child: child,
           );
         },
-        transitionDuration: const Duration(milliseconds: 320),
-        reverseTransitionDuration: const Duration(milliseconds: 260),
+        transitionDuration: const Duration(milliseconds: 250),
+        reverseTransitionDuration: const Duration(milliseconds: 200),
       ),
     ).then((_) {
       setState(() {
@@ -260,6 +256,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Scaffold(
       resizeToAvoidBottomInset: false,
       body: AnimatedSwitcher(
@@ -272,26 +271,53 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
           children: _screens,
         ),
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _selectedIndex,
-        onDestinationSelected: _onItemTapped,
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home),
-            label: 'Home',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.library_music_outlined),
-            selectedIcon: Icon(Icons.library_music),
-            label: 'Library',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.cloud_outlined),
-            selectedIcon: Icon(Icons.cloud),
-            label: 'Stream',
-          ),
-        ],
+      bottomNavigationBar: NavigationBarTheme(
+        data: NavigationBarThemeData(
+          height: 72,
+          labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+          indicatorColor: colorScheme.secondaryContainer.withOpacity(0.9),
+          iconTheme: MaterialStateProperty.resolveWith<IconThemeData>((states) {
+            final onSurface = colorScheme.onSurfaceVariant;
+            final onSelected = colorScheme.onSecondaryContainer;
+            return IconThemeData(
+              color: states.contains(MaterialState.selected) ? onSelected : onSurface,
+              size: states.contains(MaterialState.selected) ? 26 : 24,
+            );
+          }),
+          labelTextStyle: MaterialStateProperty.resolveWith<TextStyle>((states) {
+            final base = theme.textTheme.labelMedium;
+            if (base == null) return const TextStyle();
+            return states.contains(MaterialState.selected)
+                ? base.copyWith(
+                    color: colorScheme.onSecondaryContainer,
+                    fontWeight: FontWeight.w600,
+                  )
+                : base.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  );
+          }),
+        ),
+        child: NavigationBar(
+          selectedIndex: _selectedIndex,
+          onDestinationSelected: _onItemTapped,
+          destinations: const [
+            NavigationDestination(
+              icon: Icon(Icons.home_outlined),
+              selectedIcon: Icon(Icons.home),
+              label: 'Home',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.library_music_outlined),
+              selectedIcon: Icon(Icons.library_music),
+              label: 'Library',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.cloud_outlined),
+              selectedIcon: Icon(Icons.cloud),
+              label: 'Stream',
+            ),
+          ],
+        ),
       ),
       floatingActionButton: Consumer<AudioProvider>(
         builder: (context, audioProvider, child) {
@@ -317,4 +343,132 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     );
   }
 
+}
+
+class BottomNavDestination {
+  const BottomNavDestination({
+    required this.icon,
+    required this.selectedIcon,
+    required this.label,
+  });
+
+  final IconData icon;
+  final IconData selectedIcon;
+  final String label;
+}
+
+class AnimatedBottomNavBar extends StatefulWidget {
+  const AnimatedBottomNavBar({
+    super.key,
+    required this.selectedIndex,
+    required this.onDestinationSelected,
+    required this.destinations,
+  });
+
+  final int selectedIndex;
+  final ValueChanged<int> onDestinationSelected;
+  final List<BottomNavDestination> destinations;
+
+  @override
+  State<AnimatedBottomNavBar> createState() => _AnimatedBottomNavBarState();
+}
+
+class _AnimatedBottomNavBarState extends State<AnimatedBottomNavBar>
+    with TickerProviderStateMixin {
+  late List<AnimationController> _controllers;
+  late List<Animation<double>> _scales;
+
+  @override
+  void initState() {
+    super.initState();
+    _controllers = List.generate(
+      widget.destinations.length,
+      (index) => AnimationController(
+        duration: const Duration(milliseconds: 100),
+        vsync: this,
+      ),
+    );
+    _scales = _controllers.map((controller) => Tween<double>(begin: 1.0, end: 1.08).animate(
+      CurvedAnimation(parent: controller, curve: Curves.easeOut),
+    )).toList();
+  }
+
+  @override
+  void dispose() {
+    for (final controller in _controllers) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
+  void _onTap(int index) {
+    _controllers[index].forward().then((_) {
+      _controllers[index].reverse();
+    });
+    widget.onDestinationSelected(index);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Container(
+      height: 80,
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainer,
+        border: Border(
+          top: BorderSide(color: colorScheme.outlineVariant.withOpacity(0.2), width: 1),
+        ),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: List.generate(widget.destinations.length, (index) {
+          final destination = widget.destinations[index];
+          final isSelected = index == widget.selectedIndex;
+
+          return Expanded(
+            child: InkWell(
+              onTap: () => _onTap(index),
+              borderRadius: BorderRadius.circular(16),
+              child: AnimatedBuilder(
+                animation: _scales[index],
+                builder: (context, child) => Transform.scale(
+                  scale: _scales[index].value,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    alignment: Alignment.center,
+                    decoration: isSelected
+                        ? BoxDecoration(
+                            color: colorScheme.secondaryContainer.withOpacity(0.3),
+                            borderRadius: BorderRadius.circular(16),
+                          )
+                        : null,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          isSelected ? destination.selectedIcon : destination.icon,
+                          color: isSelected ? colorScheme.onSecondaryContainer : colorScheme.onSurfaceVariant,
+                          size: 24,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          destination.label,
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: isSelected ? colorScheme.onSecondaryContainer : colorScheme.onSurfaceVariant,
+                            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        }),
+      ),
+    );
+  }
 }

@@ -19,6 +19,10 @@ class _StreamScreenState extends State<StreamScreen>
     with AutomaticKeepAliveClientMixin {
   late YtdlWrapperService _service;
   List<Map<String, dynamic>> _featured = [];
+  List<Map<String, dynamic>> _topArtists = [];
+  List<Map<String, dynamic>> _topAlbums = [];
+  List<Map<String, dynamic>> _trendingSongs = [];
+  List<Map<String, dynamic>> _moodMixes = [];
   List<Map<String, dynamic>> _searchResults = [];
   bool _isLoading = true;
   bool _isSearching = false;
@@ -83,26 +87,48 @@ class _StreamScreenState extends State<StreamScreen>
 
   Future<void> _loadFeatured() async {
     if (_featured.isNotEmpty) return;
+    await _loadDiscoverSections(forceRefresh: true);
+  }
+
+  Future<void> _loadDiscoverSections({bool forceRefresh = false}) async {
+    if (!forceRefresh && _featured.isNotEmpty) return;
 
     setState(() {
       _isLoading = true;
       _error = null;
     });
+
     try {
-      final featured = await _service.search('latest music "music video" "song"', limit: 12);
-      if (mounted) {
-        setState(() {
-          _featured = featured;
-          _isLoading = false;
-        });
-      }
+      final featuredFuture = _service.search('Latest music songs', limit: 20);
+      final trendingFuture = _service.search('Trending songs 2024', limit: 20);
+      final topArtistsFuture = _service.search('Top music artists', limit: 20);
+      final topAlbumsFuture = _service.search('Top music albums', limit: 20);
+      final moodFuture = _service.search('Chill mix playlist music', limit: 20);
+
+      final results = await Future.wait<List<Map<String, dynamic>>>([
+        featuredFuture,
+        trendingFuture,
+        topArtistsFuture,
+        topAlbumsFuture,
+        moodFuture,
+      ]);
+
+      if (!mounted) return;
+
+      setState(() {
+        _featured = results[0];
+        _trendingSongs = results[1];
+        _topArtists = results[2];
+        _topAlbums = results[3];
+        _moodMixes = results[4];
+        _isLoading = false;
+      });
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _error = 'Failed to load featured tracks. Check your connection.';
-          _isLoading = false;
-        });
-      }
+      if (!mounted) return;
+      setState(() {
+        _error = 'Failed to load discovery content. Check your connection.';
+        _isLoading = false;
+      });
     }
   }
 
@@ -229,6 +255,28 @@ class _StreamScreenState extends State<StreamScreen>
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message)),
+    );
+  }
+
+  Widget _buildEmptySectionCard(String message, {double height = 120}) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    return Container(
+      height: height,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: colorScheme.outline.withValues(alpha: 0.08)),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Text(
+        message,
+        style: theme.textTheme.bodyMedium?.copyWith(
+          color: colorScheme.onSurfaceVariant,
+        ),
+        textAlign: TextAlign.center,
+      ),
     );
   }
 
@@ -606,10 +654,7 @@ class _StreamScreenState extends State<StreamScreen>
     }
 
     final showingSearch = _currentQuery.isNotEmpty;
-    final videos = showingSearch ? _searchResults : _featured;
-    final title = showingSearch ? 'Search Results' : 'Discover';
-
-    if (videos.isEmpty) {
+    if (showingSearch && _searchResults.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -617,7 +662,7 @@ class _StreamScreenState extends State<StreamScreen>
             Icon(Icons.music_off, size: 48, color: Theme.of(context).colorScheme.onSurfaceVariant),
             const SizedBox(height: 16),
             Text(
-              showingSearch ? 'No results found' : 'No featured tracks',
+              'No results found',
               style: Theme.of(context).textTheme.bodyMedium,
             ),
           ],
@@ -626,37 +671,305 @@ class _StreamScreenState extends State<StreamScreen>
     }
 
     return RefreshIndicator(
-      onRefresh: showingSearch ? () async => _search(_currentQuery) : _loadFeatured,
+      onRefresh: showingSearch ? () async => _search(_currentQuery) : () => _loadDiscoverSections(forceRefresh: true),
       child: Consumer<AudioProvider>(
         builder: (context, audioProvider, child) {
           final hasMiniPlayer = audioProvider.currentTrack != null;
           final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
           final shouldShowMiniPlayer = hasMiniPlayer && keyboardHeight == 0;
 
-          return ListView.builder(
+          if (showingSearch) {
+            return ListView.separated(
+              padding: EdgeInsets.only(
+                bottom: shouldShowMiniPlayer ? 120 : 16,
+                top: 12,
+              ),
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              itemCount: _searchResults.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 12),
+              itemBuilder: (context, index) => _buildVideoTile(_searchResults[index]),
+            );
+          }
+
+          return ListView(
             padding: EdgeInsets.only(
-              bottom: shouldShowMiniPlayer ? 120 : 16,
+              bottom: shouldShowMiniPlayer ? 140 : 24,
             ),
-            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-            itemCount: videos.length + 1,
-            itemBuilder: (context, index) {
-              if (index == 0) {
-                return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: Text(
-                    title,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: Theme.of(context).colorScheme.onSurface,
-                    ),
-                  ),
-                );
-              }
-              return _buildVideoTile(videos[index - 1]);
-            },
+            children: [
+              _buildSectionHeader('Featured for you'),
+              const SizedBox(height: 12),
+              _buildHorizontalCarousel(_featured),
+              const SizedBox(height: 32),
+              _buildSectionHeader('Trending now'),
+              const SizedBox(height: 12),
+              _buildTileList(_trendingSongs.take(6).toList()),
+              const SizedBox(height: 32),
+              _buildSectionHeader('Top artists'),
+              const SizedBox(height: 12),
+              _buildArtistChips(_topArtists),
+              const SizedBox(height: 32),
+              _buildSectionHeader('Top albums'),
+              const SizedBox(height: 12),
+              _buildAlbumGrid(_topAlbums.take(6).toList()),
+              const SizedBox(height: 32),
+              _buildSectionHeader('Mood mixes'),
+              const SizedBox(height: 12),
+              _buildHorizontalCarousel(_moodMixes),
+            ],
           );
         },
       ),
+    );
+  }
+
+  Widget _buildSectionHeader(String title) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          title,
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: colorScheme.onSurface,
+          ),
+        ),
+        Icon(Icons.chevron_right, size: 20, color: colorScheme.onSurfaceVariant),
+      ],
+    );
+  }
+
+  Widget _buildHorizontalCarousel(List<Map<String, dynamic>> items) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final itemCount = items.length > 15 ? 15 : items.length;
+    if (itemCount == 0) {
+      return _buildEmptySectionCard('Nothing to show yet', height: 140);
+    }
+    return SizedBox(
+      height: 210,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: itemCount,
+        separatorBuilder: (_, __) => const SizedBox(width: 16),
+        itemBuilder: (context, index) {
+          final item = items[index];
+          final thumbnail = item['thumbnail'] as String? ?? 'https://img.youtube.com/vi/${item['id']}/hqdefault.jpg';
+          final title = item['title'] as String? ?? 'Unknown';
+          final subtitle = item['channel'] as String? ?? 'Unknown artist';
+
+          return GestureDetector(
+            onTap: () => _playVideo(item),
+            child: Container(
+              width: 170,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    colorScheme.surfaceContainerHighest.withValues(alpha: 0.8),
+                    colorScheme.surfaceContainer.withValues(alpha: 0.6),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: colorScheme.outline.withValues(alpha: 0.1)),
+                boxShadow: [
+                  BoxShadow(
+                    color: colorScheme.shadow.withValues(alpha: 0.07),
+                    blurRadius: 12,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ClipRRect(
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(18),
+                      topRight: Radius.circular(18),
+                    ),
+                    child: AspectRatio(
+                      aspectRatio: 16 / 9,
+                      child: Image.network(
+                        thumbnail,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) => Container(
+                          alignment: Alignment.center,
+                          color: colorScheme.surfaceContainerHighest,
+                          child: Icon(Icons.music_note, color: colorScheme.onSurfaceVariant),
+                        ),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            title,
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              color: colorScheme.onSurface,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            subtitle,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildTileList(List<Map<String, dynamic>> items) {
+    if (items.isEmpty) {
+      return _buildEmptySectionCard('Nothing trending right now');
+    }
+    return Column(children: items.map(_buildVideoTile).toList(growable: false));
+  }
+
+  Widget _buildArtistChips(List<Map<String, dynamic>> items) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    if (items.isEmpty) {
+      return _buildEmptySectionCard('No top artists yet', height: 96);
+    }
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: items.take(12).map((artist) {
+          final name = artist['channel'] as String? ?? artist['title'] as String? ?? 'Unknown Artist';
+          final thumbnail = artist['thumbnail'] as String? ?? 'https://img.youtube.com/vi/${artist['id']}/hqdefault.jpg';
+          return Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: ActionChip(
+              onPressed: () => _playVideo(artist),
+              label: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
+              avatar: CircleAvatar(
+                backgroundImage: NetworkImage(thumbnail),
+                onBackgroundImageError: (_, __) {},
+                backgroundColor: colorScheme.surfaceContainerHighest,
+              ),
+              backgroundColor: colorScheme.surfaceContainer,
+              side: BorderSide(color: colorScheme.outline.withValues(alpha: 0.12)),
+              labelStyle: theme.textTheme.bodyMedium?.copyWith(
+                color: colorScheme.onSurface,
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildAlbumGrid(List<Map<String, dynamic>> items) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    if (items.isEmpty) {
+      return _buildEmptySectionCard('No albums available yet');
+    }
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        mainAxisSpacing: 16,
+        crossAxisSpacing: 16,
+        childAspectRatio: 0.9,
+      ),
+      itemCount: items.length,
+      itemBuilder: (context, index) {
+        final album = items[index];
+        final thumbnail = album['thumbnail'] as String? ?? 'https://img.youtube.com/vi/${album['id']}/hqdefault.jpg';
+        final title = album['title'] as String? ?? 'Unknown album';
+        final artist = album['channel'] as String? ?? 'Unknown artist';
+
+        return GestureDetector(
+          onTap: () => _playVideo(album),
+          child: Container(
+            decoration: BoxDecoration(
+              color: colorScheme.surfaceContainer,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: colorScheme.outline.withValues(alpha: 0.12)),
+              boxShadow: [
+                BoxShadow(
+                  color: colorScheme.shadow.withValues(alpha: 0.06),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ClipRRect(
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                  child: Image.network(
+                    thumbnail,
+                    height: 120,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) => Container(
+                      height: 120,
+                      alignment: Alignment.center,
+                      color: colorScheme.surfaceContainerHighest,
+                      child: Icon(Icons.album, color: colorScheme.onSurfaceVariant),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            color: colorScheme.onSurface,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          artist,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }
