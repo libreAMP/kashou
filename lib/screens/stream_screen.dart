@@ -189,6 +189,7 @@ class _StreamScreenState extends State<StreamScreen>
       album: video['title'] as String? ?? 'YouTube',
       path: videoUrl,
       duration: Duration(seconds: durationSeconds),
+      sourceUrl: videoUrl,
     );
 
     audioProvider.preparePendingTrack(placeholderTrack);
@@ -246,6 +247,7 @@ class _StreamScreenState extends State<StreamScreen>
       path: downloadUrl,
       duration: Duration(seconds: _asInt(details['duration']) ?? durationSeconds),
       albumArt: albumArt ?? placeholderTrack.albumArt,
+      sourceUrl: placeholderTrack.sourceUrl,
     );
 
     await audioProvider.playTrack(finalTrack);

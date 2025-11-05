@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
@@ -8,6 +9,7 @@ import '../services/audio_service.dart' as audio_svc;
 import '../providers/settings_provider.dart';
 import '../providers/library_provider.dart';
 import '../services/custom_equalizer.dart';
+import '../models/stream_history_entry.dart';
 
 enum RepeatMode { off, all, one }
 
@@ -80,6 +82,11 @@ class AudioProvider extends ChangeNotifier {
   double get tempoControl => _tempoControl;
   double get masterVolume => _masterVolume;
   List<Map<String, dynamic>> get streamHistory => List.unmodifiable(_streamHistory);
+  List<StreamHistoryEntry> get streamHistoryEntries =>
+      _streamHistory.map(StreamHistoryEntry.fromPersistedMap).toList(growable: false);
+  List<StreamHistoryEntry> get youtubeStreamHistoryEntries => streamHistoryEntries
+      .where((entry) => entry.isYouTube)
+      .toList(growable: false);
 
   AudioProvider({SettingsProvider? settingsProvider}) {
     _settingsProvider = settingsProvider;
@@ -177,6 +184,18 @@ class AudioProvider extends ChangeNotifier {
     await prefs.setString(_streamHistoryKey, jsonEncode(_streamHistory));
   }
 
+  Future<void> clearStreamHistory() async {
+    _streamHistory.clear();
+    await _saveStreamHistory();
+    notifyListeners();
+  }
+
+  Future<void> removeFromStreamHistory(String sourceUrl) async {
+    _streamHistory.removeWhere((item) => item['sourceUrl'] == sourceUrl);
+    await _saveStreamHistory();
+    notifyListeners();
+  }
+
   void _addToRecentTracks(String trackId) {
     _recentTrackIds.remove(trackId);
     _recentTrackIds.insert(0, trackId);
@@ -188,22 +207,22 @@ class AudioProvider extends ChangeNotifier {
   }
 
   void _addToStreamHistory(Track track) {
-    if (!_isRemotePath(track.path)) return;
-    final entry = {
-      'id': track.id,
-      'title': track.title,
-      'artist': track.artist,
-      'album': track.album,
-      'path': track.path,
-      'duration': track.duration.inMilliseconds,
-      'timestamp': DateTime.now().toIso8601String(),
-    };
-    _streamHistory.removeWhere((item) => item['path'] == entry['path']);
-    _streamHistory.insert(0, entry);
+    final sourceUrl = track.sourceUrl ?? track.path;
+    if (sourceUrl.isEmpty || !_isRemotePath(sourceUrl)) return;
+
+    final entry = StreamHistoryEntry(
+      track: track,
+      timestamp: DateTime.now(),
+      isYouTube: sourceUrl.contains('youtu'),
+    );
+
+    _streamHistory.removeWhere((item) => item['sourceUrl'] == sourceUrl);
+    _streamHistory.insert(0, entry.toPersistedMap());
     if (_streamHistory.length > _maxStreamHistory) {
       _streamHistory = _streamHistory.sublist(0, _maxStreamHistory);
     }
     _saveStreamHistory();
+    notifyListeners();
   }
 
   List<Track> getRecentlyPlayedTracks(LibraryProvider library) {

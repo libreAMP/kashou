@@ -14,6 +14,7 @@ class Track {
   final int? bitrate;
   final int? sampleRate;
   final String? codec;
+  final String? sourceUrl;
 
   Track({
     required this.id,
@@ -29,6 +30,7 @@ class Track {
     this.bitrate,
     this.sampleRate,
     this.codec,
+    this.sourceUrl,
   });
 
   Track copyWith({
@@ -45,6 +47,7 @@ class Track {
     int? bitrate,
     int? sampleRate,
     String? codec,
+    String? sourceUrl,
   }) {
     return Track(
       id: id ?? this.id,
@@ -60,6 +63,7 @@ class Track {
       bitrate: bitrate ?? this.bitrate,
       sampleRate: sampleRate ?? this.sampleRate,
       codec: codec ?? this.codec,
+      sourceUrl: sourceUrl ?? this.sourceUrl,
     );
   }
 
@@ -78,6 +82,7 @@ class Track {
       bitrate: map['bitrate'] as int?,
       sampleRate: map['sampleRate'] as int?,
       codec: map['codec'] as String?,
+      sourceUrl: map['sourceUrl'] as String?,
     );
   }
 
@@ -96,6 +101,7 @@ class Track {
       'bitrate': bitrate,
       'sampleRate': sampleRate,
       'codec': codec,
+      'sourceUrl': sourceUrl,
     };
   }
 }

@@ -5,6 +5,7 @@ import '../providers/audio_provider.dart';
 import '../widgets/track_list_item.dart';
 import '../widgets/album_card.dart';
 import '../widgets/artist_card.dart';
+import 'youtube_history_screen.dart';
 
 class LibraryScreen extends StatefulWidget {
   const LibraryScreen({super.key});
@@ -491,6 +492,16 @@ class _LibraryScreenState extends State<LibraryScreen>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              ListTile(
+                leading: const Icon(Icons.history),
+                title: const Text('YouTube History'),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const YoutubeHistoryScreen()),
+                  );
+                },
+              ),
               ListTile(
                 leading: const Icon(Icons.refresh),
                 title: const Text('Rescan Library'),
