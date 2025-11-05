@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -42,7 +44,10 @@ class AudioProvider extends ChangeNotifier {
   ShuffleMode _shuffleMode = ShuffleMode.off;
 
   static const int _maxRecentTracks = 20;
+  static const int _maxStreamHistory = 50;
   List<String> _recentTrackIds = [];
+  List<Map<String, dynamic>> _streamHistory = [];
+  static const String _streamHistoryKey = 'stream_history_v1';
 
   List<double> _equalizerBands = [];
   bool _equalizerEnabled = false;
@@ -74,11 +79,13 @@ class AudioProvider extends ChangeNotifier {
   double get reverbLevel => _reverbLevel;
   double get tempoControl => _tempoControl;
   double get masterVolume => _masterVolume;
+  List<Map<String, dynamic>> get streamHistory => List.unmodifiable(_streamHistory);
 
   AudioProvider({SettingsProvider? settingsProvider}) {
     _settingsProvider = settingsProvider;
     _initializeAudioService();
     _loadRecentTracks();
+    _loadStreamHistory();
   }
   
   void updateSettings(SettingsProvider settings) {
@@ -150,9 +157,24 @@ class AudioProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> _loadStreamHistory() async {
+    final prefs = await SharedPreferences.getInstance();
+    final stored = prefs.getString(_streamHistoryKey);
+    if (stored != null) {
+      final data = jsonDecode(stored) as List<dynamic>;
+      _streamHistory = data.map((item) => Map<String, dynamic>.from(item as Map)).toList();
+      notifyListeners();
+    }
+  }
+
   Future<void> _saveRecentTracks() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setStringList('recent_tracks', _recentTrackIds);
+  }
+
+  Future<void> _saveStreamHistory() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_streamHistoryKey, jsonEncode(_streamHistory));
   }
 
   void _addToRecentTracks(String trackId) {
@@ -163,6 +185,25 @@ class AudioProvider extends ChangeNotifier {
     }
     _saveRecentTracks();
     notifyListeners();
+  }
+
+  void _addToStreamHistory(Track track) {
+    if (!_isRemotePath(track.path)) return;
+    final entry = {
+      'id': track.id,
+      'title': track.title,
+      'artist': track.artist,
+      'album': track.album,
+      'path': track.path,
+      'duration': track.duration.inMilliseconds,
+      'timestamp': DateTime.now().toIso8601String(),
+    };
+    _streamHistory.removeWhere((item) => item['path'] == entry['path']);
+    _streamHistory.insert(0, entry);
+    if (_streamHistory.length > _maxStreamHistory) {
+      _streamHistory = _streamHistory.sublist(0, _maxStreamHistory);
+    }
+    _saveStreamHistory();
   }
 
   List<Track> getRecentlyPlayedTracks(LibraryProvider library) {
@@ -321,6 +362,7 @@ class AudioProvider extends ChangeNotifier {
       _lastCommittedTrack = track;
       _clearPendingSnapshot();
       _addToRecentTracks(track.id);
+      _addToStreamHistory(track);
       final queueIndex = _queue.indexWhere((t) => t.id == track.id);
       if (queueIndex != -1) {
         _queue[queueIndex] = track;

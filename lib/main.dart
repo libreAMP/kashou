@@ -226,28 +226,31 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   }
 
   void _openNowPlaying() {
-    Navigator.push(
-      context,
-      PageRouteBuilder(
-        pageBuilder: (context, animation, secondaryAnimation) => const NowPlayingScreen(),
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          final primaryCurve = CurvedAnimation(
-            parent: animation,
-            curve: Curves.easeInOutCubic,
-            reverseCurve: Curves.easeInOutCubic,
-          );
-
-          final slideAnimation = Tween(begin: const Offset(0.0, 1.0), end: Offset.zero).animate(primaryCurve);
-
-          return SlideTransition(
-            position: slideAnimation,
-            child: child,
-          );
-        },
-        transitionDuration: const Duration(milliseconds: 250),
-        reverseTransitionDuration: const Duration(milliseconds: 200),
-      ),
-    ).then((_) {
+    setState(() {
+      _showMiniPlayer = false;
+    });
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      enableDrag: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withOpacity(0.5),
+      builder: (sheetContext) {
+        final mediaQuery = MediaQuery.of(sheetContext);
+        final topInset = mediaQuery.viewPadding.top;
+        return AnimatedPadding(
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+          padding: EdgeInsets.only(
+            top: topInset,
+            bottom: mediaQuery.viewInsets.bottom,
+          ),
+          child: const NowPlayingScreen(),
+        );
+      },
+    ).whenComplete(() {
+      if (!mounted) return;
       setState(() {
         _showMiniPlayer = true;
       });

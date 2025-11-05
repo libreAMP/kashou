@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -11,8 +10,6 @@ import '../providers/audio_provider.dart';
 import '../providers/settings_provider.dart';
 import '../services/local_media_server.dart';
 import '../utils/hero_transitions.dart';
-import '../services/ytdl_service.dart';
-import 'package:http/http.dart' as http;
 import '../models/track.dart';
 
 class MiniPlayer extends StatefulWidget {
@@ -27,6 +24,36 @@ class MiniPlayer extends StatefulWidget {
 
   @override
   State<MiniPlayer> createState() => _MiniPlayerState();
+}
+
+class _MiniPlayerSnapshot {
+  const _MiniPlayerSnapshot({
+    required this.track,
+    required this.isLoading,
+    required this.isPlaying,
+    required this.position,
+    required this.duration,
+  });
+
+  final Track? track;
+  final bool isLoading;
+  final bool isPlaying;
+  final Duration position;
+  final Duration duration;
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    if (other is! _MiniPlayerSnapshot) return false;
+    return identical(track, other.track) &&
+        isLoading == other.isLoading &&
+        isPlaying == other.isPlaying &&
+        position == other.position &&
+        duration == other.duration;
+  }
+
+  @override
+  int get hashCode => Object.hash(track, isLoading, isPlaying, position, duration);
 }
 
 class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
@@ -76,7 +103,6 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
       }
     });
 
-    // Only start Chromecast discovery if enabled in settings
     final settings = Provider.of<SettingsProvider>(context, listen: false);
     if (settings.enableCasting) {
       GoogleCastDiscoveryManager.instance.startDiscovery();
@@ -127,7 +153,6 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
 
   @override
   void dispose() {
-    // Only stop Chromecast discovery if it was enabled
     final settings = Provider.of<SettingsProvider>(context, listen: false);
     if (settings.enableCasting) {
       GoogleCastDiscoveryManager.instance.stopDiscovery();
@@ -203,38 +228,45 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
   Widget build(BuildContext context) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     
-    return Consumer<AudioProvider>(
-      builder: (context, audioProvider, child) {
-        if (audioProvider.currentTrack == null) {
+    return Selector<AudioProvider, _MiniPlayerSnapshot>(
+      selector: (context, provider) => _MiniPlayerSnapshot(
+        track: provider.currentTrack,
+        isLoading: provider.isLoadingTrack,
+        isPlaying: provider.isPlaying,
+        position: provider.position,
+        duration: provider.duration,
+      ),
+      shouldRebuild: (previous, next) => previous != next,
+      builder: (context, snapshot, child) {
+        if (snapshot.track == null) {
           return const SizedBox.shrink();
         }
 
-        final track = audioProvider.currentTrack!;
-        final isLoading = audioProvider.isLoadingTrack;
-        final progress = audioProvider.duration.inMilliseconds > 0
-            ? audioProvider.position.inMilliseconds /
-                audioProvider.duration.inMilliseconds
+        final track = snapshot.track!;
+        final theme = Theme.of(context);
+        final colorScheme = theme.colorScheme;
+        final isLoading = snapshot.isLoading;
+        final totalMillis = snapshot.duration.inMilliseconds;
+        final progress = totalMillis > 0
+            ? snapshot.position.inMilliseconds / totalMillis
             : 0.0;
 
         final useWhiteText = isDarkMode;
+        final gradientColors = isDarkMode
+            ? [Colors.black.withOpacity(0.7), Colors.black.withOpacity(0.5)]
+            : [colorScheme.surfaceContainerHighest, colorScheme.surfaceContainer];
 
         return FadeTransition(
           opacity: _fadeAnimation,
           child: SlideTransition(
             position: _slideAnimation,
             child: GestureDetector(
-              onTap: () {
-                if (_isYouTubeTrack(track)) {
-                  _handleYouTubeTrack(track);
-                } else {
-                  widget.onTap();
-                }
-              },
+              onTap: widget.onTap,
               onVerticalDragUpdate: _handleVerticalDragUpdate,
               onVerticalDragEnd: _handleVerticalDragEnd,
               onHorizontalDragStart: _handleHorizontalDragStart,
               onHorizontalDragEnd: (details) =>
-                  _handleHorizontalDragEnd(details, audioProvider),
+                  _handleHorizontalDragEnd(details, context.read<AudioProvider>()),
               child: Container(
                 width: MediaQuery.of(context).size.width - 32,
                 decoration: BoxDecoration(
@@ -249,45 +281,27 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(14),
-                  child: Stack(
-                    children: [
-                      if (track.albumArt != null && isDarkMode)
-                        Positioned.fill(
-                          child: ImageFiltered(
-                            imageFilter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                            child: Image.memory(
-                              track.albumArt!,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) {
-                                return Container(
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .surfaceContainerHighest,
-                                );
-                              },
-                            ),
-                          ),
-                        ),
-                      Positioned.fill(
-                        child: Container(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: isDarkMode
-                                  ? [
-                                      Colors.black.withOpacity(0.7),
-                                      Colors.black.withOpacity(0.5),
-                                    ]
-                                  : [
-                                      Theme.of(context).colorScheme.surfaceContainerHighest,
-                                      Theme.of(context).colorScheme.surfaceContainer,
-                                    ],
-                            ),
-                          ),
+                  child: RepaintBoundary(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        image: track.albumArt != null && isDarkMode
+                            ? DecorationImage(
+                                image: MemoryImage(track.albumArt!),
+                                fit: BoxFit.cover,
+                                filterQuality: FilterQuality.low,
+                                colorFilter: ColorFilter.mode(
+                                  Colors.black.withOpacity(0.55),
+                                  BlendMode.srcOver,
+                                ),
+                              )
+                            : null,
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: gradientColors,
                         ),
                       ),
-                      Column(
+                      child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           LinearProgressIndicator(
@@ -297,12 +311,14 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
                                 ? Colors.white.withOpacity(0.2)
                                 : Colors.black.withOpacity(0.1),
                             valueColor: AlwaysStoppedAnimation<Color>(
-                              Theme.of(context).colorScheme.primary,
+                              colorScheme.primary,
                             ),
                           ),
                           Padding(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 14, vertical: 10),
+                              horizontal: 14,
+                              vertical: 10,
+                            ),
                             child: Row(
                               children: [
                                 Hero(
@@ -311,34 +327,31 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
                                   flightShuttleBuilder: albumArtFlightShuttleBuilder,
                                   child: ClipRRect(
                                     borderRadius: BorderRadius.circular(6),
-                                    child: Container(
-                                      width: 46,
-                                      height: 46,
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .primaryContainer,
-                                      child: track.albumArt != null
-                                          ? Image.memory(
-                                              track.albumArt!,
-                                              fit: BoxFit.cover,
-                                              errorBuilder:
-                                                  (context, error, stackTrace) {
-                                                return Icon(
-                                                  Icons.music_note,
-                                                  size: 24,
-                                                  color: Theme.of(context)
-                                                      .colorScheme
-                                                      .onPrimaryContainer,
-                                                );
-                                              },
-                                            )
-                                          : Icon(
-                                              Icons.music_note,
-                                              size: 24,
-                                              color: Theme.of(context)
-                                                  .colorScheme
-                                                  .onPrimaryContainer,
-                                            ),
+                                    child: DecoratedBox(
+                                      decoration: BoxDecoration(
+                                        color: colorScheme.primaryContainer,
+                                      ),
+                                      child: SizedBox(
+                                        width: 46,
+                                        height: 46,
+                                        child: track.albumArt != null
+                                            ? Image.memory(
+                                                track.albumArt!,
+                                                fit: BoxFit.cover,
+                                                errorBuilder: (context, _, __) {
+                                                  return Icon(
+                                                    Icons.music_note,
+                                                    size: 24,
+                                                    color: colorScheme.onPrimaryContainer,
+                                                  );
+                                                },
+                                              )
+                                            : Icon(
+                                                Icons.music_note,
+                                                size: 24,
+                                                color: colorScheme.onPrimaryContainer,
+                                              ),
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -355,7 +368,7 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
                                           fontSize: 14,
                                           color: useWhiteText
                                               ? Colors.white
-                                              : Theme.of(context).colorScheme.onSurface,
+                                              : colorScheme.onSurface,
                                         ),
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
@@ -367,7 +380,7 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
                                           fontSize: 12,
                                           color: useWhiteText
                                               ? Colors.white.withOpacity(0.7)
-                                              : Theme.of(context).colorScheme.onSurfaceVariant,
+                                              : colorScheme.onSurfaceVariant,
                                         ),
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
@@ -383,7 +396,7 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
                                     child: CircularProgressIndicator(
                                       strokeWidth: 2.6,
                                       valueColor: AlwaysStoppedAnimation<Color>(
-                                        Theme.of(context).colorScheme.primary,
+                                        colorScheme.primary,
                                       ),
                                     ),
                                   ),
@@ -391,60 +404,33 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
                                 ] else ...[
                                   IconButton(
                                     icon: Icon(
-                                      audioProvider.isPlaying
+                                      snapshot.isPlaying
                                           ? Icons.pause_rounded
                                           : Icons.play_arrow_rounded,
                                       color: useWhiteText
                                           ? Colors.white
-                                          : Theme.of(context).colorScheme.onSurface,
+                                          : colorScheme.onSurface,
                                     ),
                                     iconSize: 26,
-                                    onPressed: audioProvider.togglePlayPause,
+                                    onPressed: context.read<AudioProvider>().togglePlayPause,
                                   ),
                                   IconButton(
                                     icon: Icon(
                                       Icons.skip_next_rounded,
                                       color: useWhiteText
                                           ? Colors.white
-                                          : Theme.of(context).colorScheme.onSurface,
+                                          : colorScheme.onSurface,
                                     ),
                                     iconSize: 26,
-                                    onPressed: audioProvider.skipNext,
+                                    onPressed: context.read<AudioProvider>().skipNext,
                                   ),
                                 ],
-                                Consumer<SettingsProvider>(
-                                  builder: (context, settings, child) {
-                                    if (!settings.enableCasting) {
-                                      return const SizedBox.shrink();
-                                    }
-                                    return StreamBuilder<GoogleCastSession?>(
-                                      stream: GoogleCastSessionManager.instance.currentSessionStream,
-                                      builder: (context, snapshot) {
-                                        final isConnected = snapshot.data != null;
-                                        final iconColor = isConnected
-                                            ? Theme.of(context).colorScheme.tertiary
-                                            : (useWhiteText
-                                                ? Colors.white
-                                                : Theme.of(context).colorScheme.onSurface);
-
-                                        return IconButton(
-                                          icon: Icon(
-                                            isConnected ? Icons.cast_connected : Icons.cast,
-                                            color: iconColor,
-                                          ),
-                                          iconSize: 22,
-                                          onPressed: () => _showCastDialog(context),
-                                        );
-                                      },
-                                    );
-                                  },
-                                ),
                               ],
                             ),
                           ),
                         ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
               ),
@@ -453,83 +439,6 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
         );
       },
     );
-  }
-
-  bool _isYouTubeTrack(Track track) {
-    return track.path.contains('youtube.com') || track.path.contains('youtu.be');
-  }
-
-  Future<void> _handleYouTubeTrack(Track track) async {
-    final settings = Provider.of<SettingsProvider>(context, listen: false);
-    if (!settings.enableYouTubeIntegration) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('YouTube integration is disabled in settings')),
-      );
-      return;
-    }
-
-    final ytdlService = YtdlWrapperService(settings.ytdlBaseUrl);
-    final audioProvider = Provider.of<AudioProvider>(context, listen: false);
-
-    try {
-      final details = await ytdlService.fetchAudioDetails(track.path);
-      if (details == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Unable to load YouTube audio stream')),
-        );
-        return;
-      }
-
-      String? downloadUrl;
-      final audio = details['audio'];
-      if (audio is Map) {
-        downloadUrl = audio['download_url'] as String?;
-      } else if (audio is String) {
-        downloadUrl = audio;
-      }
-      downloadUrl ??= details['download_url'] as String?;
-      downloadUrl ??= details['audio_url'] as String?;
-
-      if (downloadUrl == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('YouTube audio stream unavailable')),
-        );
-        return;
-      }
-
-      Uint8List? albumArt;
-      final thumbUrl = details['thumbnail'] as String?;
-      if (thumbUrl != null && thumbUrl.isNotEmpty) {
-        try {
-          final thumbnailResponse = await http.get(Uri.parse(thumbUrl));
-          if (thumbnailResponse.statusCode == 200) {
-            albumArt = thumbnailResponse.bodyBytes;
-          }
-        } catch (_) {}
-      }
-
-      final updatedTrack = track.copyWith(
-        title: details['title'] as String? ?? track.title,
-        artist: details['channel'] as String? ?? track.artist,
-        album: details['title'] as String? ?? track.album,
-        path: downloadUrl,
-        duration: Duration(seconds: _asInt(details['duration']) ?? track.duration.inSeconds),
-        albumArt: albumArt ?? track.albumArt,
-      );
-
-      await audioProvider.playTrack(updatedTrack);
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error loading YouTube track: $e')),
-      );
-    }
-  }
-
-  int _asInt(dynamic value) {
-    if (value is int) return value;
-    if (value is double) return value.round();
-    if (value is String) return int.tryParse(value) ?? 0;
-    return 0;
   }
 
   void _showCastDialog(BuildContext context) {
