@@ -267,170 +267,149 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
               onHorizontalDragStart: _handleHorizontalDragStart,
               onHorizontalDragEnd: (details) =>
                   _handleHorizontalDragEnd(details, context.read<AudioProvider>()),
-              child: Container(
-                width: MediaQuery.of(context).size.width - 32,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(14),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.2),
-                      blurRadius: 8,
-                      offset: const Offset(0, 4),
+              child: RepaintBoundary(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: isDarkMode
+                        ? colorScheme.surfaceContainerHighest.withOpacity(0.9)
+                        : colorScheme.surface,
+                    border: Border(
+                      top: BorderSide(
+                        color: colorScheme.outlineVariant.withOpacity(0.5),
+                        width: 0.8,
+                      ),
                     ),
-                  ],
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(14),
-                  child: RepaintBoundary(
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        image: track.albumArt != null && isDarkMode
-                            ? DecorationImage(
-                                image: MemoryImage(track.albumArt!),
-                                fit: BoxFit.cover,
-                                filterQuality: FilterQuality.low,
-                                colorFilter: ColorFilter.mode(
-                                  Colors.black.withOpacity(0.55),
-                                  BlendMode.srcOver,
-                                ),
-                              )
-                            : null,
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: gradientColors,
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      LinearProgressIndicator(
+                        value: progress,
+                        minHeight: 2.5,
+                        backgroundColor: useWhiteText
+                            ? Colors.white.withOpacity(0.2)
+                            : colorScheme.surfaceVariant.withOpacity(0.3),
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          colorScheme.primary,
                         ),
                       ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          LinearProgressIndicator(
-                            value: progress,
-                            minHeight: 2.5,
-                            backgroundColor: useWhiteText
-                                ? Colors.white.withOpacity(0.2)
-                                : Colors.black.withOpacity(0.1),
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              colorScheme.primary,
-                            ),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 10,
-                            ),
-                            child: Row(
-                              children: [
-                                Hero(
-                                  tag: 'album_art_${track.id}',
-                                  createRectTween: albumArtRectTween,
-                                  flightShuttleBuilder: albumArtFlightShuttleBuilder,
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(6),
-                                    child: DecoratedBox(
-                                      decoration: BoxDecoration(
-                                        color: colorScheme.primaryContainer,
-                                      ),
-                                      child: SizedBox(
-                                        width: 46,
-                                        height: 46,
-                                        child: track.albumArt != null
-                                            ? Image.memory(
-                                                track.albumArt!,
-                                                fit: BoxFit.cover,
-                                                errorBuilder: (context, _, __) {
-                                                  return Icon(
-                                                    Icons.music_note,
-                                                    size: 24,
-                                                    color: colorScheme.onPrimaryContainer,
-                                                  );
-                                                },
-                                              )
-                                            : Icon(
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 10,
+                        ),
+                        child: Row(
+                          children: [
+                            Hero(
+                              tag: 'album_art_${track.id}',
+                              createRectTween: albumArtRectTween,
+                              flightShuttleBuilder: albumArtFlightShuttleBuilder,
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(6),
+                                child: DecoratedBox(
+                                  decoration: BoxDecoration(
+                                    color: colorScheme.primaryContainer,
+                                  ),
+                                  child: SizedBox(
+                                    width: 48,
+                                    height: 48,
+                                    child: track.albumArt != null
+                                        ? Image.memory(
+                                            track.albumArt!,
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (context, _, __) {
+                                              return Icon(
                                                 Icons.music_note,
                                                 size: 24,
                                                 color: colorScheme.onPrimaryContainer,
-                                              ),
-                                      ),
-                                    ),
+                                              );
+                                            },
+                                          )
+                                        : Icon(
+                                            Icons.music_note,
+                                            size: 24,
+                                            color: colorScheme.onPrimaryContainer,
+                                          ),
                                   ),
                                 ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Text(
-                                        track.title,
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w600,
-                                          fontSize: 14,
-                                          color: useWhiteText
-                                              ? Colors.white
-                                              : colorScheme.onSurface,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        track.artist,
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: useWhiteText
-                                              ? Colors.white.withOpacity(0.7)
-                                              : colorScheme.onSurfaceVariant,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                if (isLoading) ...[
-                                  SizedBox(
-                                    width: 28,
-                                    height: 28,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2.6,
-                                      valueColor: AlwaysStoppedAnimation<Color>(
-                                        colorScheme.primary,
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                ] else ...[
-                                  IconButton(
-                                    icon: Icon(
-                                      snapshot.isPlaying
-                                          ? Icons.pause_rounded
-                                          : Icons.play_arrow_rounded,
+                              ),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    track.title,
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 14,
                                       color: useWhiteText
                                           ? Colors.white
                                           : colorScheme.onSurface,
                                     ),
-                                    iconSize: 26,
-                                    onPressed: context.read<AudioProvider>().togglePlayPause,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
-                                  IconButton(
-                                    icon: Icon(
-                                      Icons.skip_next_rounded,
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    track.artist,
+                                    style: TextStyle(
+                                      fontSize: 12,
                                       color: useWhiteText
-                                          ? Colors.white
-                                          : colorScheme.onSurface,
+                                          ? Colors.white.withOpacity(0.7)
+                                          : colorScheme.onSurfaceVariant,
                                     ),
-                                    iconSize: 26,
-                                    onPressed: context.read<AudioProvider>().skipNext,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
                                 ],
-                              ],
+                              ),
                             ),
-                          ),
-                        ],
+                            const SizedBox(width: 6),
+                            if (isLoading) ...[
+                              SizedBox(
+                                width: 28,
+                                height: 28,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.6,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    colorScheme.primary,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                            ] else ...[
+                              IconButton(
+                                icon: Icon(
+                                  snapshot.isPlaying
+                                      ? Icons.pause_rounded
+                                      : Icons.play_arrow_rounded,
+                                  color: useWhiteText
+                                      ? Colors.white
+                                      : colorScheme.onSurface,
+                                ),
+                                iconSize: 26,
+                                onPressed: context.read<AudioProvider>().togglePlayPause,
+                                splashRadius: 24,
+                              ),
+                              IconButton(
+                                icon: Icon(
+                                  Icons.skip_next_rounded,
+                                  color: useWhiteText
+                                      ? Colors.white
+                                      : colorScheme.onSurface,
+                                ),
+                                iconSize: 26,
+                                onPressed: context.read<AudioProvider>().skipNext,
+                                splashRadius: 24,
+                              ),
+                            ],
+                          ],
+                        ),
                       ),
-                    ),
+                    ],
                   ),
                 ),
               ),

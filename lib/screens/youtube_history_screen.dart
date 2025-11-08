@@ -46,7 +46,7 @@ class _YoutubeHistoryScreenState extends State<YoutubeHistoryScreen> {
 
     audioProvider.preparePendingTrack(placeholder);
 
-    final ytdl = YtdlWrapperService(settings.ytdlBaseUrl);
+    const ytdl = YtdlWrapperService();
     Map<String, dynamic>? details;
     try {
       details = await ytdl.fetchAudioDetails(sourceUrl);

@@ -47,8 +47,7 @@ class _StreamScreenState extends State<StreamScreen>
   void _initializeService() {
     if (_isInitialized) return;
     
-    final settings = Provider.of<SettingsProvider>(context, listen: false);
-    _service = YtdlWrapperService(settings.ytdlBaseUrl);
+    _service = const YtdlWrapperService();
     _isInitialized = true;
     _loadFeatured();
   }
@@ -67,11 +66,7 @@ class _StreamScreenState extends State<StreamScreen>
     if (!_isInitialized) {
       _initializeService();
     } else {
-      final settings = Provider.of<SettingsProvider>(context, listen: false);
-      if (_service.baseUrl != settings.ytdlBaseUrl) {
-        _service = YtdlWrapperService(settings.ytdlBaseUrl);
-        _loadFeatured();
-      }
+      // Service has no dynamic configuration; nothing to update here.
     }
     if (_currentQuery.isNotEmpty && _searchController.text != _currentQuery) {
       _searchController.text = _currentQuery;
@@ -515,7 +510,7 @@ class _StreamScreenState extends State<StreamScreen>
                 if (newUrl.isNotEmpty) {
                   await settings.setYtdlBaseUrl(newUrl);
                   setState(() {
-                    _service = YtdlWrapperService(newUrl);
+                    _service = const YtdlWrapperService();
                   });
                   _loadFeatured();
                 }
@@ -682,10 +677,7 @@ class _StreamScreenState extends State<StreamScreen>
 
           if (showingSearch) {
             return ListView.separated(
-              padding: EdgeInsets.only(
-                bottom: shouldShowMiniPlayer ? 120 : 16,
-                top: 12,
-              ),
+              padding: const EdgeInsets.only(bottom: 16, top: 12),
               keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               itemCount: _searchResults.length,
               separatorBuilder: (_, __) => const SizedBox(height: 12),
@@ -694,9 +686,7 @@ class _StreamScreenState extends State<StreamScreen>
           }
 
           return ListView(
-            padding: EdgeInsets.only(
-              bottom: shouldShowMiniPlayer ? 140 : 24,
-            ),
+            padding: const EdgeInsets.only(bottom: 24),
             children: [
               _buildSectionHeader('Featured for you'),
               const SizedBox(height: 12),

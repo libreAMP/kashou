@@ -1,91 +1,78 @@
 import 'dart:convert';
+import 'dart:io';
 
-import 'package:http/http.dart' as http;
-import 'local_ytdlp_server.dart';
-
+import 'package:flutter/services.dart';
 class YtdlWrapperService {
-  String _serverUrl = 'https://ytdl-wrapper.onrender.com';
+  static const MethodChannel _channel = MethodChannel('com.libreamp.kashou/ytmusic');
+  static bool get _supportsNativeBridge => Platform.isAndroid;
 
-  YtdlWrapperService([String? serverUrl]) {
-    if (serverUrl != null) {
-      _serverUrl = serverUrl.replaceAll(RegExp(r'/$'), '');
-    } else {
-      _initializeLocalServer();
-    }
-  }
-
-  String get baseUrl => _serverUrl;
-
-  Future<void> _initializeLocalServer() async {
-    try {
-      await LocalYtdlpServer.start();
-      if (LocalYtdlpServer.isRunning) {
-        _serverUrl = LocalYtdlpServer.serverUrl;
-      }
-    } catch (e) {
-    }
-  }
-
-  Uri _buildUri(String path, [Map<String, dynamic>? query]) {
-    final normalizedBase = _serverUrl.endsWith('/') ? _serverUrl.substring(0, _serverUrl.length - 1) : _serverUrl;
-    return Uri.parse('$normalizedBase$path').replace(
-      queryParameters: query?.map((key, value) => MapEntry(key, value?.toString() ?? '')),
-    );
-  }
+  const YtdlWrapperService();
 
   Future<List<Map<String, dynamic>>> search(
     String query, {
     int limit = 10,
   }) async {
+    if (!_supportsNativeBridge) {
+      throw UnsupportedError('Native yt-dlp bridge is only available on Android');
+    }
+
     try {
-      final response = await http.get(
-        _buildUri('/search', {
-          'q': query,
-          'limit': limit,
-          'page': page,
-        }),
-        headers: const {'accept': 'application/json'},
-      );
-      if (response.statusCode == 200) {
-        final decoded = json.decode(response.body);
-        if (decoded is Map<String, dynamic>) {
-          final results = decoded['results'];
-          if (results is List) {
-            return results
-                .map<Map<String, dynamic>>((item) => Map<String, dynamic>.from(item as Map<String, dynamic>))
-                .toList();
-          }
-        } else if (decoded is List) {
-          return decoded
-              .map<Map<String, dynamic>>((item) => Map<String, dynamic>.from(item as Map<String, dynamic>))
+      final response = await _channel.invokeMethod<String>('search', {
+        'query': query,
+        'limit': limit,
+      });
+
+      if (response == null || response.isEmpty) return [];
+      final decoded = json.decode(response);
+
+      if (decoded is Map<String, dynamic>) {
+        if (decoded['error'] != null) {
+          print('Search error: ${decoded['error']}');
+          return [];
+        }
+        final results = decoded['results'];
+        if (results is List) {
+          return results
+              .map<Map<String, dynamic>>((item) => Map<String, dynamic>.from(item as Map))
               .toList();
         }
       }
-    } catch (_) {}
+    } catch (e) {
+      print('Native search error: $e');
+    }
+
     return [];
   }
 
   Future<Map<String, dynamic>?> fetchAudioDetails(String videoUrl) async {
-    try {
-      final response = await http.get(
-        _buildUri('/download', {
-          'url': videoUrl,
-        }),
-        headers: const {'accept': 'application/json'},
-      );
-      if (response.statusCode == 200) {
-        return json.decode(response.body) as Map<String, dynamic>;
-      }
-    } catch (_) {}
-    return null;
-  }
-
-  Future<bool> healthcheck() async {
-    try {
-      final response = await http.get(_buildUri('/'));
-      return response.statusCode == 200;
-    } catch (_) {
-      return false;
+    if (!_supportsNativeBridge) {
+      throw UnsupportedError('Native yt-dlp bridge is only available on Android');
     }
+
+    try {
+      print('Fetching audio details from native yt-dlp for: $videoUrl');
+      final response = await _channel.invokeMethod<String>('fetchAudioDetails', {
+        'url': videoUrl,
+      });
+
+      if (response == null || response.isEmpty) {
+        print('Native yt-dlp returned empty response');
+        return null;
+      }
+      
+      final decoded = json.decode(response);
+      if (decoded is Map<String, dynamic>) {
+        if (decoded.containsKey('error')) {
+          print('yt-dlp error: ${decoded['error']}');
+          return null;
+        }
+        print('Native yt-dlp returned: ${decoded.keys}');
+        return Map<String, dynamic>.from(decoded);
+      }
+    } catch (e) {
+      print('Native yt-dlp error: $e');
+    }
+
+    return null;
   }
 }

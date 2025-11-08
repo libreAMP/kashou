@@ -72,7 +72,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
 
       setState(() => _downloadProgress = 0.1);
 
-      final ytdlService = YtdlWrapperService(settings.ytdlBaseUrl);
+      const ytdlService = YtdlWrapperService();
       final details = await ytdlService.fetchAudioDetails(track.path);
 
       if (details == null) {

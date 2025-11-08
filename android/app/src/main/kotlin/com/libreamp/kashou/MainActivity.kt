@@ -7,9 +7,14 @@ import android.os.Bundle
 import com.ryanheise.audioservice.AudioServiceActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import com.libreamp.kashou.ytdlp.YtdlpNativeBridge
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class MainActivity : AudioServiceActivity() {
-    private val CHANNEL = "com.libreamp.kashou/equalizer"
+    private val EQUALIZER_CHANNEL = "com.libreamp.kashou/equalizer"
+    private val YTMUSIC_CHANNEL = "com.libreamp.kashou/ytmusic"
     private var equalizer: Equalizer? = null
     private var bassBoost: BassBoost? = null
     private var virtualizer: Virtualizer? = null
@@ -17,7 +22,7 @@ class MainActivity : AudioServiceActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, EQUALIZER_CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
                 "initEqualizer" -> {
                     val sessionId = call.argument<Int>("sessionId")
@@ -88,6 +93,49 @@ class MainActivity : AudioServiceActivity() {
                         result.success(null)
                     } else {
                         result.error("INVALID_ARGUMENT", "Enabled flag is required", null)
+                    }
+                }
+                else -> result.notImplemented()
+            }
+        }
+        
+        // Native yt-dlp channel
+        val scope = CoroutineScope(Dispatchers.IO)
+        val ytdlpBridge = YtdlpNativeBridge(this)
+        
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, YTMUSIC_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "search" -> {
+                    val query = call.argument<String>("query")
+                    val limit = call.argument<Int>("limit") ?: 10
+                    
+                    if (query.isNullOrBlank()) {
+                        result.error("INVALID_ARGUMENT", "Query is required", null)
+                    } else {
+                        scope.launch {
+                            try {
+                                val json = ytdlpBridge.searchYouTube(query, limit)
+                                result.success(json)
+                            } catch (e: Exception) {
+                                result.error("YTMUSIC_ERROR", e.message, null)
+                            }
+                        }
+                    }
+                }
+                "fetchAudioDetails" -> {
+                    val url = call.argument<String>("url")
+                    
+                    if (url.isNullOrBlank()) {
+                        result.error("INVALID_ARGUMENT", "URL is required", null)
+                    } else {
+                        scope.launch {
+                            try {
+                                val json = ytdlpBridge.getAudioUrl(url)
+                                result.success(json)
+                            } catch (e: Exception) {
+                                result.error("YTMUSIC_ERROR", e.message, null)
+                            }
+                        }
                     }
                 }
                 else -> result.notImplemented()

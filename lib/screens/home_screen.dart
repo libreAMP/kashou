@@ -117,12 +117,10 @@ class HomeScreen extends StatelessWidget {
                     final shouldShowMiniPlayer = hasMiniPlayer && keyboardHeight == 0;
 
                     return SingleChildScrollView(
-                      padding: EdgeInsets.fromLTRB(
-                        20,
-                        0,
-                        20,
-                        shouldShowMiniPlayer ? 120 : 20, // Dynamic padding for mini player
-                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 0,
+                      ).copyWith(bottom: 24),
                       child: _buildHomeContent(context),
                     );
                   },

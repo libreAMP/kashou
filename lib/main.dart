@@ -300,49 +300,52 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                   );
           }),
         ),
-        child: NavigationBar(
-          selectedIndex: _selectedIndex,
-          onDestinationSelected: _onItemTapped,
-          destinations: const [
-            NavigationDestination(
-              icon: Icon(Icons.home_outlined),
-              selectedIcon: Icon(Icons.home),
-              label: 'Home',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.library_music_outlined),
-              selectedIcon: Icon(Icons.library_music),
-              label: 'Library',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.cloud_outlined),
-              selectedIcon: Icon(Icons.cloud),
-              label: 'Stream',
-            ),
-          ],
+        child: Consumer<AudioProvider>(
+          builder: (context, audioProvider, child) {
+            final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
+            final route = ModalRoute.of(context);
+            final isModalOpen = route != null && !route.isFirst;
+            final hasPlayer = audioProvider.currentTrack != null && _showMiniPlayer;
+
+            final navigationBar = NavigationBar(
+              selectedIndex: _selectedIndex,
+              onDestinationSelected: _onItemTapped,
+              destinations: const [
+                NavigationDestination(
+                  icon: Icon(Icons.home_outlined),
+                  selectedIcon: Icon(Icons.home),
+                  label: 'Home',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.library_music_outlined),
+                  selectedIcon: Icon(Icons.library_music),
+                  label: 'Library',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.cloud_outlined),
+                  selectedIcon: Icon(Icons.cloud),
+                  label: 'Stream',
+                ),
+              ],
+            );
+
+            if (!hasPlayer || keyboardHeight > 0 || isModalOpen) {
+              return navigationBar;
+            }
+
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                MiniPlayer(
+                  onTap: _openNowPlaying,
+                  onDismiss: _dismissMiniPlayer,
+                ),
+                navigationBar,
+              ],
+            );
+          },
         ),
       ),
-      floatingActionButton: Consumer<AudioProvider>(
-        builder: (context, audioProvider, child) {
-          final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
-          final route = ModalRoute.of(context);
-          final isModalOpen = route != null && !route.isFirst;
-          final hasPlayer = audioProvider.currentTrack != null && _showMiniPlayer;
-
-          if (!hasPlayer || keyboardHeight > 0 || isModalOpen) {
-            return const SizedBox.shrink();
-          }
-
-          return Container(
-            margin: const EdgeInsets.only(bottom: 90),
-            child: MiniPlayer(
-              onTap: _openNowPlaying,
-              onDismiss: _dismissMiniPlayer,
-            ),
-          );
-        },
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
     );
   }
 
