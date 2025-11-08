@@ -1,33 +1,25 @@
 import 'dart:convert';
+import 'dart:io';
 
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
-import 'local_ytdlp_server.dart';
 
 class YtdlWrapperService {
-  String _serverUrl = 'https://ytdl-wrapper.onrender.com';
+  static const MethodChannel _channel = MethodChannel('com.libreamp.kashou/ytmusic');
+  static bool get _supportsNativeBridge => Platform.isAndroid;
 
-  YtdlWrapperService([String? serverUrl]) {
-    if (serverUrl != null) {
-      _serverUrl = serverUrl.replaceAll(RegExp(r'/$'), '');
-    } else {
-      _initializeLocalServer();
-    }
-  }
+  final String? _customServerUrl;
 
-  String get baseUrl => _serverUrl;
+  YtdlWrapperService([String? serverUrl])
+      : _customServerUrl = (serverUrl != null && serverUrl.isNotEmpty) ? serverUrl : null;
 
-  Future<void> _initializeLocalServer() async {
-    try {
-      await LocalYtdlpServer.start();
-      if (LocalYtdlpServer.isRunning) {
-        _serverUrl = LocalYtdlpServer.serverUrl;
-      }
-    } catch (e) {
-    }
-  }
+  String get baseUrl => _customServerUrl ?? 'native';
+
+  bool get _useNativeBridge => _supportsNativeBridge && _customServerUrl == null;
 
   Uri _buildUri(String path, [Map<String, dynamic>? query]) {
-    final normalizedBase = _serverUrl.endsWith('/') ? _serverUrl.substring(0, _serverUrl.length - 1) : _serverUrl;
+    final base = _customServerUrl!;
+    final normalizedBase = base.endsWith('/') ? base.substring(0, base.length - 1) : base;
     return Uri.parse('$normalizedBase$path').replace(
       queryParameters: query?.map((key, value) => MapEntry(key, value?.toString() ?? '')),
     );
@@ -37,6 +29,38 @@ class YtdlWrapperService {
     String query, {
     int limit = 10,
   }) async {
+    if (_useNativeBridge) {
+      try {
+        final response = await _channel.invokeMethod<String>('search', {
+          'query': query,
+          'limit': limit,
+        });
+
+        if (response == null || response.isEmpty) return [];
+        final decoded = json.decode(response);
+
+        if (decoded is Map<String, dynamic>) {
+          if (decoded['error'] != null) {
+            print('Search error: ${decoded['error']}');
+            return [];
+          }
+          final results = decoded['results'];
+          if (results is List) {
+            return results
+                .map<Map<String, dynamic>>((item) => Map<String, dynamic>.from(item as Map))
+                .toList();
+          }
+        }
+      } catch (e) {
+        print('Native search error: $e');
+      }
+
+      return [];
+    }
+
+    // Fallback to HTTP server if explicitly configured
+    if (_customServerUrl == null) return [];
+
     try {
       final response = await http.get(
         _buildUri('/search', {
@@ -61,11 +85,44 @@ class YtdlWrapperService {
               .toList();
         }
       }
-    } catch (_) {}
+    } catch (e) {
+      print('HTTP search error: $e');
+    }
+
     return [];
   }
 
   Future<Map<String, dynamic>?> fetchAudioDetails(String videoUrl) async {
+    if (_useNativeBridge) {
+      try {
+        print('Fetching audio details from native yt-dlp for: $videoUrl');
+        final response = await _channel.invokeMethod<String>('fetchAudioDetails', {
+          'url': videoUrl,
+        });
+
+        if (response == null || response.isEmpty) {
+          print('Native yt-dlp returned empty response');
+          return null;
+        }
+        
+        final decoded = json.decode(response);
+        if (decoded is Map<String, dynamic>) {
+          if (decoded.containsKey('error')) {
+            print('yt-dlp error: ${decoded['error']}');
+            return null;
+          }
+          print('Native yt-dlp returned: ${decoded.keys}');
+          return Map<String, dynamic>.from(decoded);
+        }
+      } catch (e) {
+        print('Native yt-dlp error: $e');
+      }
+
+      return null;
+    }
+
+    if (_customServerUrl == null) return null;
+
     try {
       final response = await http.get(
         _buildUri('/download', {
@@ -74,18 +131,15 @@ class YtdlWrapperService {
         headers: const {'accept': 'application/json'},
       );
       if (response.statusCode == 200) {
-        return json.decode(response.body) as Map<String, dynamic>;
+        final decoded = json.decode(response.body);
+        if (decoded is Map<String, dynamic>) {
+          return Map<String, dynamic>.from(decoded);
+        }
       }
-    } catch (_) {}
-    return null;
-  }
-
-  Future<bool> healthcheck() async {
-    try {
-      final response = await http.get(_buildUri('/'));
-      return response.statusCode == 200;
-    } catch (_) {
-      return false;
+    } catch (e) {
+      print('HTTP fetch error: $e');
     }
+
+    return null;
   }
 }
