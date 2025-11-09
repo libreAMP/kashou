@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feature-equalizer
+      - rewrite_native_ytdlp
   workflow_dispatch:
 jobs:
   build-debug:
