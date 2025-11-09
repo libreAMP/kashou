@@ -73,54 +73,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.4.2"
-  bonsoir:
-    dependency: transitive
-    description:
-      name: bonsoir
-      sha256: "15de9d734708ccce1484ea9bbc750e364af88cb30fe6392368dc0cf233ddee5e"
-      url: "https://pub.dev"
-    source: hosted
-    version: "6.0.1"
-  bonsoir_android:
-    dependency: transitive
-    description:
-      name: bonsoir_android
-      sha256: e19728f94a0d9813abf9e2edf644fede008e58ef539865a1be86ac5d8994154e
-      url: "https://pub.dev"
-    source: hosted
-    version: "6.0.1"
-  bonsoir_darwin:
-    dependency: transitive
-    description:
-      name: bonsoir_darwin
-      sha256: e242a03a019fd474be657715826cfc13e43d02c88e46ec5611a20b9d4f72854d
-      url: "https://pub.dev"
-    source: hosted
-    version: "6.0.1"
-  bonsoir_linux:
-    dependency: transitive
-    description:
-      name: bonsoir_linux
-      sha256: "5f40f8fa6dc79245ddde38f4440bc0f49cd25ee6be04a4e56fe9fca0d2be7998"
-      url: "https://pub.dev"
-    source: hosted
-    version: "6.0.1"
-  bonsoir_platform_interface:
-    dependency: transitive
-    description:
-      name: bonsoir_platform_interface
-      sha256: "3fa0c46b30eb2a2f48be6fa53591a5c0425bf00520be761b61763e58b51814ff"
-      url: "https://pub.dev"
-    source: hosted
-    version: "6.0.1"
-  bonsoir_windows:
-    dependency: transitive
-    description:
-      name: bonsoir_windows
-      sha256: "34c54802baaa2f00e3c4ab7ea46888f2a829876753778e2f40e3f273c3382d34"
-      url: "https://pub.dev"
-    source: hosted
-    version: "6.0.1"
   boolean_selector:
     dependency: transitive
     description:
@@ -161,14 +113,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.3.0"
-  cast:
-    dependency: "direct main"
-    description:
-      name: cast
-      sha256: de1856e1a31aa60a6fed627f827921f7ec6539c67c60d0c899e89646dcbe773e
-      url: "https://pub.dev"
-    source: hosted
-    version: "2.1.0"
   characters:
     dependency: transitive
     description:
@@ -202,7 +146,7 @@ packages:
     source: hosted
     version: "1.1.2"
   collection:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: collection
       sha256: "2f5709ae4d3d59dd8f7cd309b4e023046b57d8a6c82130785d2b0e5868084e76"
@@ -229,10 +173,10 @@ packages:
     dependency: transitive
     description:
       name: crypto
-      sha256: "1e445881f28f22d6140f181e07737b22f1e099a5e1ff94b0af2f9e4a463f4855"
+      sha256: c8ea0233063ba03258fbcf2ca4d6dadfefe14f02fab57702265467a19f27fadf
       url: "https://pub.dev"
     source: hosted
-    version: "3.0.6"
+    version: "3.0.7"
   csslib:
     dependency: transitive
     description:
@@ -265,6 +209,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.8.1"
+  fading_edge_scrollview:
+    dependency: transitive
+    description:
+      name: fading_edge_scrollview
+      sha256: "1f84fe3ea8e251d00d5735e27502a6a250e4aa3d3b330d3fdcb475af741464ef"
+      url: "https://pub.dev"
+    source: hosted
+    version: "4.1.1"
   fake_async:
     dependency: transitive
     description:
@@ -318,6 +270,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.4.0"
+  flutter_chrome_cast:
+    dependency: "direct main"
+    description:
+      name: flutter_chrome_cast
+      sha256: ca90d80eef0758198b419c64e9bc51c009af56a9eef3cb4e11530e4462856f67
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.2.5"
   flutter_colorpicker:
     dependency: "direct main"
     description:
@@ -384,6 +344,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.4.4"
+  get:
+    dependency: transitive
+    description:
+      name: get
+      sha256: c79eeb4339f1f3deffd9ec912f8a923834bec55f7b49c9e882b8fef2c139d425
+      url: "https://pub.dev"
+    source: hosted
+    version: "4.7.2"
   get_it:
     dependency: "direct main"
     description:
@@ -520,6 +488,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.3.0"
+  marquee:
+    dependency: transitive
+    description:
+      name: marquee
+      sha256: a87e7e80c5d21434f90ad92add9f820cf68be374b226404fe881d2bba7be0862
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.3.0"
   matcher:
     dependency: transitive
     description:
@@ -728,14 +704,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "6.0.3"
-  protobuf:
-    dependency: transitive
-    description:
-      name: protobuf
-      sha256: "68645b24e0716782e58948f8467fd42a880f255096a821f9e7d0ec625b00c84d"
-      url: "https://pub.dev"
-    source: hosted
-    version: "3.1.0"
   provider:
     dependency: "direct main"
     description:
@@ -840,6 +808,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.0.4"
+  simple_sparse_list:
+    dependency: transitive
+    description:
+      name: simple_sparse_list
+      sha256: aa648fd240fa39b49dcd11c19c266990006006de6699a412de485695910fbc1f
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.1.4"
   sky_engine:
     dependency: transitive
     description: flutter
@@ -965,6 +941,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.4.0"
+  unicode:
+    dependency: transitive
+    description:
+      name: unicode
+      sha256: "0d99edbd2e74726bed2e4989713c8bec02e5581628e334d8c88c0271593fb402"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.1.8"
   universal_io:
     dependency: transitive
     description:
@@ -1045,6 +1029,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.1.3"
+  youtube_explode_dart:
+    dependency: "direct main"
+    description:
+      name: youtube_explode_dart
+      sha256: fb7f8db77253b4fd645d94734206aa5d204c6cdc4558c2fab78e34dd22d8d281
+      url: "https://pub.dev"
+    source: hosted
+    version: "3.0.2"
 sdks:
   dart: ">=3.9.0 <4.0.0"
   flutter: ">=3.35.0"
