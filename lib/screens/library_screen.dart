@@ -202,8 +202,8 @@ class _LibraryScreenState extends State<LibraryScreen>
             ),
           ];
         },
-        body: Consumer<LibraryProvider>(
-          builder: (context, library, child) {
+        body: Consumer2<LibraryProvider, AudioProvider>(
+          builder: (context, library, audioProvider, child) {
             if (library.isScanning) {
               return Center(
                 child: Column(
@@ -223,23 +223,23 @@ class _LibraryScreenState extends State<LibraryScreen>
             return LayoutBuilder(
               builder: (context, constraints) {
                 final isWide = constraints.maxWidth > 640;
-                return Padding(
-                  padding: const EdgeInsets.fromLTRB(0, 0, 0, 20),
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(
-                      maxWidth: isWide ? 640 : double.infinity,
-                    ),
-                    child: Align(
-                      alignment: isWide ? Alignment.topCenter : Alignment.topLeft,
-                      child: TabBarView(
-                        controller: _tabController,
-                        children: [
-                          _buildSongsTab(library, 160),
-                          _buildAlbumsTab(library, 160),
-                          _buildArtistsTab(library, 160),
-                          _buildPlaylistsTab(library, 160),
-                        ],
-                      ),
+                final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
+                final showMiniPlayer = audioProvider.currentTrack != null && keyboardHeight == 0;
+                final bottomPadding = MediaQuery.of(context).padding.bottom + (showMiniPlayer ? 96.0 : 16.0);
+                return ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: isWide ? 640 : double.infinity,
+                  ),
+                  child: Align(
+                    alignment: isWide ? Alignment.topCenter : Alignment.topLeft,
+                    child: TabBarView(
+                      controller: _tabController,
+                      children: [
+                        _buildSongsTab(library, bottomPadding),
+                        _buildAlbumsTab(library, bottomPadding),
+                        _buildArtistsTab(library, bottomPadding),
+                        _buildPlaylistsTab(library, bottomPadding),
+                      ],
                     ),
                   ),
                 );
@@ -272,7 +272,7 @@ class _LibraryScreenState extends State<LibraryScreen>
     );
   }
 
-  Widget _buildSongsTab(LibraryProvider library, int bottomPadding) {
+  Widget _buildSongsTab(LibraryProvider library, double bottomPadding) {
     final tracks = _searchController.text.isEmpty
         ? library.allTracks
         : library.searchTracks(_searchController.text);
@@ -316,19 +316,16 @@ class _LibraryScreenState extends State<LibraryScreen>
       );
     }
 
-    return Container(
-      color: Theme.of(context).colorScheme.surface,
-      child: ListView.builder(
-        padding: EdgeInsets.fromLTRB(16, 0, 16, bottomPadding.toDouble()),
-        itemCount: tracks.length,
-        itemBuilder: (context, index) {
-          return TrackListItem(track: tracks[index]);
-        },
-      ),
+    return ListView.builder(
+      padding: EdgeInsets.fromLTRB(16, 0, 16, bottomPadding),
+      itemCount: tracks.length,
+      itemBuilder: (context, index) {
+        return TrackListItem(track: tracks[index]);
+      },
     );
   }
 
-  Widget _buildAlbumsTab(LibraryProvider library, int bottomPadding) {
+  Widget _buildAlbumsTab(LibraryProvider library, double bottomPadding) {
     final albums = _searchController.text.isEmpty
         ? library.albums
         : library.searchAlbums(_searchController.text);
@@ -353,25 +350,22 @@ class _LibraryScreenState extends State<LibraryScreen>
       );
     }
 
-    return Container(
-      color: Theme.of(context).colorScheme.surface,
-      child: GridView.builder(
-        padding: EdgeInsets.fromLTRB(16, 16, 16, bottomPadding.toDouble()),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          childAspectRatio: 0.75,
-          crossAxisSpacing: 16,
-          mainAxisSpacing: 16,
-        ),
-        itemCount: albums.length,
-        itemBuilder: (context, index) {
-          return AlbumCard(album: albums[index]);
-        },
+    return GridView.builder(
+      padding: EdgeInsets.fromLTRB(16, 16, 16, bottomPadding),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        childAspectRatio: 0.75,
+        crossAxisSpacing: 16,
+        mainAxisSpacing: 16,
       ),
+      itemCount: albums.length,
+      itemBuilder: (context, index) {
+        return AlbumCard(album: albums[index]);
+      },
     );
   }
 
-  Widget _buildArtistsTab(LibraryProvider library, int bottomPadding) {
+  Widget _buildArtistsTab(LibraryProvider library, double bottomPadding) {
     final artists = _searchController.text.isEmpty
         ? library.artists
         : library.searchArtists(_searchController.text);
@@ -396,19 +390,22 @@ class _LibraryScreenState extends State<LibraryScreen>
       );
     }
 
-    return Container(
-      color: Theme.of(context).colorScheme.surface,
-      child: ListView.builder(
-        padding: EdgeInsets.fromLTRB(16, 16, 16, bottomPadding.toDouble()),
-        itemCount: artists.length,
-        itemBuilder: (context, index) {
-          return ArtistCard(artist: artists[index]);
-        },
+    return GridView.builder(
+      padding: EdgeInsets.fromLTRB(16, 16, 16, bottomPadding),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        childAspectRatio: 0.75,
+        crossAxisSpacing: 16,
+        mainAxisSpacing: 16,
       ),
+      itemCount: artists.length,
+      itemBuilder: (context, index) {
+        return ArtistCard(artist: artists[index]);
+      },
     );
   }
 
-  Widget _buildPlaylistsTab(LibraryProvider library, int bottomPadding) {
+  Widget _buildPlaylistsTab(LibraryProvider library, double bottomPadding) {
     if (library.playlists.isEmpty) {
       return Center(
         child: Column(
@@ -444,43 +441,24 @@ class _LibraryScreenState extends State<LibraryScreen>
       );
     }
 
-    return Container(
-      color: Theme.of(context).colorScheme.surface,
-      child: ListView.builder(
-        padding: EdgeInsets.fromLTRB(16, 16, 16, bottomPadding.toDouble()),
-        itemCount: library.playlists.length,
-        itemBuilder: (context, index) {
-          final playlist = library.playlists[index];
-          return Card(
-            margin: const EdgeInsets.only(bottom: 8),
-            child: ListTile(
-              leading: Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primaryContainer,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(
-                  Icons.playlist_play,
-                  color: Theme.of(context).colorScheme.onPrimaryContainer,
-                ),
-              ),
-              title: Text(playlist.name),
-              subtitle: Text('${playlist.trackCount} songs'),
-              trailing: IconButton(
-                icon: const Icon(Icons.more_vert),
-                onPressed: () {
-                  _showPlaylistOptions(context, playlist.id);
-                },
-              ),
-              onTap: () {
-                // Navigate to playlist detail
-              },
-            ),
-          );
-        },
-      ),
+    return ListView.builder(
+      padding: EdgeInsets.fromLTRB(16, 16, 16, bottomPadding),
+      itemCount: library.playlists.length,
+      itemBuilder: (context, index) {
+        final playlist = library.playlists[index];
+        return ListTile(
+          title: Text(playlist.name),
+          subtitle: Text('${playlist.tracks.length} songs'),
+          leading: CircleAvatar(
+            child: Text(playlist.name.isNotEmpty ? playlist.name[0].toUpperCase() : '?'),
+          ),
+          onTap: () {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Playlist detail coming soon.')),
+            );
+          },
+        );
+      },
     );
   }
 

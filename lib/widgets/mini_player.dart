@@ -272,10 +272,14 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
                   ),
                   child: DecoratedBox(
                     decoration: BoxDecoration(
-                      color: Colors.transparent,
+                      gradient: LinearGradient(
+                        colors: gradientColors,
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
                       border: Border(
                         top: BorderSide(
-                          color: colorScheme.outlineVariant.withOpacity(0.4),
+                          color: colorScheme.outlineVariant.withOpacity(0.35),
                           width: 0.8,
                         ),
                       ),

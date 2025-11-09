@@ -226,4 +226,14 @@ class LibraryProvider extends ChangeNotifier {
       return artist.name.toLowerCase().contains(lowerQuery);
     }).toList();
   }
+
+  Future<void> updateTrackMetadata(Track updatedTrack) async {
+    final index = _allTracks.indexWhere((track) => track.id == updatedTrack.id);
+    if (index == -1) return;
+
+    _allTracks[index] = updatedTrack;
+    _rebuildCollections();
+    await _saveLibraryCache();
+    notifyListeners();
+  }
 }

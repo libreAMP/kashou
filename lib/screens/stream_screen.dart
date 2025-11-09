@@ -616,7 +616,7 @@ class _StreamScreenState extends State<StreamScreen>
           ];
         },
         body: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+          padding: const EdgeInsets.symmetric(horizontal: 20),
           child: _buildContent(),
         ),
       ),
@@ -673,11 +673,13 @@ class _StreamScreenState extends State<StreamScreen>
         builder: (context, audioProvider, child) {
           final hasMiniPlayer = audioProvider.currentTrack != null;
           final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
-          final shouldShowMiniPlayer = hasMiniPlayer && keyboardHeight == 0;
+          final showMiniPlayer = hasMiniPlayer && keyboardHeight == 0;
+          final safeArea = MediaQuery.of(context).padding.bottom;
+          final bottomPadding = showMiniPlayer ? safeArea + 96.0 : safeArea;
 
           if (showingSearch) {
             return ListView.separated(
-              padding: const EdgeInsets.only(bottom: 16, top: 12),
+              padding: EdgeInsets.only(bottom: bottomPadding, top: 12),
               keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               itemCount: _searchResults.length,
               separatorBuilder: (_, __) => const SizedBox(height: 12),
@@ -686,7 +688,7 @@ class _StreamScreenState extends State<StreamScreen>
           }
 
           return ListView(
-            padding: const EdgeInsets.only(bottom: 24),
+            padding: EdgeInsets.only(bottom: bottomPadding),
             children: [
               _buildSectionHeader('Featured for you'),
               const SizedBox(height: 12),
