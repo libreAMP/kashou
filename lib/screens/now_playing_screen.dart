@@ -682,7 +682,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
   Widget _buildAmbientBackground(BuildContext context, Track track) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    final placeholder = Container(
+    return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
@@ -693,28 +693,6 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           ],
         ),
       ),
-    );
-
-    if (track.albumArt == null) {
-      return placeholder;
-    }
-
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        Image.memory(
-          track.albumArt!,
-          fit: BoxFit.cover,
-          filterQuality: FilterQuality.low,
-          errorBuilder: (_, __, ___) => placeholder,
-        ),
-        BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 45, sigmaY: 45),
-          child: Container(
-            color: colorScheme.surface.withOpacity(0.8),
-          ),
-        ),
-      ],
     );
   }
 

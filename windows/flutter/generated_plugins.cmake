@@ -4,7 +4,6 @@
 
 list(APPEND FLUTTER_PLUGIN_LIST
   audiotags
-  bonsoir_windows
   dynamic_color
   permission_handler_windows
 )

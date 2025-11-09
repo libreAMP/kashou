@@ -268,21 +268,26 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
               onHorizontalDragEnd: (details) =>
                   _handleHorizontalDragEnd(details, context.read<AudioProvider>()),
               child: RepaintBoundary(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: isDarkMode
-                        ? colorScheme.surfaceContainerHighest.withOpacity(0.9)
-                        : colorScheme.surface,
-                    border: Border(
-                      top: BorderSide(
-                        color: colorScheme.outlineVariant.withOpacity(0.5),
-                        width: 0.8,
+                child: ClipRRect(
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(12),
+                    topRight: Radius.circular(12),
+                  ),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: isDarkMode
+                          ? colorScheme.surfaceContainerHighest.withOpacity(0.93)
+                          : colorScheme.surface,
+                      border: Border(
+                        top: BorderSide(
+                          color: colorScheme.outlineVariant.withOpacity(0.4),
+                          width: 0.8,
+                        ),
                       ),
                     ),
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
                       LinearProgressIndicator(
                         value: progress,
                         minHeight: 2.5,
@@ -409,7 +414,8 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
                           ],
                         ),
                       ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
