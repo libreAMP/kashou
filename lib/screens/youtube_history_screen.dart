@@ -44,7 +44,7 @@ class _YoutubeHistoryScreenState extends State<YoutubeHistoryScreen> {
       _loadingEntryId = entry.track.id;
     });
 
-    audioProvider.preparePendingTrack(placeholder);
+    await audioProvider.prepareTrackLoad(placeholder);
 
     const ytdl = YtdlWrapperService();
     Map<String, dynamic>? details;

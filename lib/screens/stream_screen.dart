@@ -187,7 +187,7 @@ class _StreamScreenState extends State<StreamScreen>
       sourceUrl: videoUrl,
     );
 
-    audioProvider.preparePendingTrack(placeholderTrack);
+    await audioProvider.prepareTrackLoad(placeholderTrack);
 
     Map<String, dynamic>? details;
     try {
@@ -887,7 +887,7 @@ class _StreamScreenState extends State<StreamScreen>
         crossAxisCount: 2,
         mainAxisSpacing: 16,
         crossAxisSpacing: 16,
-        childAspectRatio: 0.9,
+        childAspectRatio: 0.82,
       ),
       itemCount: items.length,
       itemBuilder: (context, index) {
@@ -918,7 +918,7 @@ class _StreamScreenState extends State<StreamScreen>
                   borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
                   child: Image.network(
                     thumbnail,
-                    height: 120,
+                    height: 112,
                     width: double.infinity,
                     fit: BoxFit.cover,
                     errorBuilder: (context, error, stackTrace) => Container(
@@ -931,7 +931,7 @@ class _StreamScreenState extends State<StreamScreen>
                 ),
                 Expanded(
                   child: Padding(
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.fromLTRB(12, 12, 12, 14),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -943,6 +943,7 @@ class _StreamScreenState extends State<StreamScreen>
                           ),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
+                          softWrap: true,
                         ),
                         const SizedBox(height: 6),
                         Text(
@@ -950,8 +951,9 @@ class _StreamScreenState extends State<StreamScreen>
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: colorScheme.onSurfaceVariant,
                           ),
-                          maxLines: 1,
+                          maxLines: 2,
                           overflow: TextOverflow.ellipsis,
+                          softWrap: true,
                         ),
                       ],
                     ),

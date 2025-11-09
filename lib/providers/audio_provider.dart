@@ -35,6 +35,7 @@ class AudioProvider extends ChangeNotifier {
   int? _indexBeforePending;
   List<Track> _queue = [];
   int _currentIndex = 0;
+  bool _pendingShouldUseExistingSource = false;
 
   bool _isPlaying = false;
   Duration _position = Duration.zero;
@@ -64,7 +65,7 @@ class AudioProvider extends ChangeNotifier {
 
   bool _isHlsStream(String path) => path.contains('.m3u8') || path.contains('playlist.m3u8');
 
-  Track? get currentTrack => _currentTrack ?? _pendingTrack;
+  Track? get currentTrack => _pendingTrack ?? _currentTrack;
   List<Track> get queue => _queue;
   int get currentIndex => _currentIndex;
   bool get isPlaying => _isPlaying;
@@ -108,6 +109,7 @@ class AudioProvider extends ChangeNotifier {
   void _clearPendingSnapshot() {
     _queueBeforePending = null;
     _indexBeforePending = null;
+    _pendingShouldUseExistingSource = false;
   }
 
   void _restorePendingSnapshot() {
@@ -130,9 +132,35 @@ class AudioProvider extends ChangeNotifier {
     _isLoadingTrack = false;
     _restorePendingSnapshot();
     _pendingTrack = null;
+    _pendingShouldUseExistingSource = false;
     if (_currentTrack == null) {
       _currentTrack = _lastCommittedTrack;
     }
+    notifyListeners();
+  }
+
+  Future<void> prepareTrackLoad(Track track, {List<Track>? playlist}) async {
+    final wasPlaying = preparePendingTrack(track, playlist: playlist);
+
+    if (_pendingShouldUseExistingSource) {
+      return;
+    }
+
+    if (wasPlaying || audioPlayer.playing) {
+      try {
+        await audioPlayer.pause();
+      } catch (_) {}
+    }
+
+    try {
+      await audioPlayer.stop();
+    } catch (_) {}
+
+    _position = Duration.zero;
+    _bufferedPosition = Duration.zero;
+    _duration = Duration.zero;
+    _isPlaying = false;
+    _isLoadingTrack = true;
     notifyListeners();
   }
 
@@ -327,6 +355,7 @@ class AudioProvider extends ChangeNotifier {
 
     final wasPlaying = _isPlaying;
     final shouldUseExisting = _shouldUseExistingSource(track, wasPlaying);
+    _pendingShouldUseExistingSource = shouldUseExisting;
 
     _pendingTrack = track;
     _currentTrack = track;
@@ -342,7 +371,52 @@ class AudioProvider extends ChangeNotifier {
   }
 
   Future<void> playTrack(Track track, {List<Track>? playlist}) async {
-    final wasPlaying = preparePendingTrack(track, playlist: playlist);
+    final bool alreadyPending = _pendingTrack != null && _pendingTrack!.id == track.id;
+    final bool wasPlaying = alreadyPending ? _isPlaying : preparePendingTrack(track, playlist: playlist);
+    final bool shouldReuse = _pendingShouldUseExistingSource;
+
+    if (!shouldReuse) {
+      if (wasPlaying || audioPlayer.playing) {
+        try {
+          await audioPlayer.pause();
+        } catch (_) {}
+      }
+
+      try {
+        await audioPlayer.stop();
+      } catch (_) {}
+
+      _position = Duration.zero;
+      _bufferedPosition = Duration.zero;
+      _duration = Duration.zero;
+      _isPlaying = false;
+      _isLoadingTrack = true;
+      notifyListeners();
+    }
+
+    if (alreadyPending) {
+      if (playlist != null) {
+        _queue = List<Track>.from(playlist);
+        _currentIndex = _queue.indexWhere((t) => t.id == track.id);
+        if (_currentIndex == -1) {
+          _queue.insert(0, track);
+          _currentIndex = 0;
+        }
+      } else if (_queue.isEmpty) {
+        _queue = [track];
+        _currentIndex = 0;
+      } else {
+        final index = _queue.indexWhere((t) => t.id == track.id);
+        if (index != -1) {
+          _queue[index] = track;
+          _currentIndex = index;
+        }
+      }
+
+      _pendingTrack = track;
+      _currentTrack = track;
+      notifyListeners();
+    }
 
     try {
       if (_audioHandler != null) {
@@ -380,6 +454,7 @@ class AudioProvider extends ChangeNotifier {
       _isLoadingTrack = false;
       _lastCommittedTrack = track;
       _clearPendingSnapshot();
+      _pendingShouldUseExistingSource = false;
       _addToRecentTracks(track.id);
       _addToStreamHistory(track);
       final queueIndex = _queue.indexWhere((t) => t.id == track.id);
@@ -392,6 +467,7 @@ class AudioProvider extends ChangeNotifier {
       debugPrint('Error playing track: $e');
       _isLoadingTrack = false;
       _pendingTrack = null;
+      _pendingShouldUseExistingSource = false;
       if (_lastCommittedTrack != null) {
         _currentTrack = _lastCommittedTrack;
         _restorePendingSnapshot();

@@ -157,9 +157,6 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
     if (settings.enableCasting) {
       GoogleCastDiscoveryManager.instance.stopDiscovery();
     }
-    final audioProvider = Provider.of<AudioProvider>(context, listen: false);
-    audioProvider.audioPlayer.setVolume(1.0);
-    audioProvider.audioPlayer.play();
     _slideController.dispose();
     _swipeController.dispose();
     super.dispose();
@@ -275,9 +272,7 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
                   ),
                   child: DecoratedBox(
                     decoration: BoxDecoration(
-                      color: isDarkMode
-                          ? colorScheme.surfaceContainerHighest.withOpacity(0.93)
-                          : colorScheme.surface,
+                      color: Colors.transparent,
                       border: Border(
                         top: BorderSide(
                           color: colorScheme.outlineVariant.withOpacity(0.4),
@@ -289,7 +284,7 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                       LinearProgressIndicator(
-                        value: progress,
+                        value: isLoading ? null : progress,
                         minHeight: 2.5,
                         backgroundColor: useWhiteText
                             ? Colors.white.withOpacity(0.2)

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
 import '../providers/audio_provider.dart';
 import '../widgets/equalizer_widget.dart';
 import 'metadata_editor_screen.dart';
@@ -730,7 +731,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
         Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _buildMetaAssistChip(context, icon: Icons.album_rounded, label: track.album),
+            // _buildMetaAssistChip(context, icon: Icons.album_rounded, label: track.album),
             const SizedBox(height: 6),
             if (track.genre != null && track.genre!.isNotEmpty)
               _buildMetaAssistChip(context, icon: Icons.style_outlined, label: track.genre!),
@@ -775,8 +776,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
   Widget _buildProgressStrip(BuildContext context, AudioProvider audio) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final position = audio.position.inMilliseconds.toDouble();
-    final duration = audio.duration.inMilliseconds.toDouble().clamp(1.0, double.infinity);
+    final isLoading = audio.isLoadingTrack;
+    final position = isLoading ? 0.0 : audio.position.inMilliseconds.toDouble();
+    final duration = isLoading ? 1.0 : audio.duration.inMilliseconds.toDouble().clamp(1.0, double.infinity);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -785,13 +787,13 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              _formatDuration(audio.position),
+              _formatDuration(isLoading ? Duration.zero : audio.position),
               style: theme.textTheme.labelSmall?.copyWith(
                 color: colorScheme.onSurfaceVariant,
               ),
             ),
             Text(
-              _formatDuration(audio.duration),
+              _formatDuration(isLoading ? Duration.zero : audio.duration),
               style: theme.textTheme.labelSmall?.copyWith(
                 color: colorScheme.onSurfaceVariant,
               ),
@@ -811,9 +813,11 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           child: Slider(
             value: position.clamp(0, duration),
             max: duration,
-            onChanged: (value) {
-              audio.seek(Duration(milliseconds: value.toInt()));
-            },
+            onChanged: isLoading
+                ? null
+                : (value) {
+                    audio.seek(Duration(milliseconds: value.toInt()));
+                  },
           ),
         ),
       ],
@@ -894,6 +898,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
 
   Widget _buildPlayButton(BuildContext context, AudioProvider audio) {
     final colorScheme = Theme.of(context).colorScheme;
+    final isLoading = audio.isLoadingTrack;
     final isPlaying = audio.isPlaying;
 
     final targetSize = 64.0;
@@ -917,13 +922,22 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
         shape: const CircleBorder(),
         child: InkWell(
           customBorder: const CircleBorder(),
-          onTap: audio.togglePlayPause,
+          onTap: isLoading ? null : audio.togglePlayPause,
           child: Center(
-            child: Icon(
-              isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-              size: 30,
-              color: colorScheme.onPrimary,
-            ),
+            child: isLoading
+                ? SizedBox(
+                    width: 28,
+                    height: 28,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.4,
+                      valueColor: AlwaysStoppedAnimation<Color>(colorScheme.onPrimary),
+                    ),
+                  )
+                : Icon(
+                    isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                    size: 30,
+                    color: colorScheme.onPrimary,
+                  ),
           ),
         ),
       ),
@@ -1192,10 +1206,11 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
   void _showMoreOptions(BuildContext context) {
     final audioProvider = Provider.of<AudioProvider>(context, listen: false);
     final track = audioProvider.currentTrack;
-    
+    final rootContext = context;
+
     showModalBottomSheet(
       context: context,
-      builder: (context) {
+      builder: (sheetContext) {
         return SafeArea(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -1225,16 +1240,19 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
               ListTile(
                 leading: const Icon(Icons.share),
                 title: const Text('Share'),
-                onTap: () {
-                  Navigator.pop(context);
+                onTap: () async {
+                  Navigator.pop(sheetContext);
+                  await _shareTrack(rootContext, track);
                 },
               ),
               ListTile(
                 leading: const Icon(Icons.info_outline),
                 title: const Text('Track Info'),
                 onTap: () {
-                  Navigator.pop(context);
-                  _showTrackInfo(context, track!);
+                  Navigator.pop(sheetContext);
+                  if (track != null) {
+                    _showTrackInfo(rootContext, track);
+                  }
                 },
               ),
             ],
@@ -1242,6 +1260,80 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
         );
       },
     );
+  }
+
+  Future<void> _shareTrack(BuildContext context, Track? track) async {
+    if (track == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Nothing playing to share.')),
+        );
+      }
+      return;
+    }
+
+    final url = _buildYoutubeMusicUrl(track);
+    final shareText = url != null
+        ? 'Listen to ${track.title}${track.artist.isNotEmpty ? ' by ${track.artist}' : ''} on YouTube Music:\n$url'
+        : 'Listen to ${track.title}${track.artist.isNotEmpty ? ' by ${track.artist}' : ''}.';
+
+    try {
+      await Share.share(shareText, subject: 'Share ${track.title}');
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Unable to share track: $e')),
+        );
+      }
+    }
+  }
+
+  String? _buildYoutubeMusicUrl(Track track) {
+    final sourceUrl = (track.sourceUrl?.isNotEmpty ?? false) ? track.sourceUrl : null;
+    final urlToUse = sourceUrl ?? track.path;
+    final videoId = _extractYouTubeId(urlToUse);
+    if (videoId == null) return null;
+
+    final uri = Uri.tryParse(urlToUse);
+    final playlistId = uri?.queryParameters['list'];
+
+    if (playlistId != null && playlistId.isNotEmpty) {
+      return 'https://music.youtube.com/watch?v=$videoId&list=$playlistId';
+    }
+    return 'https://music.youtube.com/watch?v=$videoId';
+  }
+
+  String? _extractYouTubeId(String? url) {
+    if (url == null || url.isEmpty) {
+      return null;
+    }
+
+    final uri = Uri.tryParse(url);
+    if (uri == null) {
+      return null;
+    }
+
+    final host = uri.host.toLowerCase();
+
+    if (host.contains('youtu.be')) {
+      return uri.pathSegments.isNotEmpty ? uri.pathSegments.first : null;
+    }
+
+    final idFromQuery = uri.queryParameters['v'];
+    if (idFromQuery != null && idFromQuery.isNotEmpty) {
+      return idFromQuery;
+    }
+
+    if (uri.pathSegments.isNotEmpty) {
+      if (uri.pathSegments.first == 'embed' && uri.pathSegments.length >= 2) {
+        return uri.pathSegments[1];
+      }
+      if (uri.pathSegments.first == 'shorts' && uri.pathSegments.length >= 2) {
+        return uri.pathSegments[1];
+      }
+    }
+
+    return null;
   }
 
   void _showTrackInfo(BuildContext context, Track track) {
