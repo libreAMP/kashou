@@ -15,28 +15,16 @@ class PermissionService {
       }
       
       permissions.add(Permission.notification);
-      
       permissions.add(Permission.bluetoothConnect);
 
-      Map<Permission, PermissionStatus> statuses = await permissions.request();
+      // Request permissions but don't fail if denied
+      await permissions.request();
 
-      bool allGranted = statuses.values.every((status) => 
-        status.isGranted || status.isLimited
-      );
-
-      if (!allGranted) {
-        debugPrint('Some permissions were not granted');
-        statuses.forEach((permission, status) {
-          if (!status.isGranted && !status.isLimited) {
-            debugPrint('Permission denied: $permission - $status');
-          }
-        });
-      }
-
-      return allGranted;
+      // Always return true to allow app to proceed
+      return true;
     } catch (e) {
       debugPrint('Error requesting permissions: $e');
-      return false;
+      return true; // Allow app to proceed even on error
     }
   }
 
