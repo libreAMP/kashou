@@ -314,6 +314,10 @@ class AudioProvider extends ChangeNotifier {
     audioPlayer.playerStateStream.listen((state) {
       _isPlaying = state.playing;
 
+      if (state.playing && _isLoadingTrack) {
+        _isLoadingTrack = false;
+      }
+
       if (state.processingState == ProcessingState.completed) {
         _handleTrackComplete();
       }
