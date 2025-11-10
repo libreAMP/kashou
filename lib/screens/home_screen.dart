@@ -10,123 +10,44 @@ import 'search_screen.dart';
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
-  String _getGreeting() {
-    final hour = DateTime.now().hour;
-    if (hour < 12) {
-      return 'Good morning';
-    } else if (hour < 18) {
-      return 'Good afternoon';
-    } else if (hour < 22) {
-      return 'Good evening';
-    } else {
-      return 'Good night';
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       resizeToAvoidBottomInset: false,
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          return Stack(
-            children: [
-              NestedScrollView(
-                headerSliverBuilder: (context, innerBoxIsScrolled) {
-                  return [
-                    SliverAppBar.medium(
-                      title: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const SizedBox(height: 8),  // Top spacing
-                          Row(
-                            children: [
-                              Icon(Icons.home, color: Theme.of(context).colorScheme.primary),
-                              const SizedBox(width: 12),
-                              Text(_getGreeting()),
-                            ],
-                          ),
-                        ],
-                      ),
-                      actions: [
-                        IconButton(
-                          icon: const Icon(Icons.settings_outlined),
-                          onPressed: () {
-                            Navigator.pushNamed(context, '/settings');
-                          },
-                        ),
-                      ],
-                      bottom: PreferredSize(
-                        preferredSize: const Size.fromHeight(96),  // Increased height
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),  // Top padding
-                          child: Material(
-                            color: Colors.transparent,
-                            borderRadius: BorderRadius.circular(24),
-                            child: Container(
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: [
-                                    Theme.of(context).colorScheme.primary.withValues(alpha: 0.15),
-                                    Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
-                                  ],
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                ),
-                                borderRadius: BorderRadius.circular(24),
-                                border: Border.all(
-                                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
-                                  width: 1,
-                                ),
-                              ),
-                              child: SearchBar(
-                                leading: const Padding(
-                                  padding: EdgeInsets.only(left: 8),
-                                  child: Icon(Icons.search),
-                                ),
-                                hintText: 'Search music...',
-                                elevation: const WidgetStatePropertyAll(0),
-                                shape: WidgetStatePropertyAll(
-                                  RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(24),
-                                  ),
-                                ),
-                                padding: const WidgetStatePropertyAll(
-                                  EdgeInsets.symmetric(horizontal: 16),
-                                ),
-                                onTap: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) => const SearchScreen(),
-                                    ),
-                                  );
-                                },
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ];
-                },
-                body: Consumer<AudioProvider>(
-                  builder: (context, audioProvider, child) {
-                    final hasMiniPlayer = audioProvider.currentTrack != null;
-                    final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
-                    final shouldShowMiniPlayer = hasMiniPlayer && keyboardHeight == 0;
-
-                    return SingleChildScrollView(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 0,
-                      ).copyWith(bottom: 24),
-                      child: _buildHomeContent(context),
-                    );
-                  },
+      appBar: AppBar(
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
+        elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.search),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const SearchScreen(),
                 ),
-              ),
-            ],
+              );
+            },
+            tooltip: 'Search music',
+          ),
+          IconButton(
+            icon: const Icon(Icons.settings_outlined),
+            onPressed: () {
+              Navigator.pushNamed(context, '/settings');
+            },
+          ),
+        ],
+      ),
+      body: Consumer<AudioProvider>(
+        builder: (context, audioProvider, child) {
+          final hasMiniPlayer = audioProvider.currentTrack != null;
+          final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
+          final shouldShowMiniPlayer = hasMiniPlayer && keyboardHeight == 0;
+
+          return SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8).copyWith(bottom: 16),
+            child: _buildHomeContent(context),
           );
         },
       ),
@@ -137,15 +58,15 @@ class HomeScreen extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SizedBox(height: 20),
+        const SizedBox(height: 16),
         _buildQuickActions(context),
-        const SizedBox(height: 40),
+        const SizedBox(height: 24),
         _buildRecentlyPlayed(context),
-        const SizedBox(height: 40),
+        const SizedBox(height: 24),
         _buildRecentlyAdded(context),
-        const SizedBox(height: 40),
+        const SizedBox(height: 24),
         _buildFavoriteSongs(context),
-        const SizedBox(height: 40),
+        const SizedBox(height: 24),
         _buildTopAlbums(context),
       ],
     );
@@ -157,18 +78,19 @@ class HomeScreen extends StatelessWidget {
       children: [
         Row(
           children: [
-            Icon(Icons.bolt, color: Theme.of(context).colorScheme.primary, size: 24),
+            Icon(Icons.bolt,
+                color: Theme.of(context).colorScheme.primary, size: 24),
             const SizedBox(width: 8),
             Text(
               'Quick Actions',
               style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: Theme.of(context).colorScheme.onSurface,
-              ),
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
             ),
           ],
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 8),
         Row(
           children: [
             Expanded(
@@ -194,7 +116,7 @@ class HomeScreen extends StatelessWidget {
                 },
               ),
             ),
-            const SizedBox(width: 16),
+            const SizedBox(width: 8),
             Expanded(
               child: _buildActionCard(
                 context,
@@ -235,14 +157,14 @@ class HomeScreen extends StatelessWidget {
 
     return Material(
       color: Colors.transparent,
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(16),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         splashColor: colorScheme.primary.withValues(alpha: 0.1),
         highlightColor: colorScheme.primary.withValues(alpha: 0.05),
         child: Container(
-          padding: const EdgeInsets.all(10),
+          padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [
@@ -252,50 +174,35 @@ class HomeScreen extends StatelessWidget {
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: colorScheme.primary.withValues(alpha: 0.2),
-              width: 1.5,
+              width: 1,
             ),
-            boxShadow: [
-              BoxShadow(
-                color: colorScheme.primary.withValues(alpha: 0.08),
-                blurRadius: 12,
-                offset: const Offset(0, 6),
-                spreadRadius: 1,
-              ),
-            ],
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   color: colorScheme.primary,
                   shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: colorScheme.primary.withOpacity(0.3),
-                      blurRadius: 8,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
                 ),
                 child: Icon(
                   icon,
-                  size: 24,
+                  size: 20,
                   color: colorScheme.onPrimary,
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 6),
               Text(
                 label,
-                style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  color: colorScheme.onSurface,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 14,
-                ),
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: colorScheme.onSurface,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 12,
+                    ),
                 textAlign: TextAlign.center,
               ),
             ],
@@ -322,14 +229,16 @@ class HomeScreen extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Icon(Icons.history, color: Theme.of(context).colorScheme.primary, size: 24),
+                    Icon(Icons.history,
+                        color: Theme.of(context).colorScheme.primary, size: 24),
                     const SizedBox(width: 8),
                     Text(
                       'Recently Played',
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).colorScheme.onSurface,
-                      ),
+                      style:
+                          Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: Theme.of(context).colorScheme.onSurface,
+                              ),
                     ),
                   ],
                 ),
@@ -337,12 +246,13 @@ class HomeScreen extends StatelessWidget {
                   onPressed: () {},
                   child: Text(
                     'See All',
-                    style: TextStyle(color: Theme.of(context).colorScheme.primary),
+                    style:
+                        TextStyle(color: Theme.of(context).colorScheme.primary),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             SizedBox(
               height: 165,
               child: ListView.builder(
@@ -350,7 +260,7 @@ class HomeScreen extends StatelessWidget {
                 itemCount: recentTracks.length,
                 itemBuilder: (context, index) {
                   return Padding(
-                    padding: const EdgeInsets.only(right: 16, bottom: 12),
+                    padding: const EdgeInsets.only(right: 12, bottom: 8),
                     child: _buildTrackCard(context, recentTracks[index]),
                   );
                 },
@@ -379,14 +289,16 @@ class HomeScreen extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Icon(Icons.new_releases, color: Theme.of(context).colorScheme.primary, size: 24),
+                    Icon(Icons.new_releases,
+                        color: Theme.of(context).colorScheme.primary, size: 24),
                     const SizedBox(width: 8),
                     Text(
                       'Recently Added',
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).colorScheme.onSurface,
-                      ),
+                      style:
+                          Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: Theme.of(context).colorScheme.onSurface,
+                              ),
                     ),
                   ],
                 ),
@@ -394,12 +306,13 @@ class HomeScreen extends StatelessWidget {
                   onPressed: () {},
                   child: Text(
                     'See All',
-                    style: TextStyle(color: Theme.of(context).colorScheme.primary),
+                    style:
+                        TextStyle(color: Theme.of(context).colorScheme.primary),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             SizedBox(
               height: 165,
               child: ListView.builder(
@@ -407,7 +320,7 @@ class HomeScreen extends StatelessWidget {
                 itemCount: recentTracks.length,
                 itemBuilder: (context, index) {
                   return Padding(
-                    padding: const EdgeInsets.only(right: 16, bottom: 12),
+                    padding: const EdgeInsets.only(right: 12, bottom: 8),
                     child: _buildTrackCard(context, recentTracks[index]),
                   );
                 },
@@ -430,14 +343,15 @@ class HomeScreen extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  Icon(Icons.favorite, color: Theme.of(context).colorScheme.primary, size: 24),
+                  Icon(Icons.favorite,
+                      color: Theme.of(context).colorScheme.primary, size: 24),
                   const SizedBox(width: 8),
                   Text(
                     'Your Favorite Songs',
                     style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: Theme.of(context).colorScheme.onSurface,
-                    ),
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
                   ),
                 ],
               ),
@@ -457,15 +371,19 @@ class HomeScreen extends StatelessWidget {
                       Text(
                         'No favorite songs yet',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
+                            ),
                       ),
                       const SizedBox(height: 2),
                       Text(
                         'Add songs to favorites to see them here',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
+                            ),
                         textAlign: TextAlign.center,
                       ),
                     ],
@@ -484,14 +402,16 @@ class HomeScreen extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Icon(Icons.favorite, color: Theme.of(context).colorScheme.primary, size: 24),
+                    Icon(Icons.favorite,
+                        color: Theme.of(context).colorScheme.primary, size: 24),
                     const SizedBox(width: 8),
                     Text(
                       'Your Favorite Songs',
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).colorScheme.onSurface,
-                      ),
+                      style:
+                          Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: Theme.of(context).colorScheme.onSurface,
+                              ),
                     ),
                   ],
                 ),
@@ -499,12 +419,13 @@ class HomeScreen extends StatelessWidget {
                   onPressed: () {},
                   child: Text(
                     'See All',
-                    style: TextStyle(color: Theme.of(context).colorScheme.primary),
+                    style:
+                        TextStyle(color: Theme.of(context).colorScheme.primary),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             ListView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
@@ -537,14 +458,16 @@ class HomeScreen extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Icon(Icons.album, color: Theme.of(context).colorScheme.primary, size: 24),
+                    Icon(Icons.album,
+                        color: Theme.of(context).colorScheme.primary, size: 24),
                     const SizedBox(width: 8),
                     Text(
                       'Top Albums',
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).colorScheme.onSurface,
-                      ),
+                      style:
+                          Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: Theme.of(context).colorScheme.onSurface,
+                              ),
                     ),
                   ],
                 ),
@@ -552,7 +475,8 @@ class HomeScreen extends StatelessWidget {
                   onPressed: () {},
                   child: Text(
                     'See All',
-                    style: TextStyle(color: Theme.of(context).colorScheme.primary),
+                    style:
+                        TextStyle(color: Theme.of(context).colorScheme.primary),
                   ),
                 ),
               ],
@@ -578,138 +502,99 @@ class HomeScreen extends StatelessWidget {
   }
 
   Widget _buildTrackCard(BuildContext context, track) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Material(
       color: Colors.transparent,
-      borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: () {
           final audio = Provider.of<AudioProvider>(context, listen: false);
           audio.playTrack(track);
         },
-        borderRadius: BorderRadius.circular(12),
+        splashColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+        highlightColor:
+            colorScheme.surfaceContainerHighest.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(16),
         child: Container(
-          width: 135,
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                Theme.of(context).colorScheme.surface.withValues(alpha: 0.9),
-                Theme.of(context).colorScheme.surface.withValues(alpha: 0.6),
-              ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.1),
-              width: 1,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Theme.of(context).colorScheme.shadow.withValues(alpha: 0.08),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-                spreadRadius: 0,
-              ),
-            ],
-          ),
+          width: 125,
+          padding: EdgeInsets.zero,
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Stack(
-                children: [
-                  ClipRRect(
-                    borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(12),
+              // Centered square image
+              Container(
+                width: 110,
+                height: 110,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: colorScheme.shadow.withValues(alpha: 0.1),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
                     ),
-                    child: Container(
-                      height: 95,
-                      width: 135,
-                      decoration: BoxDecoration(
-                        boxShadow: [
-                          BoxShadow(
-                            color: Theme.of(context).colorScheme.shadow.withValues(alpha: 0.1),
-                            blurRadius: 6,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: track.albumArt != null
-                          ? Image.memory(
-                              track.albumArt!,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) {
-                                return Container(
-                                  color: Theme.of(context).colorScheme.primaryContainer,
-                                  child: Icon(
-                                    Icons.music_note,
-                                    size: 48,
-                                    color: Theme.of(context).colorScheme.onPrimaryContainer,
-                                  ),
-                                );
-                              },
-                            )
-                          : Container(
-                              color: Theme.of(context).colorScheme.primaryContainer,
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: track.albumArt != null
+                      ? Transform.scale(
+                          scale: 1, // Zoom in by 40% before cropping
+                          child: Image.memory(
+                            track.albumArt!,
+                            fit: BoxFit.cover,
+                            alignment: Alignment.center,
+                            errorBuilder: (context, error, stackTrace) =>
+                                Container(
+                              alignment: Alignment.center,
+                              color: colorScheme.surfaceContainerHighest,
                               child: Icon(
                                 Icons.music_note,
-                                size: 48,
-                                color: Theme.of(context).colorScheme.onPrimaryContainer,
+                                color: colorScheme.onSurfaceVariant,
                               ),
                             ),
-                    ),
-                  ),
-                  Positioned(
-                    bottom: 8,
-                    right: 8,
-                    child: Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.primary,
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Theme.of(context).colorScheme.shadow.withValues(alpha: 0.3),
-                            blurRadius: 4,
                           ),
-                        ],
-                      ),
-                      child: Icon(
-                        Icons.play_arrow,
-                        color: Theme.of(context).colorScheme.onPrimary,
-                        size: 16,
-                      ),
-                    ),
-                  ),
-                ],
+                        )
+                      : Container(
+                          alignment: Alignment.center,
+                          color: colorScheme.surfaceContainerHighest,
+                          child: Icon(
+                            Icons.music_note,
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                ),
               ),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        track.title,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              fontWeight: FontWeight.w600,
-                              height: 1.2,
-                            ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+              const SizedBox(height: 8),
+              // Title and subtitle
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Column(
+                  children: [
+                    Text(
+                      track.title,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        color: colorScheme.onSurface,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 12,
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        track.artist,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Theme.of(context).colorScheme.onSurfaceVariant,
-                              fontSize: 11,
-                            ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                      textAlign: TextAlign.left,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      track.artist,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant.withOpacity(0.8),
+                        fontSize: 11,
                       ),
-                    ],
-                  ),
+                      maxLines: 1,
+                      textAlign: TextAlign.left,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                 ),
               ),
             ],

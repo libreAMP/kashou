@@ -95,6 +95,8 @@ class KashouApp extends StatelessWidget {
                   final baseTheme = ThemeData(colorScheme: colorScheme).textTheme;
                   
                   switch (fontFamily) {
+                    case 'System':
+                      return baseTheme;
                     case 'DM Sans':
                       return GoogleFonts.dmSansTextTheme(baseTheme);
                     case 'Manrope':
@@ -184,7 +186,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _selectedIndex = 0;
   bool _showMiniPlayer = true;
 
-  static const List<Widget> _screens = [HomeScreen(), LibraryScreen(), StreamScreen()];
+  static const List<Widget> _screens = [StreamScreen(), HomeScreen(), LibraryScreen()];
 
   @override
   void initState() {
@@ -277,8 +279,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       bottomNavigationBar: NavigationBarTheme(
         data: NavigationBarThemeData(
           height: 72,
-          labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-          indicatorColor: colorScheme.secondaryContainer.withOpacity(0.9),
+          indicatorColor: Colors.transparent,
           iconTheme: MaterialStateProperty.resolveWith<IconThemeData>((states) {
             final onSurface = colorScheme.onSurfaceVariant;
             final onSelected = colorScheme.onSecondaryContainer;
@@ -300,8 +301,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                   );
           }),
         ),
-        child: Consumer<AudioProvider>(
-          builder: (context, audioProvider, child) {
+        child: Consumer2<AudioProvider, SettingsProvider>(
+          builder: (context, audioProvider, settings, child) {
             final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
             final route = ModalRoute.of(context);
             final isModalOpen = route != null && !route.isFirst;
@@ -310,21 +311,24 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             final navigationBar = NavigationBar(
               selectedIndex: _selectedIndex,
               onDestinationSelected: _onItemTapped,
+              labelBehavior: settings.minimalBottomBar
+                  ? NavigationDestinationLabelBehavior.onlyShowSelected
+                  : NavigationDestinationLabelBehavior.alwaysShow,
               destinations: const [
                 NavigationDestination(
-                  icon: Icon(Icons.home_outlined),
-                  selectedIcon: Icon(Icons.home),
-                  label: 'Home',
+                  icon: Icon(Icons.music_note_outlined),
+                  selectedIcon: Icon(Icons.music_note),
+                  label: 'Stream',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.folder_outlined),
+                  selectedIcon: Icon(Icons.folder),
+                  label: 'Local',
                 ),
                 NavigationDestination(
                   icon: Icon(Icons.library_music_outlined),
                   selectedIcon: Icon(Icons.library_music),
                   label: 'Library',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.cloud_outlined),
-                  selectedIcon: Icon(Icons.cloud),
-                  label: 'Stream',
                 ),
               ],
             );

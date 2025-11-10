@@ -41,217 +41,268 @@ class _LibraryScreenState extends State<LibraryScreen>
           return Stack(
             children: [
               NestedScrollView(
-        headerSliverBuilder: (context, innerBoxIsScrolled) {
-          return [
-            SliverAppBar.medium(
-              title: Row(
-                children: [
-                  Icon(Icons.library_music, color: Theme.of(context).colorScheme.primary),
-                  const SizedBox(width: 12),
-                  const Text('Library'),
-                ],
-              ),
-              actions: [
-                IconButton(
-                  icon: const Icon(Icons.refresh),
-                  onPressed: () {
-                    final provider = Provider.of<LibraryProvider>(
-                      context,
-                      listen: false,
-                    );
-                    provider.scanLibrary(force: true);
-                  },
-                ),
-                IconButton(
-                  icon: const Icon(Icons.more_vert),
-                  onPressed: () {
-                    _showLibraryOptions(context);
-                  },
-                ),
-              ],
-              bottom: TabBar(
-                controller: _tabController,
-                isScrollable: true,
-                tabs: const [
-                  Tab(icon: Icon(Icons.music_note), text: 'Songs'),
-                  Tab(icon: Icon(Icons.album), text: 'Albums'),
-                  Tab(icon: Icon(Icons.person), text: 'Artists'),
-                  Tab(icon: Icon(Icons.playlist_play), text: 'Playlists'),
-                ],
-              ),
-            ),
-            SliverToBoxAdapter(
-              child: Consumer<LibraryProvider>(
-                builder: (context, library, child) {
-                  final songCount = library.allTracks.length;
-                  final albumCount = library.albums.length;
-                  final artistCount = library.artists.length;
-                  final playlistCount = library.playlists.length;
+                headerSliverBuilder: (context, innerBoxIsScrolled) {
+                  return [
+                    SliverAppBar.medium(
+                      title: Row(
+                        children: [
+                          Icon(Icons.library_music,
+                              color: Theme.of(context).colorScheme.primary),
+                          const SizedBox(width: 12),
+                          const Text('Library'),
+                        ],
+                      ),
+                      actions: [
+                        IconButton(
+                          icon: const Icon(Icons.refresh),
+                          onPressed: () {
+                            final provider = Provider.of<LibraryProvider>(
+                              context,
+                              listen: false,
+                            );
+                            provider.scanLibrary(force: true);
+                          },
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.more_vert),
+                          onPressed: () {
+                            _showLibraryOptions(context);
+                          },
+                        ),
+                      ],
+                      bottom: TabBar(
+                        controller: _tabController,
+                        isScrollable: true,
+                        tabs: const [
+                          Tab(icon: Icon(Icons.music_note), text: 'Songs'),
+                          Tab(icon: Icon(Icons.album), text: 'Albums'),
+                          Tab(icon: Icon(Icons.person), text: 'Artists'),
+                          Tab(
+                              icon: Icon(Icons.playlist_play),
+                              text: 'Playlists'),
+                        ],
+                      ),
+                    ),
+                    SliverToBoxAdapter(
+                      child: Consumer<LibraryProvider>(
+                        builder: (context, library, child) {
+                          final songCount = library.allTracks.length;
+                          final albumCount = library.albums.length;
+                          final artistCount = library.artists.length;
+                          final playlistCount = library.playlists.length;
 
-                  return Container(
-                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-                    child: LayoutBuilder(
-                      builder: (context, constraints) {
-                        final isWide = constraints.maxWidth > 640;
-                        return Align(
-                          alignment: isWide ? Alignment.topCenter : Alignment.topLeft,
-                          child: ConstrainedBox(
-                            constraints: BoxConstraints(
-                              maxWidth: isWide ? 640 : double.infinity,
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.all(12),
-                                      decoration: BoxDecoration(
-                                        color: Theme.of(context).colorScheme.primaryContainer,
-                                        shape: BoxShape.circle,
-                                      ),
-                                      child: Icon(
-                                        Icons.bar_chart,
-                                        color: Theme.of(context).colorScheme.onPrimaryContainer,
-                                      ),
+                          return Container(
+                            padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                            child: LayoutBuilder(
+                              builder: (context, constraints) {
+                                final isWide = constraints.maxWidth > 640;
+                                return Align(
+                                  alignment: isWide
+                                      ? Alignment.topCenter
+                                      : Alignment.topLeft,
+                                  child: ConstrainedBox(
+                                    constraints: BoxConstraints(
+                                      maxWidth: isWide ? 640 : double.infinity,
                                     ),
-                                    const SizedBox(width: 16),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            '$songCount songs • $albumCount albums • $artistCount artists',
-                                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                              color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                            ),
-                                          ),
-                                          Text(
-                                            '$playlistCount playlists',
-                                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                              color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 16),
-                                Material(
-                                  color: Colors.transparent,
-                                  borderRadius: BorderRadius.circular(24),
-                                  child: Container(
-                                    decoration: BoxDecoration(
-                                      gradient: LinearGradient(
-                                        colors: [
-                                          Theme.of(context).colorScheme.primary.withValues(alpha: 0.15),
-                                          Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
-                                        ],
-                                        begin: Alignment.topLeft,
-                                        end: Alignment.bottomRight,
-                                      ),
-                                      borderRadius: BorderRadius.circular(24),
-                                      border: Border.all(
-                                        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
-                                        width: 1,
-                                      ),
-                                    ),
-                                    child: SearchBar(
-                                      controller: _searchController,
-                                      leading: const Padding(
-                                        padding: EdgeInsets.only(left: 8),
-                                        child: Icon(Icons.search),
-                                      ),
-                                      trailing: _searchController.text.isNotEmpty
-                                          ? [
-                                              IconButton(
-                                                icon: const Icon(Icons.clear),
-                                                onPressed: () {
-                                                  _searchController.clear();
-                                                  setState(() {});
-                                                },
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            Container(
+                                              padding: const EdgeInsets.all(12),
+                                              decoration: BoxDecoration(
+                                                color: Theme.of(context)
+                                                    .colorScheme
+                                                    .primaryContainer,
+                                                shape: BoxShape.circle,
                                               ),
-                                            ]
-                                          : null,
-                                      hintText: 'Search music...',
-                                      elevation: const WidgetStatePropertyAll(0),
-                                      shape: WidgetStatePropertyAll(
-                                        RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(24),
+                                              child: Icon(
+                                                Icons.bar_chart,
+                                                color: Theme.of(context)
+                                                    .colorScheme
+                                                    .onPrimaryContainer,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 16),
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    '$songCount songs • $albumCount albums • $artistCount artists',
+                                                    style: Theme.of(context)
+                                                        .textTheme
+                                                        .bodyMedium
+                                                        ?.copyWith(
+                                                          color: Theme.of(
+                                                                  context)
+                                                              .colorScheme
+                                                              .onSurfaceVariant,
+                                                        ),
+                                                  ),
+                                                  Text(
+                                                    '$playlistCount playlists',
+                                                    style: Theme.of(context)
+                                                        .textTheme
+                                                        .bodySmall
+                                                        ?.copyWith(
+                                                          color: Theme.of(
+                                                                  context)
+                                                              .colorScheme
+                                                              .onSurfaceVariant,
+                                                        ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ],
                                         ),
-                                      ),
-                                      padding: const WidgetStatePropertyAll(
-                                        EdgeInsets.symmetric(horizontal: 16),
-                                      ),
-                                      onChanged: (value) {
-                                        setState(() {});
-                                      },
+                                        const SizedBox(height: 16),
+                                        Material(
+                                          color: Colors.transparent,
+                                          borderRadius:
+                                              BorderRadius.circular(24),
+                                          child: Container(
+                                            decoration: BoxDecoration(
+                                              gradient: LinearGradient(
+                                                colors: [
+                                                  Theme.of(context)
+                                                      .colorScheme
+                                                      .primary
+                                                      .withValues(alpha: 0.15),
+                                                  Theme.of(context)
+                                                      .colorScheme
+                                                      .primary
+                                                      .withValues(alpha: 0.08),
+                                                ],
+                                                begin: Alignment.topLeft,
+                                                end: Alignment.bottomRight,
+                                              ),
+                                              borderRadius:
+                                                  BorderRadius.circular(24),
+                                              border: Border.all(
+                                                color: Theme.of(context)
+                                                    .colorScheme
+                                                    .primary
+                                                    .withValues(alpha: 0.12),
+                                                width: 1,
+                                              ),
+                                            ),
+                                            child: SearchBar(
+                                              controller: _searchController,
+                                              leading: const Padding(
+                                                padding:
+                                                    EdgeInsets.only(left: 8),
+                                                child: Icon(Icons.search),
+                                              ),
+                                              trailing: _searchController
+                                                      .text.isNotEmpty
+                                                  ? [
+                                                      IconButton(
+                                                        icon: const Icon(
+                                                            Icons.clear),
+                                                        onPressed: () {
+                                                          _searchController
+                                                              .clear();
+                                                          setState(() {});
+                                                        },
+                                                      ),
+                                                    ]
+                                                  : null,
+                                              hintText: 'Search music...',
+                                              elevation:
+                                                  const WidgetStatePropertyAll(
+                                                      0),
+                                              shape: WidgetStatePropertyAll(
+                                                RoundedRectangleBorder(
+                                                  borderRadius:
+                                                      BorderRadius.circular(24),
+                                                ),
+                                              ),
+                                              padding:
+                                                  const WidgetStatePropertyAll(
+                                                EdgeInsets.symmetric(
+                                                    horizontal: 16),
+                                              ),
+                                              onChanged: (value) {
+                                                setState(() {});
+                                              },
+                                            ),
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
-                                ),
+                                );
+                              },
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ];
+                },
+                body: Consumer2<LibraryProvider, AudioProvider>(
+                  builder: (context, library, audioProvider, child) {
+                    if (library.isScanning) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            CircularProgressIndicator(
+                                value: library.scanProgress),
+                            const SizedBox(height: 16),
+                            Text(
+                              'Scanning library... ${(library.scanProgress * 100).toInt()}%',
+                              style: Theme.of(context).textTheme.bodyLarge,
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+
+                    return LayoutBuilder(
+                      builder: (context, constraints) {
+                        final isWide = constraints.maxWidth > 640;
+                        final keyboardHeight =
+                            MediaQuery.of(context).viewInsets.bottom;
+                        final showMiniPlayer =
+                            audioProvider.currentTrack != null &&
+                                keyboardHeight == 0;
+                        final bottomPadding =
+                            MediaQuery.of(context).padding.bottom +
+                                (showMiniPlayer ? 96.0 : 16.0);
+                        return ConstrainedBox(
+                          constraints: BoxConstraints(
+                            maxWidth: isWide ? 640 : double.infinity,
+                          ),
+                          child: Align(
+                            alignment: isWide
+                                ? Alignment.topCenter
+                                : Alignment.topLeft,
+                            child: TabBarView(
+                              controller: _tabController,
+                              children: [
+                                _buildSongsTab(library, bottomPadding),
+                                _buildAlbumsTab(library, bottomPadding),
+                                _buildArtistsTab(library, bottomPadding),
+                                _buildPlaylistsTab(library, bottomPadding),
                               ],
                             ),
                           ),
                         );
                       },
-                    ),
-                  );
-                },
-              ),
-            ),
-          ];
-        },
-        body: Consumer2<LibraryProvider, AudioProvider>(
-          builder: (context, library, audioProvider, child) {
-            if (library.isScanning) {
-              return Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    CircularProgressIndicator(value: library.scanProgress),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Scanning library... ${(library.scanProgress * 100).toInt()}%',
-                      style: Theme.of(context).textTheme.bodyLarge,
-                    ),
-                  ],
+                    );
+                  },
                 ),
-              );
-            }
-
-            return LayoutBuilder(
-              builder: (context, constraints) {
-                final isWide = constraints.maxWidth > 640;
-                final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
-                final showMiniPlayer = audioProvider.currentTrack != null && keyboardHeight == 0;
-                final bottomPadding = MediaQuery.of(context).padding.bottom + (showMiniPlayer ? 96.0 : 16.0);
-                return ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxWidth: isWide ? 640 : double.infinity,
-                  ),
-                  child: Align(
-                    alignment: isWide ? Alignment.topCenter : Alignment.topLeft,
-                    child: TabBarView(
-                      controller: _tabController,
-                      children: [
-                        _buildSongsTab(library, bottomPadding),
-                        _buildAlbumsTab(library, bottomPadding),
-                        _buildArtistsTab(library, bottomPadding),
-                        _buildPlaylistsTab(library, bottomPadding),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            );
-          },
-        ),
-      ),
+              ),
               Consumer<AudioProvider>(
                 builder: (context, audioProvider, child) {
                   final hasPlayer = audioProvider.currentTrack != null;
-                  
+
                   return Positioned(
                     right: 16,
                     bottom: hasPlayer ? 94.0 : 16.0,
@@ -283,13 +334,17 @@ class _LibraryScreenState extends State<LibraryScreen>
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              _searchController.text.isEmpty ? Icons.music_note_outlined : Icons.search_off,
+              _searchController.text.isEmpty
+                  ? Icons.music_note_outlined
+                  : Icons.search_off,
               size: 64,
               color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
             const SizedBox(height: 16),
             Text(
-              _searchController.text.isEmpty ? 'No songs found' : 'No songs match your search',
+              _searchController.text.isEmpty
+                  ? 'No songs found'
+                  : 'No songs match your search',
               style: Theme.of(context).textTheme.headlineSmall,
             ),
             const SizedBox(height: 8),
@@ -298,8 +353,8 @@ class _LibraryScreenState extends State<LibraryScreen>
                   ? 'Add some music to get started'
                   : 'Try a different search term',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
               textAlign: TextAlign.center,
             ),
             if (_searchController.text.isEmpty) ...[
@@ -336,13 +391,17 @@ class _LibraryScreenState extends State<LibraryScreen>
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              _searchController.text.isEmpty ? Icons.album_outlined : Icons.search_off,
+              _searchController.text.isEmpty
+                  ? Icons.album_outlined
+                  : Icons.search_off,
               size: 64,
               color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
             const SizedBox(height: 16),
             Text(
-              _searchController.text.isEmpty ? 'No albums found' : 'No albums match your search',
+              _searchController.text.isEmpty
+                  ? 'No albums found'
+                  : 'No albums match your search',
               style: Theme.of(context).textTheme.headlineSmall,
             ),
           ],
@@ -376,13 +435,17 @@ class _LibraryScreenState extends State<LibraryScreen>
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              _searchController.text.isEmpty ? Icons.person_outlined : Icons.search_off,
+              _searchController.text.isEmpty
+                  ? Icons.person_outlined
+                  : Icons.search_off,
               size: 64,
               color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
             const SizedBox(height: 16),
             Text(
-              _searchController.text.isEmpty ? 'No artists found' : 'No artists match your search',
+              _searchController.text.isEmpty
+                  ? 'No artists found'
+                  : 'No artists match your search',
               style: Theme.of(context).textTheme.headlineSmall,
             ),
           ],
@@ -425,8 +488,8 @@ class _LibraryScreenState extends State<LibraryScreen>
             Text(
               'Create your first playlist',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 16),
@@ -450,7 +513,9 @@ class _LibraryScreenState extends State<LibraryScreen>
           title: Text(playlist.name),
           subtitle: Text('${playlist.tracks.length} songs'),
           leading: CircleAvatar(
-            child: Text(playlist.name.isNotEmpty ? playlist.name[0].toUpperCase() : '?'),
+            child: Text(playlist.name.isNotEmpty
+                ? playlist.name[0].toUpperCase()
+                : '?'),
           ),
           onTap: () {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -476,7 +541,8 @@ class _LibraryScreenState extends State<LibraryScreen>
                 onTap: () {
                   Navigator.pop(context);
                   Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const YoutubeHistoryScreen()),
+                    MaterialPageRoute(
+                        builder: (_) => const YoutubeHistoryScreen()),
                   );
                 },
               ),

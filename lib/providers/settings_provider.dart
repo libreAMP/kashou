@@ -14,6 +14,7 @@ class SettingsProvider extends ChangeNotifier {
   String _resamplerQuality = 'High';
   bool _enableDither = false;
   String _ytdlBaseUrl = 'https://ytdl-wrapper.onrender.com';
+  bool _minimalBottomBar = false;
   bool _isLoaded = false;
 
   // Getters
@@ -29,6 +30,7 @@ class SettingsProvider extends ChangeNotifier {
   String get resamplerQuality => _resamplerQuality;
   bool get enableDither => _enableDither;
   String get ytdlBaseUrl => _ytdlBaseUrl;
+  bool get minimalBottomBar => _minimalBottomBar;
   bool get isLoaded => _isLoaded;
 
   SettingsProvider() {
@@ -38,7 +40,7 @@ class SettingsProvider extends ChangeNotifier {
   Future<void> _loadSettings() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      _fontFamily = prefs.getString('font_family') ?? 'Poppins';
+      _fontFamily = prefs.getString('font_family') ?? 'System';
       _enableGapless = prefs.getBool('enable_gapless') ?? true;
       _enableCrossfade = prefs.getBool('enable_crossfade') ?? false;
       _crossfadeDuration = prefs.getDouble('crossfade_duration') ?? 3.0;
@@ -50,6 +52,7 @@ class SettingsProvider extends ChangeNotifier {
       _resamplerQuality = prefs.getString('resampler_quality') ?? 'High';
       _enableDither = prefs.getBool('enable_dither') ?? false;
       _ytdlBaseUrl = prefs.getString('ytdl_base_url') ?? 'https://ytdl-wrapper.onrender.com';
+      _minimalBottomBar = prefs.getBool('minimal_bottom_bar') ?? false;
       _isLoaded = true;
       notifyListeners();
     } catch (e) {
@@ -140,6 +143,13 @@ class SettingsProvider extends ChangeNotifier {
     _ytdlBaseUrl = url;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('ytdl_base_url', url);
+    notifyListeners();
+  }
+
+  Future<void> setMinimalBottomBar(bool value) async {
+    _minimalBottomBar = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('minimal_bottom_bar', value);
     notifyListeners();
   }
 }

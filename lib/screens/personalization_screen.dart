@@ -65,6 +65,18 @@ class PersonalizationScreen extends StatelessWidget {
                 );
               },
             ),
+            const SizedBox(height: 16),
+            Consumer<SettingsProvider>(
+              builder: (context, settings, child) {
+                return SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Minimal Bottom Bar'),
+                  subtitle: const Text('Hide labels until tab is tapped'),
+                  value: settings.minimalBottomBar,
+                  onChanged: settings.setMinimalBottomBar,
+                );
+              },
+            ),
           ],
         ),
       ),
@@ -172,6 +184,7 @@ class PersonalizationScreen extends StatelessWidget {
 
   Widget _buildFontSection(BuildContext context) {
     final popularFonts = [
+      'System',
       'DM Sans',
       'Manrope',
       'Inter',
