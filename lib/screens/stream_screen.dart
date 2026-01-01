@@ -4,12 +4,15 @@ import 'package:shimmer/shimmer.dart';
 import 'package:http/http.dart' as http;
 import 'dart:typed_data';
 import 'dart:async';
-import '../screens/online_search_screen.dart';
-import '../screens/section_page.dart';
+import 'package:provider/provider.dart';
+import 'online_search_screen.dart';
+import 'section_page.dart';
+import 'youtube_history_screen.dart';
 import '../providers/audio_provider.dart';
 import '../providers/settings_provider.dart';
 import '../services/ytdl_service.dart';
 import '../models/track.dart';
+import '../models/youtube_streaming_data.dart';
 
 class StreamScreen extends StatefulWidget {
   const StreamScreen({super.key});
@@ -206,44 +209,28 @@ class _StreamScreenState extends State<StreamScreen>
 
     await audioProvider.prepareTrackLoad(placeholderTrack);
 
-    Map<String, dynamic>? details;
+    YouTubeStreamingData? streamingData;
     try {
-      details = await _service.fetchAudioDetails(videoUrl);
+      streamingData = await _service.fetchStreamingData(videoUrl);
     } catch (_) {
-      details = null;
+      streamingData = null;
     }
 
-    if (details == null) {
+    if (streamingData == null || !streamingData.playable) {
       audioProvider.cancelPendingTrack();
       _showSnackBar('Unable to load audio stream.');
       return;
     }
 
-    String? downloadUrl;
-    final audio = details['audio'];
-    if (audio is Map) {
-      downloadUrl = audio['download_url'] as String?;
-    } else if (audio is String) {
-      downloadUrl = audio;
-    }
-    downloadUrl ??= details['download_url'] as String?;
-    downloadUrl ??= details['audio_url'] as String?;
-    final download = details['download'];
-    if (downloadUrl == null && download is Map) {
-      downloadUrl =
-          download['url'] as String? ?? download['download_url'] as String?;
-    } else if (downloadUrl == null && download is String) {
-      downloadUrl = download;
-    }
-
-    if (downloadUrl == null) {
+    final selectedFormat = streamingData.bestStream ?? streamingData.fallbackStream;
+    if (selectedFormat == null) {
       audioProvider.cancelPendingTrack();
       _showSnackBar('Audio stream unavailable.');
       return;
     }
 
     Uint8List? albumArt;
-    final thumbUrl = (details['thumbnail'] ?? video['thumbnail']) as String?;
+    final thumbUrl = streamingData.thumbnailUrl ?? video['thumbnail'] as String?;
     if (thumbUrl != null && thumbUrl.isNotEmpty) {
       try {
         final thumbnailResponse = await http.get(Uri.parse(thumbUrl));
@@ -254,12 +241,15 @@ class _StreamScreenState extends State<StreamScreen>
     }
 
     final finalTrack = placeholderTrack.copyWith(
-      title: details['title'] as String? ?? placeholderTrack.title,
-      artist: details['channel'] as String? ?? placeholderTrack.artist,
+      title: streamingData.title.isNotEmpty
+          ? streamingData.title
+          : placeholderTrack.title,
+      artist: streamingData.channelName.isNotEmpty
+          ? streamingData.channelName
+          : placeholderTrack.artist,
       album: 'YouTube',
-      path: downloadUrl,
-      duration:
-          Duration(seconds: _asInt(details['duration']) ?? durationSeconds),
+      path: selectedFormat.url,
+      duration: streamingData.duration ?? Duration(seconds: durationSeconds),
       albumArt: albumArt ?? placeholderTrack.albumArt,
       sourceUrl: placeholderTrack.sourceUrl,
     );
@@ -512,6 +502,8 @@ class _StreamScreenState extends State<StreamScreen>
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Scaffold(
       resizeToAvoidBottomInset: false,
       body: NestedScrollView(
@@ -521,19 +513,30 @@ class _StreamScreenState extends State<StreamScreen>
               floating: true,
               snap: true,
               elevation: 0,
-              backgroundColor: Theme.of(context).colorScheme.surface,
-              foregroundColor: Theme.of(context).colorScheme.onSurface,
+              backgroundColor: colorScheme.surface,
+              foregroundColor: colorScheme.onSurface,
+              title: _buildSearchField(context),
               actions: [
-                IconButton(
-                  icon: const Icon(Icons.search),
-                  onPressed: () => _openSearchScreen(context),
-                  tooltip: 'Search music',
+                Consumer<SettingsProvider>(
+                  builder: (context, settings, _) {
+                    if (!settings.enableYouTubeIntegration) return const SizedBox.shrink();
+                    return IconButton(
+                      icon: const Icon(Icons.history),
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const YoutubeHistoryScreen(),
+                          ),
+                        );
+                      },
+                      tooltip: 'YouTube History',
+                    );
+                  },
                 ),
                 IconButton(
                   icon: const Icon(Icons.settings_outlined),
-                  onPressed: () {
-                    Navigator.pushNamed(context, '/settings');
-                  },
+                  onPressed: () => Navigator.pushNamed(context, '/settings'),
                   tooltip: 'Settings',
                 ),
               ],
@@ -607,11 +610,11 @@ class _StreamScreenState extends State<StreamScreen>
           final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
           final showMiniPlayer = hasMiniPlayer && keyboardHeight == 0;
           final safeArea = MediaQuery.of(context).padding.bottom;
-          final bottomPadding = showMiniPlayer ? safeArea + 96.0 : safeArea;
+          final bottomPadding = showMiniPlayer ? safeArea + 96.0 : safeArea + 24;
 
           if (showingSearch) {
             return ListView.separated(
-              padding: EdgeInsets.only(bottom: bottomPadding, top: 12),
+              padding: EdgeInsets.only(bottom: bottomPadding, top: 16),
               keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               itemCount: _searchResults.length,
               separatorBuilder: (_, __) => const SizedBox(height: 12),
@@ -621,22 +624,21 @@ class _StreamScreenState extends State<StreamScreen>
           }
 
           return ListView(
-            padding: EdgeInsets.only(bottom: bottomPadding),
+            padding: EdgeInsets.only(bottom: bottomPadding, top: 16),
             children: [
-              // Quick Picks
+              _buildHeroHeader(context),
+              const SizedBox(height: 24),
               _buildSectionHeader('Quick picks',
                   items: _quickPicks, isListView: false),
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
               _buildHorizontalCarousel(_quickPicks),
-              const SizedBox(height: 20),
+              const SizedBox(height: 28),
 
-              // Language Playlists
               ..._buildLanguagePlaylistsSections(),
 
-              // Trending
               _buildSectionHeader('Trending now',
                   items: _trendingSongs.take(6).toList(), isListView: true),
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
               _buildTileList(_trendingSongs.take(6).toList()),
             ],
           );
@@ -883,183 +885,138 @@ class _StreamScreenState extends State<StreamScreen>
   }
 
   List<Widget> _buildLanguagePlaylistsSections() {
-    final sections = <Widget>[];
-    const languages = [
-      'Hindi',
-      'English',
-      'Punjabi',
-      'Tamil',
-      'Telugu',
-      'Kannada',
-      'Malayalam',
-      'Bengali'
-    ];
+    final widgets = <Widget>[];
 
-    for (final language in languages) {
-      final playlist = _languagePlaylists[language];
-      if (playlist != null && playlist.isNotEmpty) {
-        sections.addAll([
-          _buildSectionHeader('$language songs',
-              items: playlist, isListView: false),
-          const SizedBox(height: 8),
-          _buildHorizontalCarousel(playlist),
-          const SizedBox(height: 20),
-        ]);
-      }
-    }
+    _languagePlaylists.forEach((language, playlist) {
+      if (playlist.isEmpty) return;
 
-    return sections;
-  }
+      widgets.addAll([
+        _buildSectionHeader('$language songs', items: playlist, isListView: false),
+        const SizedBox(height: 8),
+        _buildHorizontalCarousel(playlist),
+        const SizedBox(height: 20),
+      ]);
+    });
 
-  Widget _buildSectionHeader(String title,
-      {List<Map<String, dynamic>>? items, bool isListView = false}) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    return InkWell(
-      onTap: items != null && items.isNotEmpty
-          ? () => _openSectionPage(title, items, isListView)
-          : null,
-      splashColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.2),
-      highlightColor:
-          colorScheme.surfaceContainerHighest.withValues(alpha: 0.1),
-      borderRadius: BorderRadius.circular(12),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Expanded(
-              child: Text(
-                title,
-                style: theme.textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: colorScheme.onSurface,
-                  letterSpacing: -0.5,
-                  height: 1.2,
-                ),
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: colorScheme.surfaceContainerHighest.withOpacity(0.5),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(
-                Icons.chevron_right,
-                size: 16,
-                color: colorScheme.onSurfaceVariant.withOpacity(0.8),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+    return widgets;
   }
 
   Widget _buildHorizontalCarousel(List<Map<String, dynamic>> items) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final itemCount = items.length > 15 ? 15 : items.length;
-    if (itemCount == 0) {
-      return _buildEmptySectionCard('Nothing to show yet', height: 140);
-    }
-    return SizedBox(
-      height: 240, // Increased height for larger thumbnails
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: itemCount,
-        separatorBuilder: (_, __) => const SizedBox(width: 0),
-        itemBuilder: (context, index) {
-          final item = items[index];
-          final thumbnail = item['thumbnail'] as String? ??
-              'https://img.youtube.com/vi/${item['id']}/mqdefault.jpg';
-          final title = item['title'] as String? ?? 'Unknown';
-          final subtitle = item['channel'] as String? ?? 'Unknown artist';
 
-          return Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: () => _playVideo(item),
-              splashColor:
-                  colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-              highlightColor:
-                  colorScheme.surfaceContainerHighest.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(16),
-              child: Container(
-                width: 150, // Increased width for larger thumbnails
-                padding: EdgeInsets.zero,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    // Centered square image
-                    Container(
-                      width: 120,
-                      height: 120,
+    if (itemCount == 0) {
+      return _buildEmptySectionCard('Nothing to show right now');
+    }
+
+    return SizedBox(
+      height: 240,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final maxWidth = constraints.maxWidth;
+          final cardWidth = (maxWidth * 0.42).clamp(132.0, 168.0);
+          final imageSize = cardWidth - 24;
+
+          return ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            itemCount: itemCount,
+            separatorBuilder: (_, __) => const SizedBox(width: 18),
+            itemBuilder: (context, index) {
+              final item = items[index];
+              final thumbnail = item['thumbnail'] as String?;
+              final title = item['title'] as String? ?? 'Unknown';
+              final channel = item['channel'] as String? ?? 'Unknown';
+
+              return SizedBox(
+                width: cardWidth,
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () => _playVideo(item),
+                    splashColor:
+                        colorScheme.primaryContainer.withValues(alpha: 0.18),
+                    highlightColor:
+                        colorScheme.primaryContainer.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(20),
+                    child: Container(
                       decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: colorScheme.outline.withValues(alpha: 0.12),
+                        ),
+                        gradient: LinearGradient(
+                          colors: [
+                            colorScheme.surfaceContainerHigh,
+                            colorScheme.surface,
+                          ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
                         boxShadow: [
                           BoxShadow(
-                            color: colorScheme.shadow.withValues(alpha: 0.1),
-                            blurRadius: 8,
-                            offset: const Offset(0, 4),
+                            color: colorScheme.shadow.withOpacity(0.08),
+                            blurRadius: 14,
+                            offset: const Offset(0, 6),
                           ),
                         ],
                       ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: Transform.scale(
-                          scale: 1.4, // Zoom in by 20% before cropping
-                          child: Image.network(
-                            thumbnail,
-                            fit: BoxFit.cover,
-                            alignment: Alignment.center,
-                            errorBuilder: (context, error, stackTrace) =>
-                                Container(
-                              alignment: Alignment.center,
-                              color: colorScheme.surfaceContainerHighest,
-                              child: Icon(Icons.music_note,
-                                  color: colorScheme.onSurfaceVariant),
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(16),
+                            child: SizedBox(
+                              width: imageSize,
+                              height: imageSize,
+                              child: FittedBox(
+                                fit: BoxFit.cover,
+                                child: Image.network(
+                                  thumbnail ??
+                                      'https://img.youtube.com/vi/${item['id']}/hqdefault.jpg',
+                                  errorBuilder: (context, error, stackTrace) =>
+                                      Container(
+                                    alignment: Alignment.center,
+                                    color: colorScheme.surfaceContainerHighest,
+                                    child: Icon(
+                                      Icons.music_note,
+                                      color: colorScheme.onSurfaceVariant
+                                          .withOpacity(0.6),
+                                    ),
+                                  ),
+                                ),
+                              ),
                             ),
                           ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    // Title and subtitle
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: Column(
-                        children: [
+                          const SizedBox(height: 10),
                           Text(
                             title,
                             style: theme.textTheme.titleSmall?.copyWith(
-                              color: colorScheme.onSurface,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 13,
-                            ),
+                                  fontWeight: FontWeight.w700,
+                                  color: colorScheme.onSurface,
+                                ),
                             maxLines: 2,
-                            textAlign: TextAlign.left,
                             overflow: TextOverflow.ellipsis,
                           ),
-                          const SizedBox(height: 4),
                           Text(
-                            subtitle,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: colorScheme.onSurfaceVariant,
-                              fontSize: 11,
-                            ),
+                            channel,
+                            style: theme.textTheme.labelSmall?.copyWith(
+                                  height: 1.1,
+                                  color: colorScheme.onSurfaceVariant
+                                      .withOpacity(0.8),
+                                ),
                             maxLines: 1,
-                            textAlign: TextAlign.left,
                             overflow: TextOverflow.ellipsis,
                           ),
                         ],
                       ),
                     ),
-                  ],
+                  ),
                 ),
-              ),
-            ),
+              );
+            },
           );
         },
       ),
@@ -1071,5 +1028,186 @@ class _StreamScreenState extends State<StreamScreen>
       return _buildEmptySectionCard('Nothing trending right now');
     }
     return Column(children: items.map(_buildVideoTile).toList(growable: false));
+  }
+
+  Widget _buildHeroHeader(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+        gradient: LinearGradient(
+          colors: [
+            colorScheme.primary.withValues(alpha: 0.16),
+            colorScheme.primaryContainer.withValues(alpha: 0.34),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        border: Border.all(color: colorScheme.primary.withValues(alpha: 0.22)),
+      ),
+      padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: colorScheme.primary,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.explore,
+                  color: colorScheme.onPrimary,
+                  size: 26,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Text(
+                  'Discover something new',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: colorScheme.onSurface,
+                      ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Curated picks, fresh tracks, and playlists tailored for every moment.',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
+          ),
+          const SizedBox(height: 20),
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              _buildHeroChip(context, Icons.flash_on, 'Trending hits'),
+              _buildHeroChip(context, Icons.playlist_play, 'Mood playlists'),
+              _buildHeroChip(context, Icons.public, 'Global picks'),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeroChip(BuildContext context, IconData icon, String label) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: colorScheme.surface.withValues(alpha: 0.7),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: colorScheme.primary.withValues(alpha: 0.18)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 18, color: colorScheme.primary),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: colorScheme.onSurface,
+                  fontWeight: FontWeight.w600,
+                ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSearchField(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Container(
+      height: 44,
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: colorScheme.outline.withOpacity(0.08)),
+      ),
+      child: TextField(
+        controller: _searchController,
+        onChanged: _onSearchChanged,
+        textAlignVertical: TextAlignVertical.center,
+        decoration: InputDecoration(
+          isDense: true,
+          prefixIcon: Icon(Icons.search, color: colorScheme.onSurfaceVariant),
+          prefixIconConstraints:
+              const BoxConstraints(minWidth: 44, minHeight: 44),
+          suffixIcon: (_isSearching || _currentQuery.isNotEmpty)
+              ? IconButton(
+                  tooltip: 'Clear',
+                  icon: Icon(Icons.close, color: colorScheme.onSurfaceVariant),
+                  onPressed: () {
+                    _searchController.clear();
+                    _searchDebounceTimer?.cancel();
+                    _search('');
+                  },
+                )
+              : null,
+          hintText: 'Search YouTube music…',
+          hintStyle: theme.textTheme.bodyMedium?.copyWith(
+                color: colorScheme.onSurfaceVariant.withOpacity(0.8),
+              ),
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader(
+    String title, {
+    required List<Map<String, dynamic>> items,
+    required bool isListView,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: colorScheme.primary.withValues(alpha: 0.18),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                isListView ? Icons.bar_chart : Icons.queue_music,
+                color: colorScheme.primary,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              title,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: colorScheme.onSurface,
+                  ),
+            ),
+          ],
+        ),
+        if (items.isNotEmpty)
+          TextButton(
+            onPressed: () => _openSectionPage(title, items, isListView),
+            style: TextButton.styleFrom(foregroundColor: colorScheme.primary),
+            child: const Text('See all'),
+          ),
+      ],
+    );
   }
 }

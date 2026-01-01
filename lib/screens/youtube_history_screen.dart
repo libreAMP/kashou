@@ -8,6 +8,7 @@ import '../models/stream_history_entry.dart';
 import '../providers/audio_provider.dart';
 import '../providers/settings_provider.dart';
 import '../services/ytdl_service.dart';
+import '../models/youtube_streaming_data.dart';
 
 class YoutubeHistoryScreen extends StatefulWidget {
   const YoutubeHistoryScreen({super.key});
@@ -47,18 +48,18 @@ class _YoutubeHistoryScreenState extends State<YoutubeHistoryScreen> {
     await audioProvider.prepareTrackLoad(placeholder);
 
     const ytdl = YtdlWrapperService();
-    Map<String, dynamic>? details;
+    YouTubeStreamingData? streamingData;
     try {
-      details = await ytdl.fetchAudioDetails(sourceUrl);
+      streamingData = await ytdl.fetchStreamingData(sourceUrl);
     } catch (_) {
-      details = null;
+      streamingData = null;
     }
 
     if (!mounted) {
       return;
     }
 
-    if (details == null) {
+    if (streamingData == null || !streamingData.playable) {
       audioProvider.cancelPendingTrack();
       _showSnackBar('Unable to refresh YouTube stream.');
       setState(() {
@@ -67,8 +68,8 @@ class _YoutubeHistoryScreenState extends State<YoutubeHistoryScreen> {
       return;
     }
 
-    String? downloadUrl = _extractDownloadUrl(details);
-    if (downloadUrl == null) {
+    final selectedFormat = streamingData.bestStream ?? streamingData.fallbackStream;
+    if (selectedFormat == null) {
       audioProvider.cancelPendingTrack();
       _showSnackBar('YouTube audio stream unavailable.');
       setState(() {
@@ -78,7 +79,7 @@ class _YoutubeHistoryScreenState extends State<YoutubeHistoryScreen> {
     }
 
     Uint8List? art = entry.track.albumArt;
-    final thumbUrl = (details['thumbnail'] ?? details['thumbnails']?.first?['url']) as String?;
+    final thumbUrl = streamingData.thumbnailUrl;
     if (art == null && thumbUrl != null && thumbUrl.isNotEmpty) {
       try {
         final response = await http.get(Uri.parse(thumbUrl));
@@ -91,11 +92,11 @@ class _YoutubeHistoryScreenState extends State<YoutubeHistoryScreen> {
     }
 
     final updatedTrack = placeholder.copyWith(
-      title: details['title'] as String? ?? placeholder.title,
-      artist: details['channel'] as String? ?? placeholder.artist,
+      title: streamingData.title.isNotEmpty ? streamingData.title : placeholder.title,
+      artist: streamingData.channelName.isNotEmpty ? streamingData.channelName : placeholder.artist,
       album: 'YouTube',
-      path: downloadUrl,
-      duration: Duration(seconds: _asInt(details['duration']) ?? placeholder.duration.inSeconds),
+      path: selectedFormat.url,
+      duration: streamingData.duration ?? placeholder.duration,
       albumArt: art,
       sourceUrl: sourceUrl,
     );
@@ -111,32 +112,6 @@ class _YoutubeHistoryScreenState extends State<YoutubeHistoryScreen> {
         });
       }
     }
-  }
-
-  String? _extractDownloadUrl(Map<String, dynamic> details) {
-    String? downloadUrl;
-    final audio = details['audio'];
-    if (audio is Map) {
-      downloadUrl = audio['download_url'] as String?;
-    } else if (audio is String) {
-      downloadUrl = audio;
-    }
-    downloadUrl ??= details['download_url'] as String?;
-    downloadUrl ??= details['audio_url'] as String?;
-    final download = details['download'];
-    if (downloadUrl == null && download is Map) {
-      downloadUrl = download['url'] as String? ?? download['download_url'] as String?;
-    } else if (downloadUrl == null && download is String) {
-      downloadUrl = download;
-    }
-    return downloadUrl;
-  }
-
-  int _asInt(dynamic value) {
-    if (value is int) return value;
-    if (value is double) return value.round();
-    if (value is String) return int.tryParse(value) ?? 0;
-    return 0;
   }
 
   Future<void> _confirmClearHistory() async {

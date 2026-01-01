@@ -6,6 +6,7 @@ import 'dart:typed_data';
 import 'dart:async';
 import '../services/ytdl_service.dart';
 import '../models/track.dart';
+import '../models/youtube_streaming_data.dart';
 import '../providers/audio_provider.dart';
 
 class OnlineSearchScreen extends StatefulWidget {
@@ -106,43 +107,28 @@ class _OnlineSearchScreenState extends State<OnlineSearchScreen> {
 
     await audioProvider.prepareTrackLoad(placeholderTrack);
 
-    Map<String, dynamic>? details;
+    YouTubeStreamingData? streamingData;
     try {
-      details = await _service.fetchAudioDetails(videoUrl);
+      streamingData = await _service.fetchStreamingData(videoUrl);
     } catch (_) {
-      details = null;
+      streamingData = null;
     }
 
-    if (details == null) {
+    if (streamingData == null || !streamingData.playable) {
       audioProvider.cancelPendingTrack();
       _showSnackBar('Unable to load audio stream.');
       return;
     }
 
-    String? downloadUrl;
-    final audio = details['audio'];
-    if (audio is Map) {
-      downloadUrl = audio['download_url'] as String?;
-    } else if (audio is String) {
-      downloadUrl = audio;
-    }
-    downloadUrl ??= details['download_url'] as String?;
-    downloadUrl ??= details['audio_url'] as String?;
-    final download = details['download'];
-    if (downloadUrl == null && download is Map) {
-      downloadUrl = download['url'] as String? ?? download['download_url'] as String?;
-    } else if (downloadUrl == null && download is String) {
-      downloadUrl = download;
-    }
-
-    if (downloadUrl == null) {
+    final selectedFormat = streamingData.bestStream ?? streamingData.fallbackStream;
+    if (selectedFormat == null) {
       audioProvider.cancelPendingTrack();
-      _showSnackBar('Audio stream unavailable.');
+      _showSnackBar('Unable to load audio stream.');
       return;
     }
 
     Uint8List? albumArt;
-    final thumbUrl = (details['thumbnail'] ?? video['thumbnail']) as String?;
+    final thumbUrl = streamingData.thumbnailUrl ?? video['thumbnail'] as String?;
     if (thumbUrl != null && thumbUrl.isNotEmpty) {
       try {
         final thumbnailResponse = await http.get(Uri.parse(thumbUrl));
@@ -153,11 +139,11 @@ class _OnlineSearchScreenState extends State<OnlineSearchScreen> {
     }
 
     final finalTrack = placeholderTrack.copyWith(
-      title: details['title'] as String? ?? placeholderTrack.title,
-      artist: details['channel'] as String? ?? placeholderTrack.artist,
+      title: streamingData.title.isNotEmpty ? streamingData.title : placeholderTrack.title,
+      artist: streamingData.channelName.isNotEmpty ? streamingData.channelName : placeholderTrack.artist,
       album: 'YouTube',
-      path: downloadUrl,
-      duration: Duration(seconds: _asInt(details['duration']) ?? durationSeconds),
+      path: selectedFormat.url,
+      duration: streamingData.duration ?? Duration(seconds: durationSeconds),
       albumArt: albumArt ?? placeholderTrack.albumArt,
       sourceUrl: placeholderTrack.sourceUrl,
     );

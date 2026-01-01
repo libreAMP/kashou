@@ -4,10 +4,14 @@ import 'dart:collection';
 import 'package:collection/collection.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 
+import '../models/youtube_streaming_data.dart';
+
 class YtdlWrapperService {
   static final YoutubeExplode _client = YoutubeExplode();
   static final Map<String, _CachedResult<List<Map<String, dynamic>>>> _searchCache = HashMap();
-  static final Map<String, _CachedResult<Map<String, dynamic>>> _detailsCache = HashMap();
+  static final Map<String, _CachedResult<YouTubeStreamingData>> _streamCache = HashMap();
+
+  static const Duration _defaultStreamCacheTtl = Duration(minutes: 10);
 
   const YtdlWrapperService();
 
@@ -51,17 +55,27 @@ class YtdlWrapperService {
     }
   }
 
-  Future<Map<String, dynamic>?> fetchAudioDetails(String videoUrl) async {
-    final key = videoUrl.trim();
+  Future<YouTubeStreamingData?> fetchStreamingData(
+    String videoUrl, {
+    bool forceRefresh = false,
+  }) async {
+    final trimmedUrl = videoUrl.trim();
+    final parsedVideoId = VideoId.parseVideoId(trimmedUrl);
+
+    if (parsedVideoId == null) {
+      print('Invalid YouTube URL: $videoUrl');
+      return null;
+    }
+
+    final cacheKey = parsedVideoId;
+    final cached = forceRefresh ? null : _streamCache[cacheKey];
+    if (cached != null && !cached.isExpired) {
+      return cached.value;
+    }
 
     try {
-      final videoId = VideoId.parseVideoId(videoUrl);
-      if (videoId == null) {
-        print('Invalid YouTube URL: $videoUrl');
-        return null;
-      }
-
-      final video = await _client.videos.get(VideoId(videoId));
+      final videoId = VideoId(parsedVideoId);
+      final video = await _client.videos.get(videoId);
       final manifest = await _client.videos.streamsClient.getManifest(
         video.id,
         ytClients: [
@@ -69,80 +83,143 @@ class YtdlWrapperService {
           YoutubeApiClient.android,
         ],
       );
-      print('[youtube_explode] manifest fetched for ${video.url} -> audioOnly=${manifest.audioOnly.length} hls=${manifest.hls.length}');
 
-      final hlsAudioStream = manifest.hls
+      final hlsAudioStreams = manifest.hls
           .whereType<HlsAudioStreamInfo>()
-          .sorted((a, b) => a.bitrate.compareTo(b.bitrate))
-          .lastOrNull;
-      final hlsMuxedStream = manifest.hls
+          .sorted((a, b) => b.bitrate.compareTo(a.bitrate))
+          .toList(growable: false);
+      final hlsMuxedStreams = manifest.hls
           .whereType<HlsMuxedStreamInfo>()
-          .sorted((a, b) => a.bitrate.compareTo(b.bitrate))
-          .lastOrNull;
-      final progressiveAudioStream = manifest.audioOnly.sortByBitrate().reversed.firstOrNull;
+          .sorted((a, b) => b.bitrate.compareTo(a.bitrate))
+          .toList(growable: false);
+      final progressiveStreams = manifest.audioOnly
+          .sortByBitrate()
+          .reversed
+          .toList(growable: false);
 
-      final selectedStream = hlsAudioStream ?? hlsMuxedStream ?? progressiveAudioStream;
-      if (selectedStream == null) {
-        print('No audio stream found for $videoUrl');
+      if (hlsAudioStreams.isEmpty && hlsMuxedStreams.isEmpty && progressiveStreams.isEmpty) {
+        print('No audio streams available for $videoUrl');
         return null;
       }
 
-      final isHls = selectedStream is HlsAudioStreamInfo || selectedStream is HlsMuxedStreamInfo;
-      final downloadUrl = selectedStream.url.toString();
-      final selectedAudioCodec = selectedStream is AudioStreamInfo ? selectedStream.audioCodec : '';
+      final primaryFormats = <YouTubeStreamFormat>[
+        ...hlsAudioStreams.map(_mapToStreamFormat),
+        ...hlsMuxedStreams.map(_mapToStreamFormat),
+      ];
+      final fallbackFormats = <YouTubeStreamFormat>[
+        ...progressiveStreams.map(_mapToStreamFormat),
+      ];
 
-      if (selectedStream is HlsAudioStreamInfo) {
-        print('[youtube_explode] selected HLS audio stream tag=${selectedStream.tag} bitrate=${selectedStream.bitrate.kiloBitsPerSecond.toStringAsFixed(2)}kbps codec=${selectedStream.codec.mimeType}');
-      } else if (selectedStream is HlsMuxedStreamInfo) {
-        print('[youtube_explode] selected HLS muxed stream tag=${selectedStream.tag} bitrate=${selectedStream.bitrate.kiloBitsPerSecond.toStringAsFixed(2)}kbps codec=${selectedStream.codec.mimeType}');
-      } else {
-        print('[youtube_explode] selected progressive audio stream tag=${selectedStream.tag} bitrate=${selectedStream.bitrate.kiloBitsPerSecond.toStringAsFixed(2)}kbps codec=${selectedStream.codec.mimeType}');
-      }
-      print('[youtube_explode] download URL: $downloadUrl');
+      final streamingData = YouTubeStreamingData(
+        videoId: video.id.value,
+        sourceUrl: trimmedUrl,
+        title: video.title,
+        channelName: video.author,
+        channelUrl: 'https://www.youtube.com/channel/${video.channelId.value}',
+        thumbnailUrl: video.thumbnails.highResUrl,
+        duration: video.duration,
+        viewCount: video.engagement.viewCount,
+        uploadDate: video.uploadDate,
+        tags: video.keywords.toList(growable: false),
+        description: video.description,
+        primaryStreams: primaryFormats,
+        fallbackStreams: fallbackFormats,
+        fetchedAt: DateTime.now(),
+        cacheTtl: _defaultStreamCacheTtl,
+      );
 
-      final fallbackUrl = !isHls ? null : progressiveAudioStream?.url.toString();
-      final fallbackAudioCodec = progressiveAudioStream?.audioCodec;
-      if (fallbackUrl != null) {
-        print('[youtube_explode] progressive fallback URL: $fallbackUrl');
-      }
+      _streamCache[cacheKey] = _CachedResult(streamingData, ttl: streamingData.cacheTtl);
 
-      final result = <String, dynamic>{
-        'id': video.id.value,
-        'title': video.title,
-        'channel': video.author,
-        'channel_url': 'https://www.youtube.com/channel/${video.channelId.value}',
-        'thumbnail': video.thumbnails.highResUrl,
-        'duration': video.duration?.inSeconds,
-        'views': video.engagement.viewCount,
-        'upload_date': video.uploadDate?.millisecondsSinceEpoch != null
-            ? video.uploadDate!.millisecondsSinceEpoch ~/ 1000
-            : null,
-        'tags': video.keywords.toList(growable: false),
-        'categories': video.keywords.isEmpty ? null : video.keywords.toList(growable: false),
-        'description': video.description,
-        'audio': {
-          'download_url': downloadUrl,
-          'ext': isHls ? 'm3u8' : selectedStream.container.toString(),
-          'abr': selectedStream.bitrate.kiloBitsPerSecond,
-          'asr': selectedAudioCodec.toLowerCase().contains('opus') ? 48000 : null,
-          'filesize': selectedStream.size.totalBytes,
-          'codec': selectedStream.codec.toString(),
-          'format_id': selectedStream.tag,
-          'protocol': isHls ? 'm3u8' : 'https',
-          'mime_type': selectedStream.codec.mimeType,
-          if (fallbackUrl != null) ...{
-            'fallback_download_url': fallbackUrl,
-            if (fallbackAudioCodec != null) 'fallback_codec': fallbackAudioCodec,
-          },
-        },
-        'source_url': videoUrl,
-      };
-
-      return result;
+      return streamingData;
     } catch (e) {
-      print('youtube_explode fetch error: $e');
+      print('youtube_explode streaming fetch error: $e');
       return null;
     }
+  }
+
+  Future<Map<String, dynamic>?> fetchAudioDetails(
+    String videoUrl, {
+    bool forceRefresh = false,
+  }) async {
+    final streamingData = await fetchStreamingData(videoUrl, forceRefresh: forceRefresh);
+    if (streamingData == null) {
+      return null;
+    }
+    return _legacyMapFromStreamingData(streamingData);
+  }
+
+  static YouTubeStreamFormat _mapToStreamFormat(StreamInfo stream) {
+    final bitrate = stream.bitrate.bitsPerSecond;
+    final mimeType = stream.codec.mimeType;
+    final codecLabel = stream.codec.toString();
+    final container = stream.container?.name ?? stream.codec.mimeType;
+    final itag = stream.tag.toString();
+    final url = stream.url.toString();
+
+    YouTubeStreamType type;
+    if (stream is HlsAudioStreamInfo) {
+      type = YouTubeStreamType.hlsAudio;
+    } else if (stream is HlsMuxedStreamInfo) {
+      type = YouTubeStreamType.hlsMuxed;
+    } else {
+      type = YouTubeStreamType.progressive;
+    }
+
+    final contentLength = stream is AudioOnlyStreamInfo ? stream.size.totalBytes : null;
+    final approxLifetime = type == YouTubeStreamType.progressive ? null : const Duration(minutes: 5);
+
+    return YouTubeStreamFormat(
+      itag: itag,
+      url: url,
+      bitrate: bitrate,
+      mimeType: mimeType,
+      codecLabel: codecLabel,
+      container: container,
+      type: type,
+      audioSampleRate: null,
+      approxLifetime: approxLifetime,
+      contentLength: contentLength,
+    );
+  }
+
+  Map<String, dynamic> _legacyMapFromStreamingData(YouTubeStreamingData data) {
+    final bestStream = data.bestStream ?? data.fallbackStream;
+    if (bestStream == null) {
+      return {};
+    }
+
+    final fallbackStream = data.fallbackStream;
+
+    return <String, dynamic>{
+      'id': data.videoId,
+      'title': data.title,
+      'channel': data.channelName,
+      'channel_url': data.channelUrl,
+      'thumbnail': data.thumbnailUrl,
+      'duration': data.duration?.inSeconds,
+      'views': data.viewCount,
+      'upload_date': data.uploadDate?.millisecondsSinceEpoch != null
+          ? data.uploadDate!.millisecondsSinceEpoch ~/ 1000
+          : null,
+      'tags': data.tags,
+      'description': data.description,
+      'audio': {
+        'download_url': bestStream.url,
+        'ext': bestStream.isHls ? 'm3u8' : bestStream.container,
+        'abr': bestStream.bitrateKbps.toDouble(),
+        'asr': bestStream.audioSampleRate,
+        'filesize': bestStream.contentLength,
+        'codec': bestStream.codecLabel,
+        'format_id': bestStream.itag,
+        'protocol': bestStream.isHls ? 'm3u8' : 'https',
+        'mime_type': bestStream.mimeType,
+        if (fallbackStream != null) ...{
+          'fallback_download_url': fallbackStream.url,
+          'fallback_codec': fallbackStream.codecLabel,
+        },
+      },
+      'source_url': data.sourceUrl,
+    };
   }
 
   static Future<void> dispose() async {
@@ -152,10 +229,15 @@ class YtdlWrapperService {
 }
 
 class _CachedResult<T> {
-  _CachedResult(this.value) : timestamp = DateTime.now();
+  _CachedResult(
+    this.value, {
+    Duration? ttl,
+  })  : timestamp = DateTime.now(),
+        ttl = ttl ?? const Duration(minutes: 5);
 
   final T value;
   final DateTime timestamp;
+  final Duration ttl;
 
-  bool get isExpired => DateTime.now().difference(timestamp).inMinutes > 5;
+  bool get isExpired => DateTime.now().difference(timestamp) > ttl;
 }

@@ -299,23 +299,6 @@ class _LibraryScreenState extends State<LibraryScreen>
                   },
                 ),
               ),
-              Consumer<AudioProvider>(
-                builder: (context, audioProvider, child) {
-                  final hasPlayer = audioProvider.currentTrack != null;
-
-                  return Positioned(
-                    right: 16,
-                    bottom: hasPlayer ? 94.0 : 16.0,
-                    child: FloatingActionButton.extended(
-                      onPressed: () {
-                        _showCreatePlaylistDialog(context);
-                      },
-                      icon: const Icon(Icons.add),
-                      label: const Text('New Playlist'),
-                    ),
-                  );
-                },
-              ),
             ],
           );
         },

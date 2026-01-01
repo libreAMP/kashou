@@ -12,12 +12,21 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Scaffold(
       resizeToAvoidBottomInset: false,
       appBar: AppBar(
-        backgroundColor: Theme.of(context).colorScheme.surface,
-        foregroundColor: Theme.of(context).colorScheme.onSurface,
+        backgroundColor: colorScheme.surface,
+        scrolledUnderElevation: 0,
+        foregroundColor: colorScheme.onSurface,
         elevation: 0,
+        title: Text(
+          '',
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.search),
@@ -36,39 +45,35 @@ class HomeScreen extends StatelessWidget {
             onPressed: () {
               Navigator.pushNamed(context, '/settings');
             },
+            tooltip: 'Settings',
           ),
         ],
       ),
-      body: Consumer<AudioProvider>(
-        builder: (context, audioProvider, child) {
+      body: Consumer2<AudioProvider, LibraryProvider>(
+        builder: (context, audioProvider, library, child) {
           final hasMiniPlayer = audioProvider.currentTrack != null;
           final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
-          final shouldShowMiniPlayer = hasMiniPlayer && keyboardHeight == 0;
+          final showMiniPlayer = hasMiniPlayer && keyboardHeight == 0;
+          final safeArea = MediaQuery.of(context).padding.bottom;
 
-          return SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8).copyWith(bottom: 16),
-            child: _buildHomeContent(context),
+          return ListView(
+            padding: EdgeInsets.fromLTRB(20, 12, 20, showMiniPlayer ? safeArea + 96 : safeArea + 24),
+            children: [
+              _buildHeroHeader(context, library),
+              const SizedBox(height: 24),
+              _buildQuickActions(context),
+              const SizedBox(height: 28),
+              _buildRecentlyPlayed(context),
+              const SizedBox(height: 28),
+              _buildRecentlyAdded(context),
+              const SizedBox(height: 28),
+              _buildFavoriteSongs(context),
+              const SizedBox(height: 28),
+              _buildTopAlbums(context),
+            ],
           );
         },
       ),
-    );
-  }
-
-  Widget _buildHomeContent(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const SizedBox(height: 16),
-        _buildQuickActions(context),
-        const SizedBox(height: 24),
-        _buildRecentlyPlayed(context),
-        const SizedBox(height: 24),
-        _buildRecentlyAdded(context),
-        const SizedBox(height: 24),
-        _buildFavoriteSongs(context),
-        const SizedBox(height: 24),
-        _buildTopAlbums(context),
-      ],
     );
   }
 
@@ -76,28 +81,19 @@ class HomeScreen extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Icon(Icons.bolt,
-                color: Theme.of(context).colorScheme.primary, size: 24),
-            const SizedBox(width: 8),
-            Text(
-              'Quick Actions',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: Theme.of(context).colorScheme.onSurface,
-                  ),
-            ),
-          ],
+        _buildSectionHeader(
+          context,
+          icon: Icons.bolt,
+          title: 'Quick Actions',
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 12),
         Row(
           children: [
             Expanded(
               child: _buildActionCard(
                 context,
                 icon: Icons.shuffle,
-                label: 'Shuffle All',
+                label: 'Shuffle all',
                 onTap: () {
                   final library = Provider.of<LibraryProvider>(
                     context,
@@ -109,19 +105,18 @@ class HomeScreen extends StatelessWidget {
                   );
 
                   if (library.allTracks.isNotEmpty) {
-                    final shuffled = List.from(library.allTracks)..shuffle();
-                    audio.playTrack(shuffled.first,
-                        playlist: shuffled.cast<Track>());
+                    final shuffled = List<Track>.from(library.allTracks)..shuffle();
+                    audio.playTrack(shuffled.first, playlist: shuffled);
                   }
                 },
               ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 12),
             Expanded(
               child: _buildActionCard(
                 context,
                 icon: Icons.play_circle_outline,
-                label: 'Play All',
+                label: 'Play library',
                 onTap: () {
                   final library = Provider.of<LibraryProvider>(
                     context,
@@ -149,7 +144,7 @@ class HomeScreen extends StatelessWidget {
 
   Widget _buildActionCard(
     BuildContext context, {
-    required IconData icon,
+      required IconData icon,
     required String label,
     required VoidCallback onTap,
   }) {
@@ -157,34 +152,33 @@ class HomeScreen extends StatelessWidget {
 
     return Material(
       color: Colors.transparent,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(18),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
         splashColor: colorScheme.primary.withValues(alpha: 0.1),
         highlightColor: colorScheme.primary.withValues(alpha: 0.05),
         child: Container(
-          padding: const EdgeInsets.all(8),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [
-                colorScheme.primary.withValues(alpha: 0.15),
-                colorScheme.primary.withValues(alpha: 0.08),
+                colorScheme.primary.withValues(alpha: 0.16),
+                colorScheme.primaryContainer.withValues(alpha: 0.35),
               ],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(18),
             border: Border.all(
-              color: colorScheme.primary.withValues(alpha: 0.2),
+              color: colorScheme.primary.withValues(alpha: 0.24),
               width: 1,
             ),
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+          child: Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(8),
+                padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
                   color: colorScheme.primary,
                   shape: BoxShape.circle,
@@ -195,15 +189,17 @@ class HomeScreen extends StatelessWidget {
                   color: colorScheme.onPrimary,
                 ),
               ),
-              const SizedBox(height: 6),
-              Text(
-                label,
-                style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      color: colorScheme.onSurface,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 12,
-                    ),
-                textAlign: TextAlign.center,
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  label,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        color: colorScheme.onSurface,
+                        fontWeight: FontWeight.w600,
+                      ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
             ],
           ),
@@ -224,33 +220,12 @@ class HomeScreen extends StatelessWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    Icon(Icons.history,
-                        color: Theme.of(context).colorScheme.primary, size: 24),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Recently Played',
-                      style:
-                          Theme.of(context).textTheme.headlineSmall?.copyWith(
-                                fontWeight: FontWeight.bold,
-                                color: Theme.of(context).colorScheme.onSurface,
-                              ),
-                    ),
-                  ],
-                ),
-                TextButton(
-                  onPressed: () {},
-                  child: Text(
-                    'See All',
-                    style:
-                        TextStyle(color: Theme.of(context).colorScheme.primary),
-                  ),
-                ),
-              ],
+            _buildSectionHeader(
+              context,
+              icon: Icons.history,
+              title: 'Recently played',
+              actionLabel: 'See all',
+              onActionTap: () {},
             ),
             const SizedBox(height: 12),
             SizedBox(
@@ -284,33 +259,12 @@ class HomeScreen extends StatelessWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    Icon(Icons.new_releases,
-                        color: Theme.of(context).colorScheme.primary, size: 24),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Recently Added',
-                      style:
-                          Theme.of(context).textTheme.headlineSmall?.copyWith(
-                                fontWeight: FontWeight.bold,
-                                color: Theme.of(context).colorScheme.onSurface,
-                              ),
-                    ),
-                  ],
-                ),
-                TextButton(
-                  onPressed: () {},
-                  child: Text(
-                    'See All',
-                    style:
-                        TextStyle(color: Theme.of(context).colorScheme.primary),
-                  ),
-                ),
-              ],
+            _buildSectionHeader(
+              context,
+              icon: Icons.new_releases,
+              title: 'Recently added',
+              actionLabel: 'See all',
+              onActionTap: () {},
             ),
             const SizedBox(height: 12),
             SizedBox(
@@ -341,19 +295,10 @@ class HomeScreen extends StatelessWidget {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
-                  Icon(Icons.favorite,
-                      color: Theme.of(context).colorScheme.primary, size: 24),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Your Favorite Songs',
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: Theme.of(context).colorScheme.onSurface,
-                        ),
-                  ),
-                ],
+              _buildSectionHeader(
+                context,
+                icon: Icons.favorite_outline,
+                title: 'Your favorite songs',
               ),
               const SizedBox(height: 12),
               Center(
@@ -397,33 +342,12 @@ class HomeScreen extends StatelessWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    Icon(Icons.favorite,
-                        color: Theme.of(context).colorScheme.primary, size: 24),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Your Favorite Songs',
-                      style:
-                          Theme.of(context).textTheme.headlineSmall?.copyWith(
-                                fontWeight: FontWeight.bold,
-                                color: Theme.of(context).colorScheme.onSurface,
-                              ),
-                    ),
-                  ],
-                ),
-                TextButton(
-                  onPressed: () {},
-                  child: Text(
-                    'See All',
-                    style:
-                        TextStyle(color: Theme.of(context).colorScheme.primary),
-                  ),
-                ),
-              ],
+            _buildSectionHeader(
+              context,
+              icon: Icons.favorite,
+              title: 'Your favorite songs',
+              actionLabel: 'See all',
+              onActionTap: () {},
             ),
             const SizedBox(height: 12),
             ListView.builder(
@@ -453,33 +377,12 @@ class HomeScreen extends StatelessWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    Icon(Icons.album,
-                        color: Theme.of(context).colorScheme.primary, size: 24),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Top Albums',
-                      style:
-                          Theme.of(context).textTheme.headlineSmall?.copyWith(
-                                fontWeight: FontWeight.bold,
-                                color: Theme.of(context).colorScheme.onSurface,
-                              ),
-                    ),
-                  ],
-                ),
-                TextButton(
-                  onPressed: () {},
-                  child: Text(
-                    'See All',
-                    style:
-                        TextStyle(color: Theme.of(context).colorScheme.primary),
-                  ),
-                ),
-              ],
+            _buildSectionHeader(
+              context,
+              icon: Icons.album,
+              title: 'Top albums',
+              actionLabel: 'See all',
+              onActionTap: () {},
             ),
             GridView.builder(
               shrinkWrap: true,
@@ -601,6 +504,160 @@ class HomeScreen extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildHeroHeader(BuildContext context, LibraryProvider library) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final trackCount = library.allTracks.length;
+    final albumCount = library.albums.length;
+    final artistCount = library.artists.length;
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+        gradient: LinearGradient(
+          colors: [
+            colorScheme.primary.withValues(alpha: 0.15),
+            colorScheme.primaryContainer.withValues(alpha: 0.35),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        border: Border.all(
+          color: colorScheme.primary.withValues(alpha: 0.25),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: colorScheme.primary,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.headset,
+                  color: colorScheme.onPrimary,
+                  size: 26,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Text(
+                  'Local Player',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: colorScheme.onSurface,
+                      ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Keep the groove going with your personal collection.',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
+          ),
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              _buildHeroStat(context, '$trackCount', 'Tracks'),
+              const SizedBox(width: 16),
+              _buildHeroStat(context, '$albumCount', 'Albums'),
+              const SizedBox(width: 16),
+              _buildHeroStat(context, '$artistCount', 'Artists'),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeroStat(BuildContext context, String value, String label) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: colorScheme.surface.withValues(alpha: 0.6),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: colorScheme.primary.withValues(alpha: 0.18),
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              value,
+              style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: colorScheme.onSurface,
+                  ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: theme.textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    String? actionLabel,
+    VoidCallback? onActionTap,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: colorScheme.primary.withValues(alpha: 0.18),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: colorScheme.primary, size: 20),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              title,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: colorScheme.onSurface,
+                  ),
+            ),
+          ],
+        ),
+        if (actionLabel != null)
+          TextButton(
+            onPressed: onActionTap,
+            style: TextButton.styleFrom(
+              foregroundColor: colorScheme.primary,
+            ),
+            child: Text(actionLabel),
+          ),
+      ],
     );
   }
 }

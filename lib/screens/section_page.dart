@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import '../providers/audio_provider.dart';
 import '../services/ytdl_service.dart';
 import '../models/track.dart';
+import '../models/youtube_streaming_data.dart';
 
 class SectionPage extends StatefulWidget {
   final String title;
@@ -41,43 +42,21 @@ class _SectionPageState extends State<SectionPage> {
 
     await audioProvider.prepareTrackLoad(placeholderTrack);
 
-    Map<String, dynamic>? details;
+    YouTubeStreamingData? streamingData;
     try {
-      details = await _fetchAudioDetails(videoUrl);
+      streamingData = await _fetchStreamingData(videoUrl);
     } catch (_) {
-      details = null;
+      streamingData = null;
     }
 
-    if (details == null) {
+    if (streamingData == null || !streamingData.playable) {
       audioProvider.cancelPendingTrack();
       _showSnackBar('Unable to load audio stream.');
       return;
     }
 
-    String? downloadUrl;
-    final audio = details['audio'];
-    if (audio is Map) {
-      downloadUrl = audio['download_url'] as String?;
-    } else if (audio is String) {
-      downloadUrl = audio;
-    }
-    downloadUrl ??= details['download_url'] as String?;
-    downloadUrl ??= details['audio_url'] as String?;
-    final download = details['download'];
-    if (downloadUrl == null && download is Map) {
-      downloadUrl = download['url'] as String? ?? download['download_url'] as String?;
-    } else if (downloadUrl == null && download is String) {
-      downloadUrl = download;
-    }
-
-    if (downloadUrl == null) {
-      audioProvider.cancelPendingTrack();
-      _showSnackBar('Audio stream unavailable.');
-      return;
-    }
-
     Uint8List? albumArt;
-    final thumbUrl = (details['thumbnail'] ?? video['thumbnail']) as String?;
+    final thumbUrl = streamingData.thumbnailUrl ?? video['thumbnail'] as String?;
     if (thumbUrl != null && thumbUrl.isNotEmpty) {
       try {
         final thumbnailResponse = await http.get(Uri.parse(thumbUrl));
@@ -87,12 +66,19 @@ class _SectionPageState extends State<SectionPage> {
       } catch (_) {}
     }
 
+    final selectedFormat = streamingData.bestStream ?? streamingData.fallbackStream;
+    if (selectedFormat == null) {
+      audioProvider.cancelPendingTrack();
+      _showSnackBar('Audio stream unavailable.');
+      return;
+    }
+
     final finalTrack = placeholderTrack.copyWith(
-      title: details['title'] as String? ?? placeholderTrack.title,
-      artist: details['channel'] as String? ?? placeholderTrack.artist,
+      title: streamingData.title.isNotEmpty ? streamingData.title : placeholderTrack.title,
+      artist: streamingData.channelName.isNotEmpty ? streamingData.channelName : placeholderTrack.artist,
       album: 'YouTube',
-      path: downloadUrl,
-      duration: Duration(seconds: _asInt(details['duration']) ?? durationSeconds),
+      path: selectedFormat.url,
+      duration: streamingData.duration ?? Duration(seconds: durationSeconds),
       albumArt: albumArt ?? placeholderTrack.albumArt,
       sourceUrl: placeholderTrack.sourceUrl,
     );
@@ -100,10 +86,10 @@ class _SectionPageState extends State<SectionPage> {
     await audioProvider.playTrack(finalTrack);
   }
 
-  Future<Map<String, dynamic>?> _fetchAudioDetails(String url) async {
+  Future<YouTubeStreamingData?> _fetchStreamingData(String url) async {
     final ytdlService = YtdlWrapperService();
     try {
-      return await ytdlService.fetchAudioDetails(url);
+      return await ytdlService.fetchStreamingData(url);
     } catch (e) {
       return null;
     }
