@@ -7,6 +7,8 @@ import '../services/ytdl_service.dart';
 import '../models/track.dart';
 import '../models/youtube_streaming_data.dart';
 
+enum ViewMode { grid, list }
+
 class SectionPage extends StatefulWidget {
   final String title;
   final List<Map<String, dynamic>> items;
@@ -24,11 +26,13 @@ class SectionPage extends StatefulWidget {
 }
 
 class _SectionPageState extends State<SectionPage> {
+  ViewMode _viewMode = ViewMode.grid;
+  final TextEditingController _searchController = TextEditingController();
+  List<Map<String, dynamic>> _filteredItems = [];
   Future<void> _playVideo(Map<String, dynamic> video) async {
     final audioProvider = Provider.of<AudioProvider>(context, listen: false);
     final videoId = video['id']?.toString() ?? UniqueKey().toString();
     final videoUrl = video['url'] ?? 'https://www.youtube.com/watch?v=$videoId';
-    final durationSeconds = _asInt(video['duration']) ?? 0;
 
     final placeholderTrack = Track(
       id: videoId,
@@ -36,7 +40,7 @@ class _SectionPageState extends State<SectionPage> {
       artist: video['channel'] as String? ?? 'Unknown',
       album: video['title'] as String? ?? 'YouTube',
       path: videoUrl,
-      duration: Duration(seconds: durationSeconds),
+      duration: Duration(seconds: _asInt(video['duration'])),
       sourceUrl: videoUrl,
     );
 
@@ -56,7 +60,8 @@ class _SectionPageState extends State<SectionPage> {
     }
 
     Uint8List? albumArt;
-    final thumbUrl = streamingData.thumbnailUrl ?? video['thumbnail'] as String?;
+    final thumbUrl =
+        streamingData.thumbnailUrl ?? video['thumbnail'] as String?;
     if (thumbUrl != null && thumbUrl.isNotEmpty) {
       try {
         final thumbnailResponse = await http.get(Uri.parse(thumbUrl));
@@ -66,7 +71,8 @@ class _SectionPageState extends State<SectionPage> {
       } catch (_) {}
     }
 
-    final selectedFormat = streamingData.bestStream ?? streamingData.fallbackStream;
+    final selectedFormat =
+        streamingData.bestStream ?? streamingData.fallbackStream;
     if (selectedFormat == null) {
       audioProvider.cancelPendingTrack();
       _showSnackBar('Audio stream unavailable.');
@@ -74,11 +80,16 @@ class _SectionPageState extends State<SectionPage> {
     }
 
     final finalTrack = placeholderTrack.copyWith(
-      title: streamingData.title.isNotEmpty ? streamingData.title : placeholderTrack.title,
-      artist: streamingData.channelName.isNotEmpty ? streamingData.channelName : placeholderTrack.artist,
+      title: streamingData.title.isNotEmpty
+          ? streamingData.title
+          : placeholderTrack.title,
+      artist: streamingData.channelName.isNotEmpty
+          ? streamingData.channelName
+          : placeholderTrack.artist,
       album: 'YouTube',
       path: selectedFormat.url,
-      duration: streamingData.duration ?? Duration(seconds: durationSeconds),
+      duration: streamingData.duration ??
+          Duration(seconds: _asInt(video['duration'])),
       albumArt: albumArt ?? placeholderTrack.albumArt,
       sourceUrl: placeholderTrack.sourceUrl,
     );
@@ -110,9 +121,59 @@ class _SectionPageState extends State<SectionPage> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    _filteredItems = widget.items;
+    _viewMode = widget.isListView ? ViewMode.list : ViewMode.grid;
+    _searchController.addListener(_filterItems);
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _filterItems() {
+    final query = _searchController.text.toLowerCase();
+    setState(() {
+      if (query.isEmpty) {
+        _filteredItems = widget.items;
+      } else {
+        _filteredItems = widget.items.where((item) {
+          final title = (item['title'] as String? ?? '').toLowerCase();
+          final channel = (item['channel'] as String? ?? '').toLowerCase();
+          return title.contains(query) || channel.contains(query);
+        }).toList();
+      }
+    });
+  }
+
+  Future<void> _playAll() async {
+    if (_filteredItems.isEmpty) return;
+    final audioProvider = Provider.of<AudioProvider>(context, listen: false);
+
+    // Play first track
+    await _playVideo(_filteredItems.first);
+
+    // Add rest to queue
+    for (var i = 1; i < _filteredItems.length; i++) {
+    }
+  }
+
+  Future<void> _shufflePlay() async {
+    if (_filteredItems.isEmpty) return;
+    final shuffled = List<Map<String, dynamic>>.from(_filteredItems)..shuffle();
+    final audioProvider = Provider.of<AudioProvider>(context, listen: false);
+
+    await _playVideo(shuffled.first);
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final screenWidth = MediaQuery.of(context).size.width;
 
     return Scaffold(
       backgroundColor: colorScheme.surface,
@@ -126,108 +187,318 @@ class _SectionPageState extends State<SectionPage> {
             fontWeight: FontWeight.w600,
           ),
         ),
+        actions: [
+          IconButton(
+            icon:
+                Icon(_viewMode == ViewMode.grid ? Icons.list : Icons.grid_view),
+            onPressed: () {
+              setState(() {
+                _viewMode =
+                    _viewMode == ViewMode.grid ? ViewMode.list : ViewMode.grid;
+              });
+            },
+            tooltip: _viewMode == ViewMode.grid ? 'List view' : 'Grid view',
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
-      body: widget.items.isEmpty
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.music_off,
-                    size: 64,
-                    color: colorScheme.onSurfaceVariant.withOpacity(0.5),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'No items in this section',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
-            )
-          : widget.isListView
-              ? _buildListView()
-              : _buildGridView(),
+      body: _filteredItems.isEmpty && _searchController.text.isEmpty
+          ? _buildEmptyState(colorScheme, theme)
+          : Column(
+              children: [
+                // Search and controls
+                _buildSearchAndControls(colorScheme, theme),
+
+                // Content
+                Expanded(
+                  child: _filteredItems.isEmpty
+                      ? _buildNoResultsState(colorScheme, theme)
+                      : _viewMode == ViewMode.grid
+                          ? _buildResponsiveGrid(screenWidth)
+                          : _buildEnhancedList(),
+                ),
+              ],
+            ),
     );
   }
 
-  Widget _buildListView() {
-    return ListView.builder(
+  Widget _buildEmptyState(ColorScheme colorScheme, ThemeData theme) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.music_off,
+            size: 64,
+            color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'No items in this section',
+            style: theme.textTheme.titleMedium?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNoResultsState(ColorScheme colorScheme, ThemeData theme) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.search_off,
+            size: 64,
+            color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'No results found',
+            style: theme.textTheme.titleMedium?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Try a different search term',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSearchAndControls(ColorScheme colorScheme, ThemeData theme) {
+    return Container(
       padding: const EdgeInsets.all(16),
-      itemCount: widget.items.length,
-      itemBuilder: (context, index) {
-        return _buildVideoTile(widget.items[index]);
-      },
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        border: Border(
+          bottom: BorderSide(
+            color: colorScheme.outline.withValues(alpha: 0.12),
+          ),
+        ),
+      ),
+      child: Column(
+        children: [
+          // Search bar
+          TextField(
+            controller: _searchController,
+            decoration: InputDecoration(
+              hintText: 'Search in ${widget.title}...',
+              prefixIcon:
+                  Icon(Icons.search, color: colorScheme.onSurfaceVariant),
+              suffixIcon: _searchController.text.isNotEmpty
+                  ? IconButton(
+                      icon: Icon(Icons.clear,
+                          color: colorScheme.onSurfaceVariant),
+                      onPressed: () {
+                        _searchController.clear();
+                      },
+                    )
+                  : null,
+              filled: true,
+              fillColor:
+                  colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
+              ),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // Action buttons
+          Row(
+            children: [
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: _filteredItems.isEmpty ? null : _playAll,
+                  icon: const Icon(Icons.play_arrow, size: 18),
+                  label: const Text('Play all'),
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: FilledButton.tonalIcon(
+                  onPressed: _filteredItems.isEmpty ? null : _shufflePlay,
+                  icon: const Icon(Icons.shuffle, size: 18),
+                  label: const Text('Shuffle'),
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          // Results count
+          if (_searchController.text.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                '${_filteredItems.length} result${_filteredItems.length == 1 ? '' : 's'}',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 
-  Widget _buildGridView() {
+  Widget _buildResponsiveGrid(double screenWidth) {
+    // Determine column count based on screen width
+    int crossAxisCount;
+    double childAspectRatio;
+
+    if (screenWidth >= 1200) {
+      crossAxisCount = 5;
+      childAspectRatio = 0.68;
+    } else if (screenWidth >= 900) {
+      crossAxisCount = 4;
+      childAspectRatio = 0.70;
+    } else if (screenWidth >= 600) {
+      crossAxisCount = 3;
+      childAspectRatio = 0.72;
+    } else {
+      crossAxisCount = 2;
+      childAspectRatio = 0.75;
+    }
+
     return GridView.builder(
       padding: const EdgeInsets.all(16),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
-        childAspectRatio: 0.75,
-        crossAxisSpacing: 16,
-        mainAxisSpacing: 16,
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: crossAxisCount,
+        childAspectRatio: childAspectRatio,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
       ),
-      itemCount: widget.items.length,
+      itemCount: _filteredItems.length,
       itemBuilder: (context, index) {
-        return _buildGridItem(widget.items[index]);
+        return _buildEnhancedGridItem(_filteredItems[index], index);
       },
     );
   }
 
-  Widget _buildVideoTile(Map<String, dynamic> video) {
+  Widget _buildEnhancedList() {
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      itemCount: _filteredItems.length,
+      itemBuilder: (context, index) {
+        return _buildEnhancedListTile(_filteredItems[index], index);
+      },
+    );
+  }
+
+  Widget _buildEnhancedListTile(Map<String, dynamic> video, int index) {
     final thumbnail = video['thumbnail'] as String?;
-    final colorScheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final duration = _asInt(video['duration']);
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 2),
+      padding: const EdgeInsets.symmetric(vertical: 4),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
           onTap: () => _playVideo(video),
-          splashColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-          highlightColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.1),
-          child: Padding(
-            padding: const EdgeInsets.all(8),
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: colorScheme.outline.withValues(alpha: 0.12),
+              ),
+            ),
             child: Row(
               children: [
-                // Square thumbnail
+                // Index number
                 Container(
-                  width: 100,
-                  height: 100,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: colorScheme.shadow.withValues(alpha: 0.1),
-                        blurRadius: 6,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: Image.network(
-                      thumbnail ?? 'https://img.youtube.com/vi/${video['id']}/mqdefault.jpg',
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) => Container(
-                        alignment: Alignment.center,
-                        color: colorScheme.surfaceContainerHighest,
-                        child: Icon(
-                          Icons.music_note,
-                          color: colorScheme.onSurfaceVariant,
-                          size: 24,
-                        ),
-                      ),
+                  width: 32,
+                  alignment: Alignment.center,
+                  child: Text(
+                    '${index + 1}',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
                 const SizedBox(width: 12),
-                // Song info
+
+                // Thumbnail with duration badge
+                Stack(
+                  children: [
+                    Container(
+                      width: 110,
+                      height: 110,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(8),
+                        boxShadow: [
+                          BoxShadow(
+                            color: colorScheme.shadow.withValues(alpha: 0.15),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.network(
+                          thumbnail ??
+                              'https://img.youtube.com/vi/${video['id']}/maxresdefault.jpg',
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) =>
+                              Container(
+                            color: colorScheme.surfaceContainerHighest,
+                            child: Icon(
+                              Icons.music_note,
+                              color: colorScheme.onSurfaceVariant,
+                              size: 32,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (duration > 0)
+                      Positioned(
+                        bottom: 6,
+                        right: 6,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.8),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            _formatDuration(duration),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(width: 16),
+
+                // Info
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -235,21 +506,19 @@ class _SectionPageState extends State<SectionPage> {
                     children: [
                       Text(
                         video['title'] ?? 'Unknown',
-                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        style: theme.textTheme.titleMedium?.copyWith(
                           color: colorScheme.onSurface,
                           fontWeight: FontWeight.w600,
-                          height: 1.2,
+                          height: 1.3,
                         ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 6),
                       Text(
                         video['channel'] ?? 'Unknown',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        style: theme.textTheme.bodyMedium?.copyWith(
                           color: colorScheme.onSurfaceVariant,
-                          fontSize: 12,
-                          height: 1.3,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -257,32 +526,24 @@ class _SectionPageState extends State<SectionPage> {
                     ],
                   ),
                 ),
-                SizedBox(
-                  width: 48,
-                  child: Align(
-                    alignment: Alignment.centerRight,
-                    child: Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.8),
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: colorScheme.outline.withValues(alpha: 0.2),
-                          width: 1,
-                        ),
-                      ),
-                      child: IconButton(
-                        icon: Icon(
-                          Icons.play_arrow_rounded,
-                          color: colorScheme.primary,
-                          size: 18,
-                        ),
-                        onPressed: () => _playVideo(video),
-                        tooltip: 'Play',
-                        padding: EdgeInsets.zero,
-                      ),
+                const SizedBox(width: 12),
+
+                // Play button
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: colorScheme.primaryContainer,
+                    shape: BoxShape.circle,
+                  ),
+                  child: IconButton(
+                    icon: Icon(
+                      Icons.play_arrow_rounded,
+                      color: colorScheme.onPrimaryContainer,
+                      size: 22,
                     ),
+                    onPressed: () => _playVideo(video),
+                    padding: EdgeInsets.zero,
                   ),
                 ),
               ],
@@ -293,86 +554,156 @@ class _SectionPageState extends State<SectionPage> {
     );
   }
 
-  Widget _buildGridItem(Map<String, dynamic> item) {
+  String _formatDuration(int seconds) {
+    final duration = Duration(seconds: seconds);
+    if (duration.inHours > 0) {
+      return '${duration.inHours}:${(duration.inMinutes % 60).toString().padLeft(2, '0')}:${(duration.inSeconds % 60).toString().padLeft(2, '0')}';
+    }
+    return '${duration.inMinutes}:${(duration.inSeconds % 60).toString().padLeft(2, '0')}';
+  }
+
+  Widget _buildEnhancedGridItem(Map<String, dynamic> item, int index) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final thumbnail = item['thumbnail'] as String? ?? 'https://img.youtube.com/vi/${item['id']}/mqdefault.jpg';
+    final thumbnail = item['thumbnail'] as String? ??
+        'https://img.youtube.com/vi/${item['id']}/maxresdefault.jpg';
     final title = item['title'] as String? ?? 'Unknown';
     final subtitle = item['channel'] as String? ?? 'Unknown artist';
+    final duration = _asInt(item['duration']);
 
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: () => _playVideo(item),
-        splashColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-        highlightColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
         child: Container(
-          width: 150,
-          padding: EdgeInsets.zero,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: colorScheme.outline.withValues(alpha: 0.08),
+            ),
+          ),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Centered square image
-              Container(
-                width: 90,
-                height: 90,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: colorScheme.shadow.withValues(alpha: 0.1),
-                      blurRadius: 8,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: Transform.scale(
-                    scale: 1.4, // Zoom in by 40% before cropping
-                    child: Image.network(
-                      thumbnail,
-                      fit: BoxFit.cover,
-                      alignment: Alignment.center,
-                      errorBuilder: (context, error, stackTrace) => Container(
-                        alignment: Alignment.center,
-                        color: colorScheme.surfaceContainerHighest,
-                        child: Icon(Icons.music_note, color: colorScheme.onSurfaceVariant),
+              // Thumbnail with duration and play overlay
+              Expanded(
+                flex: 3,
+                child: Stack(
+                  children: [
+                    Container(
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        borderRadius: const BorderRadius.only(
+                          topLeft: Radius.circular(12),
+                          topRight: Radius.circular(12),
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: colorScheme.shadow.withValues(alpha: 0.12),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: ClipRRect(
+                        borderRadius: const BorderRadius.only(
+                          topLeft: Radius.circular(12),
+                          topRight: Radius.circular(12),
+                        ),
+                        child: Image.network(
+                          thumbnail,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) =>
+                              Container(
+                            color: colorScheme.surfaceContainerHighest,
+                            child: Icon(
+                              Icons.music_note,
+                              color: colorScheme.onSurfaceVariant,
+                              size: 40,
+                            ),
+                          ),
+                        ),
                       ),
                     ),
-                  ),
+
+                    // Duration badge
+                    if (duration > 0)
+                      Positioned(
+                        bottom: 8,
+                        right: 8,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.85),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            _formatDuration(duration),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+
+                    // Play button overlay (shows on hover on desktop)
+                    Positioned.fill(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          borderRadius: const BorderRadius.only(
+                            topLeft: Radius.circular(12),
+                            topRight: Radius.circular(12),
+                          ),
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.transparent,
+                              Colors.black.withValues(alpha: 0.1),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 8),
-              // Title and subtitle
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Column(
-                  children: [
-                    Text(
-                      title,
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        color: colorScheme.onSurface,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13,
+
+              // Info section
+              Expanded(
+                flex: 2,
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: colorScheme.onSurface,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                          height: 1.3,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      maxLines: 2,
-                      textAlign: TextAlign.left,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      subtitle,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                        fontSize: 11,
+                      const SizedBox(height: 4),
+                      Text(
+                        subtitle,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                          fontSize: 11,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      maxLines: 1,
-                      textAlign: TextAlign.left,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ],

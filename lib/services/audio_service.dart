@@ -1,6 +1,7 @@
-import 'dart:typed_data';
+import 'dart:io';
 import 'package:audio_service/audio_service.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:path_provider/path_provider.dart';
 import '../models/track.dart';
 
 class AudioPlayerService {
@@ -11,7 +12,7 @@ class AudioPlayerService {
 
   static Future<void> initialize() async {
     if (_isInitialized || _isInitializing) return;
-    
+
     _isInitializing = true;
     _audioPlayer = AudioPlayer();
 
@@ -40,11 +41,12 @@ class AudioPlayerService {
     }
     return _audioPlayer!;
   }
-  
+
   static AudioHandler? get audioHandler => _audioHandler;
 }
 
-class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
+class AudioPlayerHandler extends BaseAudioHandler
+    with QueueHandler, SeekHandler {
   final AudioPlayer _player = AudioPlayer();
   Function()? onSkipNext;
   Function()? onSkipPrevious;
@@ -59,14 +61,18 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
     Uri? artUri;
     if (track.albumArt != null) {
       try {
-        // Convert album art bytes to data URI
-        final base64String = track.albumArt!.toList();
-        artUri = Uri.dataFromBytes(base64String, mimeType: 'image/png');
+        // Write album art to temporary file for Android media notification
+        final tempDir = await getTemporaryDirectory();
+        final artFile =
+            File('${tempDir.path}/album_art_${track.id.hashCode}.jpg');
+        await artFile.writeAsBytes(track.albumArt!);
+        artUri = Uri.file(artFile.path);
+        print('Created album art file: ${artFile.path}');
       } catch (e) {
-        print('Error setting album art: $e');
+        print('Error saving album art to file: $e');
       }
     }
-    
+
     mediaItem.add(
       MediaItem(
         id: track.id,

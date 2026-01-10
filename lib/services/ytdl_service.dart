@@ -3,13 +3,17 @@ import 'dart:collection';
 
 import 'package:collection/collection.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
+import 'package:muzoapi/youtube_stream_provider.dart' as muzo;
 
 import '../models/youtube_streaming_data.dart';
+import 'youtube/youtube_service.dart';
 
 class YtdlWrapperService {
   static final YoutubeExplode _client = YoutubeExplode();
-  static final Map<String, _CachedResult<List<Map<String, dynamic>>>> _searchCache = HashMap();
-  static final Map<String, _CachedResult<YouTubeStreamingData>> _streamCache = HashMap();
+  static final Map<String, _CachedResult<List<Map<String, dynamic>>>>
+      _searchCache = HashMap();
+  static final Map<String, _CachedResult<YouTubeStreamingData>> _streamCache =
+      HashMap();
 
   static const Duration _defaultStreamCacheTtl = Duration(minutes: 10);
 
@@ -29,12 +33,12 @@ class YtdlWrapperService {
       final searchResults = await _client.search.search(query);
       final videos = searchResults.take(limit).toList();
 
-      print('[youtube_explode] search "$query" (limit=$limit) -> ${videos.length} results');
+      print(
+          '[youtube_explode] search "$query" (limit=$limit) -> ${videos.length} results');
 
       final items = videos.map<Map<String, dynamic>>((video) {
         final duration = video.duration;
         final uploadDate = video.uploadDate;
-        print('[youtube_explode] • ${video.title} (${video.id.value}) by ${video.author}');
         return <String, dynamic>{
           'id': video.id.value,
           'title': video.title,
@@ -42,7 +46,9 @@ class YtdlWrapperService {
           'channel': video.author,
           'duration': duration?.inSeconds,
           'views': video.engagement.viewCount,
-          'upload_date': uploadDate != null ? uploadDate.millisecondsSinceEpoch ~/ 1000 : null,
+          'upload_date': uploadDate != null
+              ? uploadDate.millisecondsSinceEpoch ~/ 1000
+              : null,
           'thumbnail': video.thumbnails.highResUrl,
         };
       }).toList(growable: false);
@@ -58,6 +64,7 @@ class YtdlWrapperService {
   Future<YouTubeStreamingData?> fetchStreamingData(
     String videoUrl, {
     bool forceRefresh = false,
+    bool useMuzoApi = true,
   }) async {
     final trimmedUrl = videoUrl.trim();
     final parsedVideoId = VideoId.parseVideoId(trimmedUrl);
@@ -73,6 +80,37 @@ class YtdlWrapperService {
       return cached.value;
     }
 
+    if (useMuzoApi) {
+      try {
+
+        final streamInfo = await YoutubeService.instance
+            .fetchStreams(parsedVideoId, forceRefresh: forceRefresh);
+
+        if (streamInfo != null && streamInfo.audioStreams.isNotEmpty) {
+
+          Video? videoMetadata;
+          try {
+            final videoId = VideoId(parsedVideoId);
+            videoMetadata = await _client.videos.get(videoId);
+          } catch (e, stackTrace) {
+            print('[muzoapi] Metadata fetch failed: $e');
+            print('[muzoapi] Stack trace: $stackTrace');
+          }
+
+          final streamingData = _convertMuzoToStreamingData(
+              streamInfo, trimmedUrl, videoMetadata);
+          _streamCache[cacheKey] =
+              _CachedResult(streamingData, ttl: _defaultStreamCacheTtl);
+          return streamingData;
+        }
+
+        print('[muzoapi] No streams found, falling back to youtube_explode');
+      } catch (e) {
+        print('[muzoapi] Error: $e, falling back to youtube_explode');
+      }
+    }
+
+    // Fallback to youtube_explode_dart
     try {
       final videoId = VideoId(parsedVideoId);
       final video = await _client.videos.get(videoId);
@@ -92,12 +130,12 @@ class YtdlWrapperService {
           .whereType<HlsMuxedStreamInfo>()
           .sorted((a, b) => b.bitrate.compareTo(a.bitrate))
           .toList(growable: false);
-      final progressiveStreams = manifest.audioOnly
-          .sortByBitrate()
-          .reversed
-          .toList(growable: false);
+      final progressiveStreams =
+          manifest.audioOnly.sortByBitrate().reversed.toList(growable: false);
 
-      if (hlsAudioStreams.isEmpty && hlsMuxedStreams.isEmpty && progressiveStreams.isEmpty) {
+      if (hlsAudioStreams.isEmpty &&
+          hlsMuxedStreams.isEmpty &&
+          progressiveStreams.isEmpty) {
         print('No audio streams available for $videoUrl');
         return null;
       }
@@ -128,7 +166,8 @@ class YtdlWrapperService {
         cacheTtl: _defaultStreamCacheTtl,
       );
 
-      _streamCache[cacheKey] = _CachedResult(streamingData, ttl: streamingData.cacheTtl);
+      _streamCache[cacheKey] =
+          _CachedResult(streamingData, ttl: streamingData.cacheTtl);
 
       return streamingData;
     } catch (e) {
@@ -141,7 +180,8 @@ class YtdlWrapperService {
     String videoUrl, {
     bool forceRefresh = false,
   }) async {
-    final streamingData = await fetchStreamingData(videoUrl, forceRefresh: forceRefresh);
+    final streamingData =
+        await fetchStreamingData(videoUrl, forceRefresh: forceRefresh);
     if (streamingData == null) {
       return null;
     }
@@ -152,7 +192,7 @@ class YtdlWrapperService {
     final bitrate = stream.bitrate.bitsPerSecond;
     final mimeType = stream.codec.mimeType;
     final codecLabel = stream.codec.toString();
-    final container = stream.container?.name ?? stream.codec.mimeType;
+    final container = stream.container.name;
     final itag = stream.tag.toString();
     final url = stream.url.toString();
 
@@ -165,8 +205,11 @@ class YtdlWrapperService {
       type = YouTubeStreamType.progressive;
     }
 
-    final contentLength = stream is AudioOnlyStreamInfo ? stream.size.totalBytes : null;
-    final approxLifetime = type == YouTubeStreamType.progressive ? null : const Duration(minutes: 5);
+    final contentLength =
+        stream is AudioOnlyStreamInfo ? stream.size.totalBytes : null;
+    final approxLifetime = type == YouTubeStreamType.progressive
+        ? null
+        : const Duration(minutes: 5);
 
     return YouTubeStreamFormat(
       itag: itag,
@@ -179,6 +222,73 @@ class YtdlWrapperService {
       audioSampleRate: null,
       approxLifetime: approxLifetime,
       contentLength: contentLength,
+    );
+  }
+
+  YouTubeStreamingData _convertMuzoToStreamingData(
+    dynamic streamInfo,
+    String sourceUrl,
+    Video? videoMetadata,
+  ) {
+    final videoId = streamInfo.videoId as String;
+    final title = streamInfo.title as String;
+    final audioStreams = streamInfo.audioStreams as List<muzo.AudioStream>;
+    final videoStreams = streamInfo.videoStreams as List<muzo.VideoStream>;
+
+    final primaryFormats = audioStreams.map((stream) {
+      return YouTubeStreamFormat(
+        url: stream.url,
+        itag: stream.itag.toString(),
+        bitrate: stream.bitrate,
+        mimeType: stream.mimeType,
+        codecLabel: stream.mimeType.split('/').last,
+        container: stream.mimeType.split('/').last,
+        type: YouTubeStreamType.progressive,
+        audioSampleRate: stream.audioSampleRate,
+        approxLifetime: const Duration(hours: 6),
+        contentLength: stream.contentLength,
+      );
+    }).toList();
+
+    final fallbackFormats = videoStreams.map((stream) {
+      return YouTubeStreamFormat(
+        url: stream.url,
+        itag: stream.itag.toString(),
+        bitrate: stream.bitrate,
+        mimeType: stream.mimeType,
+        codecLabel: stream.mimeType.split('/').last,
+        container: stream.mimeType.split('/').last,
+        type: YouTubeStreamType.progressive,
+        audioSampleRate: null,
+        approxLifetime: const Duration(hours: 6),
+        contentLength: stream.contentLength,
+      );
+    }).toList();
+
+    String? thumbnailUrl;
+    if (videoMetadata != null) {
+      final videoId = videoMetadata.id.value;
+      thumbnailUrl = 'https://i.ytimg.com/vi/$videoId/maxresdefault.jpg';
+    }
+
+    return YouTubeStreamingData(
+      videoId: videoId,
+      sourceUrl: sourceUrl,
+      title: videoMetadata?.title ?? title,
+      channelName: videoMetadata?.author ?? 'Unknown',
+      channelUrl: videoMetadata != null
+          ? 'https://www.youtube.com/channel/${videoMetadata.channelId.value}'
+          : 'https://youtube.com',
+      thumbnailUrl: thumbnailUrl ?? videoMetadata?.thumbnails.highResUrl,
+      duration: videoMetadata?.duration,
+      viewCount: videoMetadata?.engagement.viewCount,
+      uploadDate: videoMetadata?.uploadDate,
+      tags: videoMetadata?.keywords.toList(growable: false) ?? [],
+      description: videoMetadata?.description,
+      primaryStreams: primaryFormats,
+      fallbackStreams: fallbackFormats,
+      fetchedAt: DateTime.now(),
+      cacheTtl: _defaultStreamCacheTtl,
     );
   }
 

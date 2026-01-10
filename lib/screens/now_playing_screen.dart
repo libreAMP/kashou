@@ -1371,7 +1371,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     final sourceUrl = track.sourceUrl ?? track.path;
     final videoId = _extractYouTubeId(sourceUrl);
     if (videoId == null) return null;
-    return 'https://i.ytimg.com/vi/$videoId/hqdefault.jpg';
+    return 'https://i.ytimg.com/vi/$videoId/maxresdefault.jpg';
   }
 
   String? _extractYouTubeId(String? url) {

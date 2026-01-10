@@ -20,7 +20,10 @@ class EqualizerWidget extends StatelessWidget {
             width: 40,
             height: 4,
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.4),
+              color: Theme.of(context)
+                  .colorScheme
+                  .onSurfaceVariant
+                  .withOpacity(0.4),
               borderRadius: BorderRadius.circular(2),
             ),
           ),
@@ -38,10 +41,11 @@ class EqualizerWidget extends StatelessWidget {
                     const SizedBox(width: 12),
                     Text(
                       'Equalizer',
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).colorScheme.onSurface,
-                      ),
+                      style:
+                          Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: Theme.of(context).colorScheme.onSurface,
+                              ),
                     ),
                   ],
                 ),
@@ -85,8 +89,11 @@ class EqualizerWidget extends StatelessWidget {
       builder: (context, snapshot) {
         final deviceFreqs = snapshot.data ?? [];
         // Default to 10 bands if device has less or none
-        final frequencies = deviceFreqs.length >= 10 ? deviceFreqs.take(10).toList() : 
-          [31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000].take(10).toList();
+        final frequencies = deviceFreqs.length >= 10
+            ? deviceFreqs.take(10).toList()
+            : [31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000]
+                .take(10)
+                .toList();
         final freqLabels = frequencies.map((freq) {
           if (freq >= 1000) {
             return '${(freq / 1000).toStringAsFixed(0)}k';
@@ -111,10 +118,13 @@ class EqualizerWidget extends StatelessWidget {
                       const SizedBox(width: 8),
                       Text(
                         'Bands',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: Theme.of(context).colorScheme.onSurface,
-                        ),
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleMedium
+                            ?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: Theme.of(context).colorScheme.onSurface,
+                            ),
                       ),
                     ],
                   ),
@@ -129,7 +139,9 @@ class EqualizerWidget extends StatelessWidget {
                         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: List.generate(10, (index) {
-                          final value = index < audio.equalizerBands.length ? audio.equalizerBands[index] : 0.0;
+                          final value = index < audio.equalizerBands.length
+                              ? audio.equalizerBands[index]
+                              : 0.0;
 
                           return Expanded(
                             child: Column(
@@ -142,12 +154,19 @@ class EqualizerWidget extends StatelessWidget {
                                       begin: Alignment.bottomCenter,
                                       end: Alignment.topCenter,
                                       colors: [
-                                        Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.08),
-                                        Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.25),
+                                        Theme.of(context)
+                                            .colorScheme
+                                            .surfaceContainerHighest
+                                            .withOpacity(0.08),
+                                        Theme.of(context)
+                                            .colorScheme
+                                            .surfaceContainerHighest
+                                            .withOpacity(0.25),
                                       ],
                                     ),
                                   ),
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 10, vertical: 12),
                                   child: RotatedBox(
                                     quarterTurns: 3,
                                     child: SliderTheme(
@@ -157,10 +176,19 @@ class EqualizerWidget extends StatelessWidget {
                                           enabledThumbRadius: isCompact ? 6 : 7,
                                           pressedElevation: 4,
                                         ),
-                                        overlayShape: const RoundSliderOverlayShape(overlayRadius: 16),
-                                        activeTrackColor: Theme.of(context).colorScheme.primary,
-                                        inactiveTrackColor: Theme.of(context).colorScheme.outline.withOpacity(0.4),
-                                        thumbColor: Theme.of(context).colorScheme.primary,
+                                        overlayShape:
+                                            const RoundSliderOverlayShape(
+                                                overlayRadius: 16),
+                                        activeTrackColor: Theme.of(context)
+                                            .colorScheme
+                                            .primary,
+                                        inactiveTrackColor: Theme.of(context)
+                                            .colorScheme
+                                            .outline
+                                            .withOpacity(0.4),
+                                        thumbColor: Theme.of(context)
+                                            .colorScheme
+                                            .primary,
                                       ),
                                       child: Slider(
                                         value: value,
@@ -169,7 +197,9 @@ class EqualizerWidget extends StatelessWidget {
                                         divisions: 24,
                                         label: '${value.toStringAsFixed(1)} dB',
                                         onChanged: audio.equalizerEnabled
-                                            ? (bandValue) => audio.setEqualizerBand(index, bandValue)
+                                            ? (bandValue) =>
+                                                audio.setEqualizerBand(
+                                                    index, bandValue)
                                             : null,
                                       ),
                                     ),
@@ -178,9 +208,14 @@ class EqualizerWidget extends StatelessWidget {
                                 const SizedBox(height: 8),
                                 Text(
                                   freqLabels[index],
-                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                  ),
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodySmall
+                                      ?.copyWith(
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .onSurfaceVariant,
+                                      ),
                                 ),
                               ],
                             ),
@@ -196,18 +231,24 @@ class EqualizerWidget extends StatelessWidget {
                       Text(
                         '+12 dB',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
+                            ),
                       ),
                       FilledButton.tonal(
-                        onPressed: audio.equalizerEnabled ? audio.resetEqualizer : null,
+                        onPressed: audio.equalizerEnabled
+                            ? audio.resetEqualizer
+                            : null,
                         child: const Text('Reset'),
                       ),
                       Text(
                         '-12 dB',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
+                            ),
                       ),
                     ],
                   ),
@@ -237,7 +278,8 @@ class EqualizerWidget extends StatelessWidget {
             divisions: 20,
             valueLabel: '$percent%',
             onChanged: audio.setMasterVolume,
-            resetAction: percent == 100 ? null : () => audio.setMasterVolume(1.0),
+            resetAction:
+                percent == 100 ? null : () => audio.setMasterVolume(1.0),
           );
         },
       ),
@@ -274,7 +316,8 @@ class EqualizerWidget extends StatelessWidget {
                     ],
                   ),
                   child: ExpansionTile(
-                    tilePadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                    tilePadding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 16),
                     collapsedIconColor: colorScheme.onSurfaceVariant,
                     iconColor: colorScheme.primary,
                     title: Row(
@@ -316,7 +359,8 @@ class EqualizerWidget extends StatelessWidget {
                                 Text(
                                   'Enable the equalizer to apply presets',
                                   style: theme.textTheme.bodySmall?.copyWith(
-                                    color: colorScheme.onSurfaceVariant.withOpacity(0.6),
+                                    color: colorScheme.onSurfaceVariant
+                                        .withOpacity(0.6),
                                   ),
                                 ),
                             ],
@@ -330,23 +374,36 @@ class EqualizerWidget extends StatelessWidget {
                         spacing: 8,
                         runSpacing: 8,
                         children: presets.map((preset) {
-                          final cleanPreset = preset.replaceAll(RegExp(r'[^ -]'), '');
                           return FilterChip(
-                            label: Text(cleanPreset),
+                            label: Text(preset),
                             selected: false,
                             onSelected: audio.equalizerEnabled
                                 ? (selected) async {
-                                    try {
-                                      await CustomEqualizer.setPreset(preset);
-                                      audio.resetEqualizer();
-                                    } catch (e) {
-                                      // ignore preset load failures silently
+                                    if (selected) {
+                                      await audio.applyEqualizerPreset(preset);
+                                      if (context.mounted) {
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(
+                                          SnackBar(
+                                            content:
+                                                Text('Applied preset: $preset'),
+                                            duration:
+                                                const Duration(seconds: 1),
+                                            behavior: SnackBarBehavior.floating,
+                                          ),
+                                        );
+                                      }
                                     }
                                   }
                                 : null,
-                            backgroundColor: colorScheme.surfaceContainerHighest,
+                            backgroundColor:
+                                colorScheme.surfaceContainerHighest,
                             selectedColor: colorScheme.primaryContainer,
                             checkmarkColor: colorScheme.onPrimaryContainer,
+                            labelStyle: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                            ),
                           );
                         }).toList(),
                       ),
@@ -378,9 +435,9 @@ class EqualizerWidget extends StatelessWidget {
               Text(
                 'Audio Effects',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: Theme.of(context).colorScheme.onSurface,
-                ),
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
               ),
             ],
           ),
@@ -505,7 +562,8 @@ class EqualizerWidget extends StatelessWidget {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.primary.withOpacity(enabled ? 0.15 : 0.06),
+                  color: theme.colorScheme.primary
+                      .withOpacity(enabled ? 0.15 : 0.06),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
@@ -528,9 +586,11 @@ class EqualizerWidget extends StatelessWidget {
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.primaryContainer.withOpacity(enabled ? 1 : 0.4),
+                  color: theme.colorScheme.primaryContainer
+                      .withOpacity(enabled ? 1 : 0.4),
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Text(
@@ -559,7 +619,8 @@ class EqualizerWidget extends StatelessWidget {
               thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 12),
               overlayShape: const RoundSliderOverlayShape(overlayRadius: 22),
               activeTrackColor: theme.colorScheme.primary,
-              inactiveTrackColor: theme.colorScheme.surfaceVariant.withOpacity(0.5),
+              inactiveTrackColor:
+                  theme.colorScheme.surfaceVariant.withOpacity(0.5),
               thumbColor: theme.colorScheme.primary,
               overlayColor: theme.colorScheme.primary.withOpacity(0.12),
               valueIndicatorColor: theme.colorScheme.primaryContainer,

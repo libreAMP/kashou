@@ -30,7 +30,7 @@ class _OnlineSearchScreenState extends State<OnlineSearchScreen> {
     'trending songs',
     'latest hits',
     'viral songs',
-    'music 2024',
+    'top music',
   ];
 
   @override
@@ -120,7 +120,8 @@ class _OnlineSearchScreenState extends State<OnlineSearchScreen> {
       return;
     }
 
-    final selectedFormat = streamingData.bestStream ?? streamingData.fallbackStream;
+    final selectedFormat =
+        streamingData.bestStream ?? streamingData.fallbackStream;
     if (selectedFormat == null) {
       audioProvider.cancelPendingTrack();
       _showSnackBar('Unable to load audio stream.');
@@ -128,7 +129,8 @@ class _OnlineSearchScreenState extends State<OnlineSearchScreen> {
     }
 
     Uint8List? albumArt;
-    final thumbUrl = streamingData.thumbnailUrl ?? video['thumbnail'] as String?;
+    final thumbUrl =
+        streamingData.thumbnailUrl ?? video['thumbnail'] as String?;
     if (thumbUrl != null && thumbUrl.isNotEmpty) {
       try {
         final thumbnailResponse = await http.get(Uri.parse(thumbUrl));
@@ -139,8 +141,12 @@ class _OnlineSearchScreenState extends State<OnlineSearchScreen> {
     }
 
     final finalTrack = placeholderTrack.copyWith(
-      title: streamingData.title.isNotEmpty ? streamingData.title : placeholderTrack.title,
-      artist: streamingData.channelName.isNotEmpty ? streamingData.channelName : placeholderTrack.artist,
+      title: streamingData.title.isNotEmpty
+          ? streamingData.title
+          : placeholderTrack.title,
+      artist: streamingData.channelName.isNotEmpty
+          ? streamingData.channelName
+          : placeholderTrack.artist,
       album: 'YouTube',
       path: selectedFormat.url,
       duration: streamingData.duration ?? Duration(seconds: durationSeconds),
@@ -175,8 +181,10 @@ class _OnlineSearchScreenState extends State<OnlineSearchScreen> {
         color: Colors.transparent,
         child: InkWell(
           onTap: () => _playVideo(video),
-          splashColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-          highlightColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.1),
+          splashColor:
+              colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+          highlightColor:
+              colorScheme.surfaceContainerHighest.withValues(alpha: 0.1),
           child: Padding(
             padding: const EdgeInsets.all(12),
             child: Row(
@@ -197,20 +205,18 @@ class _OnlineSearchScreenState extends State<OnlineSearchScreen> {
                   ),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(8),
-                    child: Transform.scale(
-                      scale: 1.4,
-                      child: Image.network(
-                        thumbnail ?? 'https://img.youtube.com/vi/${video['id']}/mqdefault.jpg',
-                        fit: BoxFit.cover,
+                    child: Image.network(
+                      thumbnail ??
+                          'https://img.youtube.com/vi/${video['id']}/maxresdefault.jpg',
+                      fit: BoxFit.cover,
+                      alignment: Alignment.center,
+                      errorBuilder: (context, error, stackTrace) => Container(
                         alignment: Alignment.center,
-                        errorBuilder: (context, error, stackTrace) => Container(
-                          alignment: Alignment.center,
-                          color: colorScheme.surfaceContainerHighest,
-                          child: Icon(
-                            Icons.music_note,
-                            color: colorScheme.onSurfaceVariant,
-                            size: 20,
-                          ),
+                        color: colorScheme.surfaceContainerHighest,
+                        child: Icon(
+                          Icons.music_note,
+                          color: colorScheme.onSurfaceVariant,
+                          size: 20,
                         ),
                       ),
                     ),
@@ -226,10 +232,10 @@ class _OnlineSearchScreenState extends State<OnlineSearchScreen> {
                       Text(
                         video['title'] ?? 'Unknown',
                         style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          color: colorScheme.onSurface,
-                          fontWeight: FontWeight.w600,
-                          height: 1.2,
-                        ),
+                              color: colorScheme.onSurface,
+                              fontWeight: FontWeight.w600,
+                              height: 1.2,
+                            ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -237,10 +243,10 @@ class _OnlineSearchScreenState extends State<OnlineSearchScreen> {
                       Text(
                         video['channel'] ?? 'Unknown',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
-                          fontSize: 12,
-                          height: 1.3,
-                        ),
+                              color: colorScheme.onSurfaceVariant,
+                              fontSize: 12,
+                              height: 1.3,
+                            ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -255,7 +261,8 @@ class _OnlineSearchScreenState extends State<OnlineSearchScreen> {
                       width: 32,
                       height: 32,
                       decoration: BoxDecoration(
-                        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.8),
+                        color: colorScheme.surfaceContainerHighest
+                            .withValues(alpha: 0.8),
                         shape: BoxShape.circle,
                         border: Border.all(
                           color: colorScheme.outline.withValues(alpha: 0.2),
@@ -437,7 +444,8 @@ class _OnlineSearchScreenState extends State<OnlineSearchScreen> {
                         height: 12,
                         width: 80,
                         decoration: BoxDecoration(
-                          color: colorScheme.surfaceContainerHighest.withOpacity(0.6),
+                          color: colorScheme.surfaceContainerHighest
+                              .withOpacity(0.6),
                           borderRadius: BorderRadius.circular(4),
                         ),
                       ),
@@ -576,9 +584,9 @@ class _OnlineSearchScreenState extends State<OnlineSearchScreen> {
           child: Text(
             'Search results for "${_lastQuery}"',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w600,
-              color: Theme.of(context).colorScheme.onSurface,
-            ),
+                  fontWeight: FontWeight.w600,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
           ),
         ),
         Expanded(

@@ -57,7 +57,8 @@ class HomeScreen extends StatelessWidget {
           final safeArea = MediaQuery.of(context).padding.bottom;
 
           return ListView(
-            padding: EdgeInsets.fromLTRB(20, 12, 20, showMiniPlayer ? safeArea + 96 : safeArea + 24),
+            padding: EdgeInsets.fromLTRB(
+                20, 12, 20, showMiniPlayer ? safeArea + 96 : safeArea + 24),
             children: [
               _buildHeroHeader(context, library),
               const SizedBox(height: 24),
@@ -105,7 +106,8 @@ class HomeScreen extends StatelessWidget {
                   );
 
                   if (library.allTracks.isNotEmpty) {
-                    final shuffled = List<Track>.from(library.allTracks)..shuffle();
+                    final shuffled = List<Track>.from(library.allTracks)
+                      ..shuffle();
                     audio.playTrack(shuffled.first, playlist: shuffled);
                   }
                 },
@@ -144,7 +146,7 @@ class HomeScreen extends StatelessWidget {
 
   Widget _buildActionCard(
     BuildContext context, {
-      required IconData icon,
+    required IconData icon,
     required String label,
     required VoidCallback onTap,
   }) {
@@ -442,20 +444,17 @@ class HomeScreen extends StatelessWidget {
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(12),
                   child: track.albumArt != null
-                      ? Transform.scale(
-                          scale: 1, // Zoom in by 40% before cropping
-                          child: Image.memory(
-                            track.albumArt!,
-                            fit: BoxFit.cover,
+                      ? Image.memory(
+                          track.albumArt!,
+                          fit: BoxFit.cover,
+                          alignment: Alignment.center,
+                          errorBuilder: (context, error, stackTrace) =>
+                              Container(
                             alignment: Alignment.center,
-                            errorBuilder: (context, error, stackTrace) =>
-                                Container(
-                              alignment: Alignment.center,
-                              color: colorScheme.surfaceContainerHighest,
-                              child: Icon(
-                                Icons.music_note,
-                                color: colorScheme.onSurfaceVariant,
-                              ),
+                            color: colorScheme.surfaceContainerHighest,
+                            child: Icon(
+                              Icons.music_note,
+                              color: colorScheme.onSurfaceVariant,
                             ),
                           ),
                         )
@@ -600,16 +599,16 @@ class HomeScreen extends StatelessWidget {
             Text(
               value,
               style: theme.textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: colorScheme.onSurface,
-                  ),
+                fontWeight: FontWeight.w700,
+                color: colorScheme.onSurface,
+              ),
             ),
             const SizedBox(height: 4),
             Text(
               label,
               style: theme.textTheme.bodySmall?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                  ),
+                color: colorScheme.onSurfaceVariant,
+              ),
             ),
           ],
         ),

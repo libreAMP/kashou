@@ -4,12 +4,12 @@ import 'package:shimmer/shimmer.dart';
 import 'package:http/http.dart' as http;
 import 'dart:typed_data';
 import 'dart:async';
-import 'package:provider/provider.dart';
 import 'online_search_screen.dart';
 import 'section_page.dart';
 import 'youtube_history_screen.dart';
 import '../providers/audio_provider.dart';
 import '../providers/settings_provider.dart';
+import '../providers/recommendation_provider.dart';
 import '../services/ytdl_service.dart';
 import '../models/track.dart';
 import '../models/youtube_streaming_data.dart';
@@ -36,6 +36,7 @@ class _StreamScreenState extends State<StreamScreen>
   final TextEditingController _searchController = TextEditingController();
   Timer? _searchDebounceTimer;
   bool _isInitialized = false;
+  String? _lastTrackId; // Track the last track to avoid duplicate updates
 
   @override
   bool get wantKeepAlive => true;
@@ -47,6 +48,49 @@ class _StreamScreenState extends State<StreamScreen>
     if (_currentQuery.isNotEmpty) {
       _searchController.text = _currentQuery;
     }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final audioProvider = Provider.of<AudioProvider>(context, listen: false);
+      final recommendationProvider =
+          Provider.of<RecommendationProvider>(context, listen: false);
+
+      recommendationProvider.loadInitialRecommendations();
+
+      // Wait a bit for stream history to load from SharedPreferences
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      if (audioProvider.streamHistory.isNotEmpty) {
+        recommendationProvider.fetchPersonalizedFromHistory(
+          audioProvider.streamHistory,
+        );
+      }
+
+      if (audioProvider.currentTrack != null) {
+        recommendationProvider.updateRecommendations(
+          audioProvider.currentTrack,
+          audioProvider: audioProvider,
+        );
+      }
+
+      audioProvider.addListener(() {
+        final currentTrack = audioProvider.currentTrack;
+
+        if (currentTrack != null && currentTrack.id != _lastTrackId) {
+          _lastTrackId = currentTrack.id;
+
+          recommendationProvider.updateRecommendations(
+            currentTrack,
+            audioProvider: audioProvider,
+          );
+
+          if (audioProvider.streamHistory.isNotEmpty) {
+            recommendationProvider.fetchPersonalizedFromHistory(
+              audioProvider.streamHistory,
+            );
+          }
+        }
+      });
+    });
   }
 
   void _initializeService() {
@@ -110,8 +154,8 @@ class _StreamScreenState extends State<StreamScreen>
         'Bengali'
       ];
 
-      final quickPicksFuture = _service.search('popular songs 2024', limit: 20);
-      final trendingFuture = _service.search('trending songs 2024', limit: 20);
+      final quickPicksFuture = _service.search('popular songs', limit: 20);
+      final trendingFuture = _service.search('trending songs', limit: 20);
       final featuredFuture = _service.search('latest music songs', limit: 20);
 
       final languageFutures = languages
@@ -222,7 +266,8 @@ class _StreamScreenState extends State<StreamScreen>
       return;
     }
 
-    final selectedFormat = streamingData.bestStream ?? streamingData.fallbackStream;
+    final selectedFormat =
+        streamingData.bestStream ?? streamingData.fallbackStream;
     if (selectedFormat == null) {
       audioProvider.cancelPendingTrack();
       _showSnackBar('Audio stream unavailable.');
@@ -230,7 +275,8 @@ class _StreamScreenState extends State<StreamScreen>
     }
 
     Uint8List? albumArt;
-    final thumbUrl = streamingData.thumbnailUrl ?? video['thumbnail'] as String?;
+    final thumbUrl =
+        streamingData.thumbnailUrl ?? video['thumbnail'] as String?;
     if (thumbUrl != null && thumbUrl.isNotEmpty) {
       try {
         final thumbnailResponse = await http.get(Uri.parse(thumbUrl));
@@ -322,7 +368,7 @@ class _StreamScreenState extends State<StreamScreen>
                     borderRadius: BorderRadius.circular(12),
                     child: Image.network(
                       thumbnail ??
-                          'https://img.youtube.com/vi/${video['id']}/mqdefault.jpg',
+                          'https://img.youtube.com/vi/${video['id']}/maxresdefault.jpg',
                       fit: BoxFit.cover,
                       errorBuilder: (context, error, stackTrace) => Container(
                         alignment: Alignment.center,
@@ -519,7 +565,8 @@ class _StreamScreenState extends State<StreamScreen>
               actions: [
                 Consumer<SettingsProvider>(
                   builder: (context, settings, _) {
-                    if (!settings.enableYouTubeIntegration) return const SizedBox.shrink();
+                    if (!settings.enableYouTubeIntegration)
+                      return const SizedBox.shrink();
                     return IconButton(
                       icon: const Icon(Icons.history),
                       onPressed: () {
@@ -610,7 +657,8 @@ class _StreamScreenState extends State<StreamScreen>
           final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
           final showMiniPlayer = hasMiniPlayer && keyboardHeight == 0;
           final safeArea = MediaQuery.of(context).padding.bottom;
-          final bottomPadding = showMiniPlayer ? safeArea + 96.0 : safeArea + 24;
+          final bottomPadding =
+              showMiniPlayer ? safeArea + 96.0 : safeArea + 24;
 
           if (showingSearch) {
             return ListView.separated(
@@ -628,14 +676,55 @@ class _StreamScreenState extends State<StreamScreen>
             children: [
               _buildHeroHeader(context),
               const SizedBox(height: 24),
+
+              Consumer<RecommendationProvider>(
+                builder: (context, recommendationProvider, child) {
+                  final relatedVideos = recommendationProvider.relatedVideos;
+                  final recommendations =
+                      recommendationProvider.recommendations;
+                  final isLoading = recommendationProvider.isLoading;
+
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (relatedVideos.isNotEmpty) ...[
+                        _buildSectionHeader('Now Playing Radio',
+                            items: relatedVideos, isListView: false),
+                        const SizedBox(height: 12),
+                        _buildHorizontalCarousel(relatedVideos),
+                        const SizedBox(height: 28),
+                      ],
+
+                      // Personalized recommendations (grid layout)
+                      if (recommendations.isNotEmpty) ...[
+                        _buildSectionHeader('Personalized for You',
+                            items: recommendations, isListView: false),
+                        const SizedBox(height: 12),
+                        _buildGridCarousel(recommendations),
+                        const SizedBox(height: 28),
+                      ],
+
+                      if (isLoading &&
+                          relatedVideos.isEmpty &&
+                          recommendations.isEmpty) ...[
+                        const SizedBox(
+                          height: 200,
+                          child: Center(child: CircularProgressIndicator()),
+                        ),
+                        const SizedBox(height: 28),
+                      ],
+                    ],
+                  );
+                },
+              ),
+
               _buildSectionHeader('Quick picks',
                   items: _quickPicks, isListView: false),
               const SizedBox(height: 12),
               _buildHorizontalCarousel(_quickPicks),
               const SizedBox(height: 28),
 
-              ..._buildLanguagePlaylistsSections(),
-
+              // Trending section
               _buildSectionHeader('Trending now',
                   items: _trendingSongs.take(6).toList(), isListView: true),
               const SizedBox(height: 12),
@@ -732,82 +821,88 @@ class _StreamScreenState extends State<StreamScreen>
           const SizedBox(height: 32),
 
           // Language sections
-          ...List.generate(3, (sectionIndex) => Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                height: 28,
-                width: 120,
-                margin: const EdgeInsets.only(bottom: 12),
-                decoration: BoxDecoration(
-                  color: colorScheme.surface,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-
-              // Language carousel
-              SizedBox(
-                height: 240,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: 4,
-                  separatorBuilder: (_, __) => const SizedBox(width: 0),
-                  itemBuilder: (context, index) {
-                    return Container(
-                      width: 150,
-                      margin: const EdgeInsets.only(bottom: 8),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Container(
-                            width: 120,
-                            height: 120,
-                            decoration: BoxDecoration(
-                              color: colorScheme.surface,
-                              borderRadius: BorderRadius.circular(12),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: colorScheme.shadow.withOpacity(0.1),
-                                  blurRadius: 8,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 20),
-                            child: Column(
-                              children: [
-                                Container(
-                                  height: 14,
-                                  width: double.infinity,
-                                  decoration: BoxDecoration(
-                                    color: colorScheme.surface,
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Container(
-                                  height: 12,
-                                  width: 70,
-                                  decoration: BoxDecoration(
-                                    color: colorScheme.surface,
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
+          ...List.generate(
+              3,
+              (sectionIndex) => Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        height: 28,
+                        width: 120,
+                        margin: const EdgeInsets.only(bottom: 12),
+                        decoration: BoxDecoration(
+                          color: colorScheme.surface,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
                       ),
-                    );
-                  },
-                ),
-              ),
-              const SizedBox(height: 32),
-            ],
-          )),
+
+                      // Language carousel
+                      SizedBox(
+                        height: 240,
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: 4,
+                          separatorBuilder: (_, __) => const SizedBox(width: 0),
+                          itemBuilder: (context, index) {
+                            return Container(
+                              width: 150,
+                              margin: const EdgeInsets.only(bottom: 8),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Container(
+                                    width: 120,
+                                    height: 120,
+                                    decoration: BoxDecoration(
+                                      color: colorScheme.surface,
+                                      borderRadius: BorderRadius.circular(12),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: colorScheme.shadow
+                                              .withOpacity(0.1),
+                                          blurRadius: 8,
+                                          offset: const Offset(0, 4),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 20),
+                                    child: Column(
+                                      children: [
+                                        Container(
+                                          height: 14,
+                                          width: double.infinity,
+                                          decoration: BoxDecoration(
+                                            color: colorScheme.surface,
+                                            borderRadius:
+                                                BorderRadius.circular(4),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Container(
+                                          height: 12,
+                                          width: 70,
+                                          decoration: BoxDecoration(
+                                            color: colorScheme.surface,
+                                            borderRadius:
+                                                BorderRadius.circular(4),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: 32),
+                    ],
+                  )),
 
           // Trending section
           Container(
@@ -821,64 +916,66 @@ class _StreamScreenState extends State<StreamScreen>
           ),
 
           // Trending list items
-          ...List.generate(6, (index) => Container(
-            height: 80,
-            margin: const EdgeInsets.only(bottom: 12),
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: colorScheme.surface,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              children: [
-                // Thumbnail
-                Container(
-                  width: 56,
-                  height: 56,
-                  decoration: BoxDecoration(
-                    color: colorScheme.surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                // Text content
-                Expanded(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        height: 16,
-                        width: double.infinity,
-                        decoration: BoxDecoration(
-                          color: colorScheme.surfaceContainerHighest,
-                          borderRadius: BorderRadius.circular(4),
+          ...List.generate(
+              6,
+              (index) => Container(
+                    height: 80,
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: colorScheme.surface,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        // Thumbnail
+                        Container(
+                          width: 56,
+                          height: 56,
+                          decoration: BoxDecoration(
+                            color: colorScheme.surfaceContainerHighest,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 6),
-                      Container(
-                        height: 14,
-                        width: 100,
-                        decoration: BoxDecoration(
-                          color: colorScheme.surfaceContainerHighest,
-                          borderRadius: BorderRadius.circular(4),
+                        const SizedBox(width: 12),
+                        // Text content
+                        Expanded(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Container(
+                                height: 16,
+                                width: double.infinity,
+                                decoration: BoxDecoration(
+                                  color: colorScheme.surfaceContainerHighest,
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Container(
+                                height: 14,
+                                width: 100,
+                                decoration: BoxDecoration(
+                                  color: colorScheme.surfaceContainerHighest,
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-                // Play button
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: colorScheme.surfaceContainerHighest,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-              ],
-            ),
-          )),
+                        // Play button
+                        Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: colorScheme.surfaceContainerHighest,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )),
         ],
       ),
     );
@@ -891,7 +988,8 @@ class _StreamScreenState extends State<StreamScreen>
       if (playlist.isEmpty) return;
 
       widgets.addAll([
-        _buildSectionHeader('$language songs', items: playlist, isListView: false),
+        _buildSectionHeader('$language songs',
+            items: playlist, isListView: false),
         const SizedBox(height: 8),
         _buildHorizontalCarousel(playlist),
         const SizedBox(height: 20),
@@ -975,7 +1073,7 @@ class _StreamScreenState extends State<StreamScreen>
                                 fit: BoxFit.cover,
                                 child: Image.network(
                                   thumbnail ??
-                                      'https://img.youtube.com/vi/${item['id']}/hqdefault.jpg',
+                                      'https://img.youtube.com/vi/${item['id']}/maxresdefault.jpg',
                                   errorBuilder: (context, error, stackTrace) =>
                                       Container(
                                     alignment: Alignment.center,
@@ -994,19 +1092,19 @@ class _StreamScreenState extends State<StreamScreen>
                           Text(
                             title,
                             style: theme.textTheme.titleSmall?.copyWith(
-                                  fontWeight: FontWeight.w700,
-                                  color: colorScheme.onSurface,
-                                ),
+                              fontWeight: FontWeight.w700,
+                              color: colorScheme.onSurface,
+                            ),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                           ),
                           Text(
                             channel,
                             style: theme.textTheme.labelSmall?.copyWith(
-                                  height: 1.1,
-                                  color: colorScheme.onSurfaceVariant
-                                      .withOpacity(0.8),
-                                ),
+                              height: 1.1,
+                              color:
+                                  colorScheme.onSurfaceVariant.withOpacity(0.8),
+                            ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -1158,8 +1256,8 @@ class _StreamScreenState extends State<StreamScreen>
               : null,
           hintText: 'Search YouTube music…',
           hintStyle: theme.textTheme.bodyMedium?.copyWith(
-                color: colorScheme.onSurfaceVariant.withOpacity(0.8),
-              ),
+            color: colorScheme.onSurfaceVariant.withOpacity(0.8),
+          ),
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(horizontal: 16),
         ),
@@ -1208,6 +1306,142 @@ class _StreamScreenState extends State<StreamScreen>
             child: const Text('See all'),
           ),
       ],
+    );
+  }
+
+  Widget _buildGridCarousel(List<Map<String, dynamic>> items) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final itemCount = items.length > 15 ? 15 : items.length;
+
+    if (itemCount == 0) {
+      return _buildEmptySectionCard('Nothing to show right now', height: 400);
+    }
+
+    // Group items into columns of 3
+    final columns = <List<Map<String, dynamic>>>[];
+    for (var i = 0; i < itemCount; i += 3) {
+      final end = (i + 3) > itemCount ? itemCount : i + 3;
+      columns.add(items.sublist(i, end));
+    }
+
+    return SizedBox(
+      height: 240, // Height for 3 items vertically
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        itemCount: columns.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 12),
+        itemBuilder: (context, columnIndex) {
+          final columnItems = columns[columnIndex];
+
+          return SizedBox(
+            width: 300, // Width of each column
+            child: Column(
+              children: columnItems.asMap().entries.map((entry) {
+                final item = entry.value;
+                final isLast = entry.key == columnItems.length - 1;
+
+                return Padding(
+                  padding: EdgeInsets.only(bottom: isLast ? 0 : 8),
+                  child: SizedBox(
+                    height: 72,
+                    child: _buildGridItem(item, colorScheme, theme),
+                  ),
+                );
+              }).toList(),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildGridItem(
+    Map<String, dynamic> item,
+    ColorScheme colorScheme,
+    ThemeData theme,
+  ) {
+    final thumbnail = item['thumbnail'] as String?;
+    final title = item['title'] as String? ?? 'Unknown';
+    final channel = item['channel'] as String? ?? 'Unknown';
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => _playVideo(item),
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          height: 120,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: colorScheme.outline.withValues(alpha: 0.12),
+            ),
+            color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+          ),
+          child: Row(
+            children: [
+              // Thumbnail
+              ClipRRect(
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(12),
+                  bottomLeft: Radius.circular(12),
+                ),
+                child: Container(
+                  width: 65,
+                  height: 65,
+                  child: Image.network(
+                    thumbnail ??
+                        'https://img.youtube.com/vi/${item['id']}/default.jpg',
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) => Container(
+                      color: colorScheme.surfaceContainerHighest,
+                      child: Icon(
+                        Icons.music_note,
+                        color: colorScheme.onSurfaceVariant,
+                        size: 20,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+
+              // Title and artist
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        title,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        channel,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                          fontSize: 11,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

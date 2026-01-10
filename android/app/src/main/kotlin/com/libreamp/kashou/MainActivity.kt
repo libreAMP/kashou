@@ -59,6 +59,10 @@ class MainActivity : AudioServiceActivity() {
                         result.error("INVALID_ARGUMENT", "Preset name is required", null)
                     }
                 }
+                "getPresetBandLevels" -> {
+                    val levels = getPresetBandLevels()
+                    result.success(levels)
+                }
                 "releaseEqualizer" -> {
                     releaseEqualizer()
                     result.success(null)
@@ -135,6 +139,12 @@ class MainActivity : AudioServiceActivity() {
                 }
             }
         }
+    }
+
+    private fun getPresetBandLevels(): List<Double> {
+        return equalizer?.let { eq ->
+            (0 until eq.numberOfBands).map { eq.getBandLevel(it.toShort()).toDouble() }
+        } ?: emptyList()
     }
 
     private fun setBassBoost(strength: Int) {

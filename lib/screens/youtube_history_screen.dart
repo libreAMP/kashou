@@ -68,7 +68,8 @@ class _YoutubeHistoryScreenState extends State<YoutubeHistoryScreen> {
       return;
     }
 
-    final selectedFormat = streamingData.bestStream ?? streamingData.fallbackStream;
+    final selectedFormat =
+        streamingData.bestStream ?? streamingData.fallbackStream;
     if (selectedFormat == null) {
       audioProvider.cancelPendingTrack();
       _showSnackBar('YouTube audio stream unavailable.');
@@ -92,8 +93,12 @@ class _YoutubeHistoryScreenState extends State<YoutubeHistoryScreen> {
     }
 
     final updatedTrack = placeholder.copyWith(
-      title: streamingData.title.isNotEmpty ? streamingData.title : placeholder.title,
-      artist: streamingData.channelName.isNotEmpty ? streamingData.channelName : placeholder.artist,
+      title: streamingData.title.isNotEmpty
+          ? streamingData.title
+          : placeholder.title,
+      artist: streamingData.channelName.isNotEmpty
+          ? streamingData.channelName
+          : placeholder.artist,
       album: 'YouTube',
       path: selectedFormat.url,
       duration: streamingData.duration ?? placeholder.duration,
@@ -163,7 +168,8 @@ class _YoutubeHistoryScreenState extends State<YoutubeHistoryScreen> {
         actions: [
           Consumer<AudioProvider>(
             builder: (context, audioProvider, _) {
-              final hasHistory = audioProvider.youtubeStreamHistoryEntries.isNotEmpty;
+              final hasHistory =
+                  audioProvider.youtubeStreamHistoryEntries.isNotEmpty;
               return IconButton(
                 tooltip: 'Clear history',
                 icon: const Icon(Icons.delete_outline),
@@ -182,7 +188,9 @@ class _YoutubeHistoryScreenState extends State<YoutubeHistoryScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.history, size: 48, color: colorScheme.onSurfaceVariant.withOpacity(0.5)),
+                  Icon(Icons.history,
+                      size: 48,
+                      color: colorScheme.onSurfaceVariant.withOpacity(0.5)),
                   const SizedBox(height: 16),
                   Text(
                     'No YouTube history yet',
@@ -217,7 +225,8 @@ class _YoutubeHistoryScreenState extends State<YoutubeHistoryScreen> {
     );
   }
 
-  Widget _buildHistoryTile(BuildContext context, StreamHistoryEntry entry, ColorScheme colorScheme) {
+  Widget _buildHistoryTile(
+      BuildContext context, StreamHistoryEntry entry, ColorScheme colorScheme) {
     final track = entry.track;
     final theme = Theme.of(context);
     final isLoading = _loadingEntryId == track.id;
@@ -235,7 +244,9 @@ class _YoutubeHistoryScreenState extends State<YoutubeHistoryScreen> {
         child: Icon(Icons.delete_outline, color: colorScheme.onErrorContainer),
       ),
       onDismissed: (_) {
-        context.read<AudioProvider>().removeFromStreamHistory(track.sourceUrl ?? track.path);
+        context
+            .read<AudioProvider>()
+            .removeFromStreamHistory(track.sourceUrl ?? track.path);
       },
       child: Material(
         color: Colors.transparent,
@@ -301,11 +312,13 @@ class _YoutubeHistoryScreenState extends State<YoutubeHistoryScreen> {
                         height: 28,
                         child: CircularProgressIndicator(
                           strokeWidth: 2.4,
-                          valueColor: AlwaysStoppedAnimation<Color>(colorScheme.primary),
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                              colorScheme.primary),
                         ),
                       )
                     : IconButton(
-                        icon: Icon(Icons.play_arrow_rounded, color: colorScheme.primary),
+                        icon: Icon(Icons.play_arrow_rounded,
+                            color: colorScheme.primary),
                         onPressed: () => _playEntry(entry),
                       ),
               ],
@@ -327,7 +340,8 @@ class _YoutubeHistoryScreenState extends State<YoutubeHistoryScreen> {
             ? Image.memory(
                 art,
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Icon(Icons.music_note, color: colorScheme.onSurfaceVariant),
+                errorBuilder: (_, __, ___) =>
+                    Icon(Icons.music_note, color: colorScheme.onSurfaceVariant),
               )
             : Icon(Icons.music_note, color: colorScheme.onSurfaceVariant),
       ),

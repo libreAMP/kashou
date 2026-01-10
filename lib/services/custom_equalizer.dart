@@ -1,14 +1,16 @@
 import 'package:flutter/services.dart';
 
 class CustomEqualizer {
-  static const MethodChannel _channel = MethodChannel('com.libreamp.kashou/equalizer');
+  static const MethodChannel _channel =
+      MethodChannel('com.libreamp.kashou/equalizer');
 
   static Future<void> init(int sessionId) async {
     await _channel.invokeMethod('initEqualizer', {'sessionId': sessionId});
   }
 
   static Future<void> setBandLevel(int bandId, int level) async {
-    await _channel.invokeMethod('setBandLevel', {'bandId': bandId, 'level': level});
+    await _channel
+        .invokeMethod('setBandLevel', {'bandId': bandId, 'level': level});
   }
 
   static Future<List<int>> getBandLevelRange() async {
@@ -28,6 +30,11 @@ class CustomEqualizer {
 
   static Future<void> setPreset(String presetName) async {
     await _channel.invokeMethod('setPreset', {'presetName': presetName});
+  }
+
+  static Future<List<double>> getPresetBandLevels() async {
+    final result = await _channel.invokeMethod('getPresetBandLevels');
+    return (result as List<dynamic>).cast<double>();
   }
 
   static Future<void> setBassBoost(int strength) async {

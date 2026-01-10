@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
@@ -20,7 +19,7 @@ class AudioProvider extends ChangeNotifier {
   audio_svc.AudioPlayerHandler? _audioHandler;
   SettingsProvider? _settingsProvider;
   ConcatenatingAudioSource? _playlist;
-  
+
   AudioPlayer get audioPlayer {
     if (_audioPlayer == null) {
       _initializeAudioService();
@@ -61,9 +60,11 @@ class AudioProvider extends ChangeNotifier {
   double _tempoControl = 1.0;
   double _masterVolume = 1.0;
 
-  bool _isRemotePath(String path) => path.startsWith('http://') || path.startsWith('https://');
+  bool _isRemotePath(String path) =>
+      path.startsWith('http://') || path.startsWith('https://');
 
-  bool _isHlsStream(String path) => path.contains('.m3u8') || path.contains('playlist.m3u8');
+  bool _isHlsStream(String path) =>
+      path.contains('.m3u8') || path.contains('playlist.m3u8');
 
   Track? get currentTrack => _pendingTrack ?? _currentTrack;
   List<Track> get queue => _queue;
@@ -77,17 +78,46 @@ class AudioProvider extends ChangeNotifier {
   ShuffleMode get shuffleMode => _shuffleMode;
   List<double> get equalizerBands => _equalizerBands;
   bool get equalizerEnabled => _equalizerEnabled;
+
+  void addTracksToQueue(List<Track> tracks) {
+    if (tracks.isEmpty) return;
+
+    for (final track in tracks) {
+      final exists = _queue.any((t) => t.id == track.id);
+      if (!exists) {
+        _queue.add(track);
+      }
+    }
+
+    debugPrint(
+        '[Audio] Added ${tracks.length} tracks to queue. Queue size: ${_queue.length}');
+    notifyListeners();
+  }
+
+  void clearQueueAfterCurrent() {
+    if (_queue.isEmpty || _currentIndex < 0) return;
+
+    final current = _queue[_currentIndex];
+    _queue = [current];
+    _currentIndex = 0;
+    debugPrint('[Audio] Cleared queue after current track');
+    notifyListeners();
+  }
+
   double get bassBoost => _bassBoost;
   double get trebleBoost => _trebleBoost;
   double get reverbLevel => _reverbLevel;
   double get tempoControl => _tempoControl;
   double get masterVolume => _masterVolume;
-  List<Map<String, dynamic>> get streamHistory => List.unmodifiable(_streamHistory);
-  List<StreamHistoryEntry> get streamHistoryEntries =>
-      _streamHistory.map(StreamHistoryEntry.fromPersistedMap).toList(growable: false);
-  List<StreamHistoryEntry> get youtubeStreamHistoryEntries => streamHistoryEntries
-      .where((entry) => entry.isYouTube)
+  List<Map<String, dynamic>> get streamHistory =>
+      List.unmodifiable(_streamHistory);
+  List<StreamHistoryEntry> get streamHistoryEntries => _streamHistory
+      .map(StreamHistoryEntry.fromPersistedMap)
       .toList(growable: false);
+  List<StreamHistoryEntry> get youtubeStreamHistoryEntries =>
+      streamHistoryEntries
+          .where((entry) => entry.isYouTube)
+          .toList(growable: false);
 
   AudioProvider({SettingsProvider? settingsProvider}) {
     _settingsProvider = settingsProvider;
@@ -95,7 +125,7 @@ class AudioProvider extends ChangeNotifier {
     _loadRecentTracks();
     _loadStreamHistory();
   }
-  
+
   void updateSettings(SettingsProvider settings) {
     _settingsProvider = settings;
   }
@@ -116,7 +146,8 @@ class AudioProvider extends ChangeNotifier {
     if (_queueBeforePending != null) {
       _queue = List<Track>.from(_queueBeforePending!);
       if (_queue.isNotEmpty) {
-        final restoredIndex = (_indexBeforePending ?? 0).clamp(0, _queue.length - 1);
+        final restoredIndex =
+            (_indexBeforePending ?? 0).clamp(0, _queue.length - 1);
         _currentIndex = restoredIndex;
         _currentTrack = _queue[_currentIndex];
       } else {
@@ -197,7 +228,8 @@ class AudioProvider extends ChangeNotifier {
     final stored = prefs.getString(_streamHistoryKey);
     if (stored != null) {
       final data = jsonDecode(stored) as List<dynamic>;
-      _streamHistory = data.map((item) => Map<String, dynamic>.from(item as Map)).toList();
+      _streamHistory =
+          data.map((item) => Map<String, dynamic>.from(item as Map)).toList();
       notifyListeners();
     }
   }
@@ -256,14 +288,15 @@ class AudioProvider extends ChangeNotifier {
   List<Track> getRecentlyPlayedTracks(LibraryProvider library) {
     final tracks = <Track>[];
     for (final id in _recentTrackIds) {
-      final track = library.allTracks.firstWhere((track) => track.id == id, orElse: () => Track(
-        id: '',
-        title: '',
-        artist: '',
-        album: '',
-        path: '',
-        duration: Duration.zero,
-      ));
+      final track = library.allTracks.firstWhere((track) => track.id == id,
+          orElse: () => Track(
+                id: '',
+                title: '',
+                artist: '',
+                album: '',
+                path: '',
+                duration: Duration.zero,
+              ));
       if (track.id.isNotEmpty) {
         tracks.add(track);
       }
@@ -273,17 +306,17 @@ class AudioProvider extends ChangeNotifier {
 
   Future<void> _initializeAudioService() async {
     if (_audioPlayer != null) return;
-    
+
     await audio_svc.AudioPlayerService.initialize();
-    
+
     final handler = audio_svc.AudioPlayerService.audioHandler;
     if (handler is audio_svc.AudioPlayerHandler) {
       _audioHandler = handler;
       _audioPlayer = handler.player;
-      
+
       handler.onSkipNext = skipNext;
       handler.onSkipPrevious = skipPrevious;
-      
+
       _initializePlayer();
     } else {
       _audioPlayer = AudioPlayer();
@@ -294,7 +327,9 @@ class AudioProvider extends ChangeNotifier {
   void _initializePlayer() {
     audioPlayer.positionStream.listen((position) {
       _position = position;
-      if (_isLoadingTrack && _pendingTrack != null && position > Duration.zero) {
+      if (_isLoadingTrack &&
+          _pendingTrack != null &&
+          position > Duration.zero) {
         _isLoadingTrack = false;
         _pendingTrack = null;
       }
@@ -375,8 +410,11 @@ class AudioProvider extends ChangeNotifier {
   }
 
   Future<void> playTrack(Track track, {List<Track>? playlist}) async {
-    final bool alreadyPending = _pendingTrack != null && _pendingTrack!.id == track.id;
-    final bool wasPlaying = alreadyPending ? _isPlaying : preparePendingTrack(track, playlist: playlist);
+    final bool alreadyPending =
+        _pendingTrack != null && _pendingTrack!.id == track.id;
+    final bool wasPlaying = alreadyPending
+        ? _isPlaying
+        : preparePendingTrack(track, playlist: playlist);
     final bool shouldReuse = _pendingShouldUseExistingSource;
 
     if (!shouldReuse) {
@@ -426,12 +464,12 @@ class AudioProvider extends ChangeNotifier {
       if (_audioHandler != null) {
         await _audioHandler!.setTrackMediaItem(track);
       }
-      
+
       final enableGapless = _settingsProvider?.enableGapless ?? false;
       final enableCrossfade = _settingsProvider?.enableCrossfade ?? false;
       final crossfadeDuration = _settingsProvider?.crossfadeDuration ?? 3.0;
       final enableReplayGain = _settingsProvider?.enableReplayGain ?? false;
-      
+
       if (enableGapless && _queue.length > 1 && !_isRemotePath(track.path)) {
         await _setupGaplessPlayback();
       } else {
@@ -451,7 +489,7 @@ class AudioProvider extends ChangeNotifier {
           await audioPlayer.play();
         }
       }
-      
+
       _isPlaying = audioPlayer.playing;
       _currentTrack = track;
       _pendingTrack = null;
@@ -479,17 +517,17 @@ class AudioProvider extends ChangeNotifier {
       notifyListeners();
     }
   }
-  
+
   Future<void> _setupGaplessPlayback() async {
     _playlist = ConcatenatingAudioSource(
       children: _queue.map((track) {
         return _createAudioSource(track);
       }).toList(),
     );
-    
+
     await audioPlayer.setAudioSource(_playlist!, initialIndex: _currentIndex);
     await audioPlayer.play();
-    
+
     audioPlayer.currentIndexStream.listen((index) {
       if (index != null && index < _queue.length) {
         _currentIndex = index;
@@ -505,25 +543,25 @@ class AudioProvider extends ChangeNotifier {
       }
     });
   }
-  
+
   Future<void> _crossfadeToTrack(Track track, double duration) async {
     // fade out then in on the one player, real overlap needs two players
     final currentVolume = audioPlayer.volume;
-    
+
     for (int i = 10; i >= 0; i--) {
       await audioPlayer.setVolume(currentVolume * (i / 10));
       await Future.delayed(Duration(milliseconds: (duration * 100).toInt()));
     }
-    
+
     await _loadTrackIntoPlayer(track);
     await audioPlayer.play();
-    
+
     for (int i = 0; i <= 10; i++) {
       await audioPlayer.setVolume(currentVolume * (i / 10));
       await Future.delayed(Duration(milliseconds: (duration * 100).toInt()));
     }
   }
-  
+
   bool _playlistIsMatchingQueue() {
     if (_playlist == null) return false;
     final children = _playlist!.children;
@@ -693,7 +731,7 @@ class AudioProvider extends ChangeNotifier {
 
   Future<void> _loadEqualizerBands() async {
     try {
-      final freqs = await CustomEqualizer.getCenterBandFreqs();
+      await CustomEqualizer.getCenterBandFreqs();
       _equalizerBands = List.filled(10, 0.0);
     } catch (e) {
       _equalizerBands = List.filled(10, 0.0);
@@ -706,8 +744,10 @@ class AudioProvider extends ChangeNotifier {
       _equalizerBands[index] = value;
       if (_equalizerEnabled) {
         try {
-          await CustomEqualizer.setBandLevel(index, (value * 100).toInt());
+          final millibels = (value * 125).toInt();
+          await CustomEqualizer.setBandLevel(index, millibels);
         } catch (e) {
+          debugPrint('Error setting equalizer band $index: $e');
         }
       }
       notifyListeners();
@@ -718,8 +758,7 @@ class AudioProvider extends ChangeNotifier {
     _equalizerEnabled = enabled;
     try {
       await CustomEqualizer.enableEffects(enabled);
-    } catch (e) {
-    }
+    } catch (e) {}
     notifyListeners();
   }
 
@@ -730,18 +769,35 @@ class AudioProvider extends ChangeNotifier {
         try {
           await CustomEqualizer.setBandLevel(i, 0);
         } catch (e) {
+          debugPrint('Error resetting equalizer band $i: $e');
         }
       }
     }
     notifyListeners();
   }
 
+  Future<void> applyEqualizerPreset(String presetName) async {
+    if (!_equalizerEnabled) return;
+
+    try {
+      await CustomEqualizer.setPreset(presetName);
+      final presetValues = await CustomEqualizer.getPresetBandLevels();
+      if (presetValues.isNotEmpty) {
+        _equalizerBands = presetValues.map((millibelValue) {
+          return (millibelValue / 125.0).clamp(-12.0, 12.0);
+        }).toList();
+      }
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error applying preset $presetName: $e');
+    }
+  }
+
   void setBassBoost(double value) async {
     _bassBoost = value;
     try {
-      await CustomEqualizer.setBassBoost((value * 1000).toInt()); 
-    } catch (e) {
-    }
+      await CustomEqualizer.setBassBoost((value * 1000).toInt());
+    } catch (e) {}
     notifyListeners();
   }
 
@@ -750,8 +806,7 @@ class AudioProvider extends ChangeNotifier {
     _trebleBoost = value;
     try {
       await CustomEqualizer.setVirtualizer((value * 1000).toInt());
-    } catch (e) {
-    }
+    } catch (e) {}
     notifyListeners();
   }
 
