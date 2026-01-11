@@ -269,10 +269,20 @@ class _StreamScreenState extends State<StreamScreen>
     final selectedFormat =
         streamingData.bestStream ?? streamingData.fallbackStream;
     if (selectedFormat == null) {
+      print('[stream_screen] No audio format found!');
+      print(
+          '[stream_screen] Primary streams: ${streamingData.primaryStreams.length}');
+      print(
+          '[stream_screen] Fallback streams: ${streamingData.fallbackStreams.length}');
       audioProvider.cancelPendingTrack();
       _showSnackBar('Audio stream unavailable.');
       return;
     }
+
+    print(
+        '[stream_screen] Selected format: itag=${selectedFormat.itag}, bitrate=${selectedFormat.bitrateKbps}kbps, type=${selectedFormat.type}');
+    print(
+        '[stream_screen] Audio URL: ${selectedFormat.url.substring(0, selectedFormat.url.length > 150 ? 150 : selectedFormat.url.length)}...');
 
     Uint8List? albumArt;
     final thumbUrl =
@@ -300,7 +310,11 @@ class _StreamScreenState extends State<StreamScreen>
       sourceUrl: placeholderTrack.sourceUrl,
     );
 
+    print(
+        '[stream_screen] Final track path: ${finalTrack.path.substring(0, finalTrack.path.length > 100 ? 100 : finalTrack.path.length)}...');
+    print('[stream_screen] Calling audioProvider.playTrack()');
     await audioProvider.playTrack(finalTrack);
+    print('[stream_screen] audioProvider.playTrack() completed');
   }
 
   void _showSnackBar(String message) {
@@ -744,72 +758,146 @@ class _StreamScreenState extends State<StreamScreen>
       baseColor: colorScheme.surfaceContainerHighest.withOpacity(0.4),
       highlightColor: colorScheme.surfaceContainerHighest.withOpacity(0.7),
       child: ListView(
-        padding: const EdgeInsets.symmetric(horizontal: 8),
+        padding: const EdgeInsets.only(bottom: 120, top: 16),
         children: [
-          // Quick Picks section
           Container(
-            height: 32,
-            width: 140,
-            margin: const EdgeInsets.only(bottom: 16),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(28),
+              color: colorScheme.surface,
+            ),
+            padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 50,
+                      height: 50,
+                      decoration: BoxDecoration(
+                        color: colorScheme.surfaceContainerHighest,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Container(
+                        height: 28,
+                        decoration: BoxDecoration(
+                          color: colorScheme.surfaceContainerHighest,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  height: 16,
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: colorScheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  height: 16,
+                  width: 200,
+                  decoration: BoxDecoration(
+                    color: colorScheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: List.generate(
+                    3,
+                    (index) => Container(
+                      height: 38,
+                      width: 110,
+                      decoration: BoxDecoration(
+                        color: colorScheme.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          Container(
+            height: 28,
+            width: 160,
+            margin: const EdgeInsets.only(bottom: 8),
             decoration: BoxDecoration(
               color: colorScheme.surface,
               borderRadius: BorderRadius.circular(8),
             ),
           ),
 
-          // Horizontal carousel cards
+          // Horizontal carousel cards with modern design
           SizedBox(
             height: 240,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               itemCount: 6,
-              separatorBuilder: (_, __) => const SizedBox(width: 0),
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              separatorBuilder: (_, __) => const SizedBox(width: 18),
               itemBuilder: (context, index) {
                 return Container(
                   width: 150,
-                  margin: const EdgeInsets.only(bottom: 8),
+                  decoration: BoxDecoration(
+                    color: colorScheme.surface,
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: colorScheme.shadow.withOpacity(0.08),
+                        blurRadius: 14,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
+                  ),
+                  padding: const EdgeInsets.all(12),
                   child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Container(
-                        width: 120,
-                        height: 120,
+                        height: 126,
                         decoration: BoxDecoration(
-                          color: colorScheme.surface,
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: [
-                            BoxShadow(
-                              color: colorScheme.shadow.withOpacity(0.1),
-                              blurRadius: 8,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
+                          color: colorScheme.surfaceContainerHighest,
+                          borderRadius: BorderRadius.circular(16),
                         ),
                       ),
-                      const SizedBox(height: 8),
-
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 20),
-                        child: Column(
-                          children: [
-                            Container(
-                              height: 14,
-                              width: double.infinity,
-                              decoration: BoxDecoration(
-                                color: colorScheme.surface,
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Container(
-                              height: 12,
-                              width: 80,
-                              decoration: BoxDecoration(
-                                color: colorScheme.surface,
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                            ),
-                          ],
+                      const SizedBox(height: 10),
+                      Container(
+                        height: 14,
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          color: colorScheme.surfaceContainerHighest,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Container(
+                        height: 14,
+                        width: 100,
+                        decoration: BoxDecoration(
+                          color: colorScheme.surfaceContainerHighest,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Container(
+                        height: 12,
+                        width: 80,
+                        decoration: BoxDecoration(
+                          color: colorScheme.surfaceContainerHighest,
+                          borderRadius: BorderRadius.circular(4),
                         ),
                       ),
                     ],
@@ -818,96 +906,99 @@ class _StreamScreenState extends State<StreamScreen>
               },
             ),
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 20),
 
-          // Language sections
+          // More sections
           ...List.generate(
-              3,
-              (sectionIndex) => Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        height: 28,
-                        width: 120,
-                        margin: const EdgeInsets.only(bottom: 12),
+            3,
+            (sectionIndex) => Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  height: 28,
+                  width: 140,
+                  margin: const EdgeInsets.only(bottom: 8),
+                  decoration: BoxDecoration(
+                    color: colorScheme.surface,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+
+                // Carousel
+                SizedBox(
+                  height: 240,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: 4,
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    separatorBuilder: (_, __) => const SizedBox(width: 18),
+                    itemBuilder: (context, index) {
+                      return Container(
+                        width: 150,
                         decoration: BoxDecoration(
                           color: colorScheme.surface,
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(
+                              color: colorScheme.shadow.withOpacity(0.08),
+                              blurRadius: 14,
+                              offset: const Offset(0, 6),
+                            ),
+                          ],
                         ),
-                      ),
-
-                      // Language carousel
-                      SizedBox(
-                        height: 240,
-                        child: ListView.separated(
-                          scrollDirection: Axis.horizontal,
-                          itemCount: 4,
-                          separatorBuilder: (_, __) => const SizedBox(width: 0),
-                          itemBuilder: (context, index) {
-                            return Container(
-                              width: 150,
-                              margin: const EdgeInsets.only(bottom: 8),
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Container(
-                                    width: 120,
-                                    height: 120,
-                                    decoration: BoxDecoration(
-                                      color: colorScheme.surface,
-                                      borderRadius: BorderRadius.circular(12),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: colorScheme.shadow
-                                              .withOpacity(0.1),
-                                          blurRadius: 8,
-                                          offset: const Offset(0, 4),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 20),
-                                    child: Column(
-                                      children: [
-                                        Container(
-                                          height: 14,
-                                          width: double.infinity,
-                                          decoration: BoxDecoration(
-                                            color: colorScheme.surface,
-                                            borderRadius:
-                                                BorderRadius.circular(4),
-                                          ),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Container(
-                                          height: 12,
-                                          width: 70,
-                                          decoration: BoxDecoration(
-                                            color: colorScheme.surface,
-                                            borderRadius:
-                                                BorderRadius.circular(4),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              height: 126,
+                              decoration: BoxDecoration(
+                                color: colorScheme.surfaceContainerHighest,
+                                borderRadius: BorderRadius.circular(16),
                               ),
-                            );
-                          },
+                            ),
+                            const SizedBox(height: 10),
+                            Container(
+                              height: 14,
+                              width: double.infinity,
+                              decoration: BoxDecoration(
+                                color: colorScheme.surfaceContainerHighest,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Container(
+                              height: 14,
+                              width: 100,
+                              decoration: BoxDecoration(
+                                color: colorScheme.surfaceContainerHighest,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Container(
+                              height: 12,
+                              width: 80,
+                              decoration: BoxDecoration(
+                                color: colorScheme.surfaceContainerHighest,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                      const SizedBox(height: 32),
-                    ],
-                  )),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 20),
+              ],
+            ),
+          ),
 
-          // Trending section
+          // Trending section header
           Container(
             height: 28,
-            width: 130,
+            width: 120,
             margin: const EdgeInsets.only(bottom: 12),
             decoration: BoxDecoration(
               color: colorScheme.surface,
@@ -915,67 +1006,73 @@ class _StreamScreenState extends State<StreamScreen>
             ),
           ),
 
-          // Trending list items
+          // Trending tiles
           ...List.generate(
-              6,
-              (index) => Container(
-                    height: 80,
-                    margin: const EdgeInsets.only(bottom: 12),
-                    padding: const EdgeInsets.all(12),
+            5,
+            (index) => Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: colorScheme.surface,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: colorScheme.shadow.withOpacity(0.06),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 68,
+                    height: 68,
                     decoration: BoxDecoration(
-                      color: colorScheme.surface,
+                      color: colorScheme.surfaceContainerHighest,
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: Row(
+                  ),
+                  const SizedBox(width: 12),
+                  // Text content
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Thumbnail
                         Container(
-                          width: 56,
-                          height: 56,
+                          height: 15,
+                          width: double.infinity,
                           decoration: BoxDecoration(
                             color: colorScheme.surfaceContainerHighest,
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(4),
                           ),
                         ),
-                        const SizedBox(width: 12),
-                        // Text content
-                        Expanded(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Container(
-                                height: 16,
-                                width: double.infinity,
-                                decoration: BoxDecoration(
-                                  color: colorScheme.surfaceContainerHighest,
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              Container(
-                                height: 14,
-                                width: 100,
-                                decoration: BoxDecoration(
-                                  color: colorScheme.surfaceContainerHighest,
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        // Play button
+                        const SizedBox(height: 8),
                         Container(
-                          width: 36,
-                          height: 36,
+                          height: 13,
+                          width: 120,
                           decoration: BoxDecoration(
                             color: colorScheme.surfaceContainerHighest,
-                            shape: BoxShape.circle,
+                            borderRadius: BorderRadius.circular(4),
                           ),
                         ),
                       ],
                     ),
-                  )),
+                  ),
+                  const SizedBox(width: 12),
+                  // Play button
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: colorScheme.surfaceContainerHighest,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );

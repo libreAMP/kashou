@@ -599,19 +599,26 @@ class AudioProvider extends ChangeNotifier {
 
   AudioSource _createAudioSource(Track track) {
     final path = track.path;
+    debugPrint('[Audio] Creating audio source for: ${track.title}');
+    debugPrint('[Audio] Path: $path');
     if (_isRemotePath(path)) {
       final uri = Uri.parse(path);
       if (_isHlsStream(path)) {
+        debugPrint('[Audio] Using HLS audio source');
         return HlsAudioSource(uri);
       }
+      debugPrint('[Audio] Using URI audio source');
       return AudioSource.uri(uri);
     }
+    debugPrint('[Audio] Using file audio source');
     return AudioSource.file(path);
   }
 
   Future<void> _loadTrackIntoPlayer(Track track) async {
+    debugPrint('[Audio] Loading track into player: ${track.title}');
     final source = _createAudioSource(track);
     await audioPlayer.setAudioSource(source);
+    debugPrint('[Audio] Audio source set successfully');
   }
 
   Future<void> togglePlayPause() async {

@@ -233,9 +233,12 @@ class YtdlWrapperService {
     final videoId = streamInfo.videoId as String;
     final title = streamInfo.title as String;
     final audioStreams = streamInfo.audioStreams as List<muzo.AudioStream>;
-    final videoStreams = streamInfo.videoStreams as List<muzo.VideoStream>;
 
     final primaryFormats = audioStreams.map((stream) {
+      print(
+          '[muzoapi] Audio stream: ${stream.itag}, ${stream.bitrate}bps, ${stream.mimeType}');
+      print(
+          '[muzoapi] Audio URL: ${stream.url.substring(0, stream.url.length > 100 ? 100 : stream.url.length)}...');
       return YouTubeStreamFormat(
         url: stream.url,
         itag: stream.itag.toString(),
@@ -250,20 +253,7 @@ class YtdlWrapperService {
       );
     }).toList();
 
-    final fallbackFormats = videoStreams.map((stream) {
-      return YouTubeStreamFormat(
-        url: stream.url,
-        itag: stream.itag.toString(),
-        bitrate: stream.bitrate,
-        mimeType: stream.mimeType,
-        codecLabel: stream.mimeType.split('/').last,
-        container: stream.mimeType.split('/').last,
-        type: YouTubeStreamType.progressive,
-        audioSampleRate: null,
-        approxLifetime: const Duration(hours: 6),
-        contentLength: stream.contentLength,
-      );
-    }).toList();
+    final fallbackFormats = <YouTubeStreamFormat>[];
 
     String? thumbnailUrl;
     if (videoMetadata != null) {
