@@ -170,7 +170,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                 child: Row(
                   children: [
                     if (_currentPage > 0)
-                      TextButton(
+                      TextButton.icon(
                         onPressed: () {
                           _pageController.previousPage(
                             duration: const Duration(milliseconds: 300),
@@ -179,8 +179,10 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                         },
                         style: TextButton.styleFrom(
                           foregroundColor: colorScheme.onSurfaceVariant,
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                         ),
-                        child: const Text('Back'),
+                        icon: const Icon(Icons.arrow_back_rounded, size: 20),
+                        label: const Text('Back'),
                       )
                     else
                       const SizedBox.shrink(),
@@ -188,7 +190,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                     const Spacer(),
 
                     if (_currentPage < _pages.length - 1)
-                      FilledButton(
+                      FilledButton.icon(
                         onPressed: () {
                           _pageController.nextPage(
                             duration: const Duration(milliseconds: 300),
@@ -198,18 +200,22 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                         style: FilledButton.styleFrom(
                           backgroundColor: colorScheme.primary,
                           foregroundColor: colorScheme.onPrimary,
+                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                         ),
-                        child: const Text('Next'),
+                        icon: const Text('Next'),
+                        label: const Icon(Icons.arrow_forward_rounded, size: 20),
                       )
                     else
-                      FilledButton(
+                      FilledButton.icon(
                         onPressed: _completeWelcome,
                         style: FilledButton.styleFrom(
                           backgroundColor: colorScheme.primary,
                           foregroundColor: colorScheme.onPrimary,
-                          minimumSize: const Size(120, 48),
+                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                          elevation: 2,
                         ),
-                        child: const Text('Get Started'),
+                        icon: const Text('Get Started'),
+                        label: const Icon(Icons.arrow_forward_rounded, size: 20),
                       ),
                   ],
                 ),
@@ -237,59 +243,135 @@ class _WelcomeScreenState extends State<WelcomeScreen>
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // Icon with background
-          Container(
-            width: 120,
-            height: 120,
-            decoration: BoxDecoration(
-              color: accentColor.withOpacity(0.1),
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: accentColor.withOpacity(0.2),
-                width: 2,
-              ),
-            ),
-            child: Icon(
-              icon,
-              size: 60,
-              color: accentColor,
-            ),
+          // Icon with gradient background and shadow
+          TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0.0, end: 1.0),
+            duration: const Duration(milliseconds: 600),
+            curve: Curves.easeOutBack,
+            builder: (context, value, child) {
+              return Transform.scale(
+                scale: value,
+                child: Container(
+                  width: 140,
+                  height: 140,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        accentColor.withOpacity(0.2),
+                        accentColor.withOpacity(0.05),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: accentColor.withOpacity(0.3),
+                      width: 2,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: accentColor.withOpacity(0.3),
+                        blurRadius: 20,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  child: Icon(
+                    icon,
+                    size: 70,
+                    color: accentColor,
+                  ),
+                ),
+              );
+            },
           ),
 
-          const SizedBox(height: 48),
+          const SizedBox(height: 56),
 
-          // Title
-          Text(
-            title,
-            style: theme.textTheme.headlineMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: colorScheme.onSurface,
+          // Title with slide animation
+          TweenAnimationBuilder<Offset>(
+            tween: Tween(begin: const Offset(0, 0.3), end: Offset.zero),
+            duration: const Duration(milliseconds: 500),
+            curve: Curves.easeOut,
+            builder: (context, value, child) {
+              return Transform.translate(
+                offset: value * 50,
+                child: Opacity(
+                  opacity: (1 - value.dy / 0.3).clamp(0.0, 1.0),
+                  child: child,
+                ),
+              );
+            },
+            child: Text(
+              title,
+              style: theme.textTheme.headlineLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: colorScheme.onSurface,
+                letterSpacing: -0.5,
+              ),
+              textAlign: TextAlign.center,
             ),
-            textAlign: TextAlign.center,
           ),
 
           const SizedBox(height: 16),
 
-          // Subtitle
-          Text(
-            subtitle,
-            style: theme.textTheme.titleLarge?.copyWith(
-              color: colorScheme.primary,
-              fontWeight: FontWeight.w600,
+          // Subtitle with animation
+          TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0.0, end: 1.0),
+            duration: const Duration(milliseconds: 600),
+            curve: Curves.easeOut,
+            builder: (context, value, child) {
+              return Opacity(
+                opacity: value,
+                child: child,
+              );
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              decoration: BoxDecoration(
+                color: accentColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: accentColor.withOpacity(0.2),
+                  width: 1,
+                ),
+              ),
+              child: Text(
+                subtitle,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  color: accentColor,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.5,
+                ),
+                textAlign: TextAlign.center,
+              ),
             ),
-            textAlign: TextAlign.center,
           ),
 
-          const SizedBox(height: 24),
+          const SizedBox(height: 32),
 
-          // Description
-          Text(
-            description,
-            style: theme.textTheme.bodyLarge?.copyWith(
-              color: colorScheme.onSurfaceVariant,
-              height: 1.6,
+          // Description with fade animation
+          TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0.0, end: 1.0),
+            duration: const Duration(milliseconds: 700),
+            curve: Curves.easeOut,
+            builder: (context, value, child) {
+              return Opacity(
+                opacity: value,
+                child: child,
+              );
+            },
+            child: Text(
+              description,
+              style: theme.textTheme.bodyLarge?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+                height: 1.7,
+                fontSize: 16,
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 4,
+              overflow: TextOverflow.ellipsis,
             ),
-            textAlign: TextAlign.center,
           ),
         ],
       ),

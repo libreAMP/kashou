@@ -150,12 +150,12 @@ class RecommendationProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // Take last 5 songs from history
-      final lastFive = recentHistory.take(5).toList();
+      // Take last 8 songs from history
+      final lastEight = recentHistory.take(8).toList();
 
       final artists = <String>{};
 
-      for (final entry in lastFive) {
+      for (final entry in lastEight) {
         final artist = entry['artist'] as String?;
 
         if (artist != null && artist != 'Unknown' && artist.isNotEmpty) {
@@ -165,7 +165,7 @@ class RecommendationProvider extends ChangeNotifier {
 
       final List<Map<String, dynamic>> personalizedResults = [];
 
-      for (final artist in artists.take(2)) {
+      for (final artist in artists.take(3)) {
         try {
           final results = await _ytdl.search('$artist music', limit: 3);
           personalizedResults.addAll(results);
@@ -175,7 +175,7 @@ class RecommendationProvider extends ChangeNotifier {
       }
 
       if (artists.length >= 2) {
-        final mixQuery = '${artists.take(2).join(' ')} music mix';
+        final mixQuery = '${artists.take(3).join(' ')} music mix';
         try {
           final results = await _ytdl.search(mixQuery, limit: 5);
           personalizedResults.addAll(results);
@@ -191,7 +191,7 @@ class RecommendationProvider extends ChangeNotifier {
           .toList();
 
       debugPrint(
-          '[Recommendations] Generated ${_recommendations.length} personalized from ${lastFive.length} history tracks');
+          '[Recommendations] Generated ${_recommendations.length} personalized from ${lastEight.length} history tracks');
     } catch (e) {
       debugPrint('Error fetching personalized recommendations: $e');
       _recommendations = [];
