@@ -247,19 +247,36 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       isScrollControlled: true,
       useSafeArea: true,
       enableDrag: true,
+      isDismissible: true,
       backgroundColor: Colors.transparent,
       barrierColor: Colors.black.withOpacity(0.5),
+      transitionAnimationController: AnimationController(
+        vsync: Navigator.of(context),
+        duration: const Duration(milliseconds: 350),
+        reverseDuration: const Duration(milliseconds: 300),
+      ),
+      clipBehavior: Clip.none,
       builder: (sheetContext) {
         final mediaQuery = MediaQuery.of(sheetContext);
         final topInset = mediaQuery.viewPadding.top;
-        return AnimatedPadding(
-          duration: const Duration(milliseconds: 220),
-          curve: Curves.easeOutCubic,
-          padding: EdgeInsets.only(
-            top: topInset,
-            bottom: mediaQuery.viewInsets.bottom,
-          ),
-          child: const NowPlayingScreen(),
+        return DraggableScrollableSheet(
+          initialChildSize: 1.0,
+          minChildSize: 0.0,
+          maxChildSize: 1.0,
+          snap: true,
+          snapSizes: const [1.0],
+          expand: false,
+          builder: (context, scrollController) {
+            return AnimatedPadding(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOutCubic,
+              padding: EdgeInsets.only(
+                top: topInset,
+                bottom: mediaQuery.viewInsets.bottom,
+              ),
+              child: const NowPlayingScreen(),
+            );
+          },
         );
       },
     ).whenComplete(() {

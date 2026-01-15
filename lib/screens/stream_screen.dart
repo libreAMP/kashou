@@ -331,17 +331,42 @@ class _StreamScreenState extends State<StreamScreen>
       height: height,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: colorScheme.outline.withValues(alpha: 0.08)),
+        color: colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: colorScheme.shadow.withOpacity(0.02),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Text(
-        message,
-        style: theme.textTheme.bodyMedium?.copyWith(
-          color: colorScheme.onSurfaceVariant,
-        ),
-        textAlign: TextAlign.left,
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: colorScheme.surfaceContainerHighest.withOpacity(0.5),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
+              Icons.music_note_rounded,
+              size: 24,
+              color: colorScheme.onSurfaceVariant.withOpacity(0.5),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Text(
+              message,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: colorScheme.onSurfaceVariant.withOpacity(0.7),
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -350,36 +375,34 @@ class _StreamScreenState extends State<StreamScreen>
     final thumbnail = video['thumbnail'] as String?;
     final colorScheme = Theme.of(context).colorScheme;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 2),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        color: colorScheme.surfaceContainerLow,
+        boxShadow: [
+          BoxShadow(
+            color: colorScheme.shadow.withOpacity(0.03),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
           onTap: () => _playVideo(video),
-          splashColor:
-              colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-          highlightColor:
-              colorScheme.surfaceContainerHighest.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(14),
           child: Padding(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(12),
             child: Row(
               children: [
-                // Square thumbnail
-                Container(
-                  width: 75,
-                  height: 75,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: colorScheme.shadow.withValues(alpha: 0.1),
-                        blurRadius: 6,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: Container(
+                    width: 72,
+                    height: 72,
+                    color: colorScheme.surfaceContainerHighest,
                     child: Image.network(
                       thumbnail ??
                           'https://img.youtube.com/vi/${video['id']}/maxresdefault.jpg',
@@ -388,16 +411,15 @@ class _StreamScreenState extends State<StreamScreen>
                         alignment: Alignment.center,
                         color: colorScheme.surfaceContainerHighest,
                         child: Icon(
-                          Icons.music_note,
-                          color: colorScheme.onSurfaceVariant,
-                          size: 24,
+                          Icons.music_note_rounded,
+                          size: 32,
+                          color: colorScheme.onSurfaceVariant.withOpacity(0.4),
                         ),
                       ),
                     ),
                   ),
                 ),
-                const SizedBox(width: 10),
-                // Song info
+                const SizedBox(width: 14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -405,10 +427,10 @@ class _StreamScreenState extends State<StreamScreen>
                     children: [
                       Text(
                         video['title'] ?? 'Unknown',
-                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                               color: colorScheme.onSurface,
                               fontWeight: FontWeight.w600,
-                              height: 1.2,
+                              height: 1.3,
                             ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
@@ -417,9 +439,9 @@ class _StreamScreenState extends State<StreamScreen>
                       Text(
                         video['channel'] ?? 'Unknown',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: colorScheme.onSurfaceVariant,
-                              fontSize: 12,
-                              height: 1.3,
+                              color:
+                                  colorScheme.onSurfaceVariant.withOpacity(0.7),
+                              fontSize: 13,
                             ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -427,33 +449,25 @@ class _StreamScreenState extends State<StreamScreen>
                     ],
                   ),
                 ),
-                SizedBox(
-                  width: 48,
-                  child: Align(
-                    alignment: Alignment.centerRight,
-                    child: Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: colorScheme.surfaceContainerHighest
-                            .withValues(alpha: 0.8),
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: colorScheme.outline.withValues(alpha: 0.2),
-                          width: 1,
-                        ),
+                const SizedBox(width: 12),
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: colorScheme.primaryContainer,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: colorScheme.primary.withOpacity(0.15),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
                       ),
-                      child: IconButton(
-                        icon: Icon(
-                          Icons.play_arrow_rounded,
-                          color: colorScheme.primary,
-                          size: 20,
-                        ),
-                        onPressed: () => _playVideo(video),
-                        tooltip: 'Play',
-                        padding: EdgeInsets.zero,
-                      ),
-                    ),
+                    ],
+                  ),
+                  child: Icon(
+                    Icons.play_arrow_rounded,
+                    color: colorScheme.onPrimaryContainer,
+                    size: 24,
                   ),
                 ),
               ],
@@ -645,18 +659,47 @@ class _StreamScreenState extends State<StreamScreen>
     final showingSearch = _currentQuery.isNotEmpty;
     if (showingSearch && _searchResults.isEmpty) {
       return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.music_off,
-                size: 48,
-                color: Theme.of(context).colorScheme.onSurfaceVariant),
-            const SizedBox(height: 16),
-            Text(
-              'No results found',
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-          ],
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceContainerLow,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.search_off_rounded,
+                  size: 64,
+                  color: Theme.of(context)
+                      .colorScheme
+                      .onSurfaceVariant
+                      .withOpacity(0.4),
+                ),
+              ),
+              const SizedBox(height: 24),
+              Text(
+                'No results found',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Try searching with different keywords',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context)
+                          .colorScheme
+                          .onSurfaceVariant
+                          .withOpacity(0.7),
+                    ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
         ),
       );
     }
@@ -762,67 +805,43 @@ class _StreamScreenState extends State<StreamScreen>
         children: [
           Container(
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(28),
+              borderRadius: BorderRadius.circular(20),
               color: colorScheme.surface,
             ),
-            padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+            child: Row(
               children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 50,
-                      height: 50,
-                      decoration: BoxDecoration(
-                        color: colorScheme.surfaceContainerHighest,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Container(
-                        height: 28,
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: colorScheme.surfaceContainerHighest,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        height: 18,
+                        width: 140,
                         decoration: BoxDecoration(
                           color: colorScheme.surfaceContainerHighest,
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.circular(4),
                         ),
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Container(
-                  height: 16,
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: colorScheme.surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Container(
-                  height: 16,
-                  width: 200,
-                  decoration: BoxDecoration(
-                    color: colorScheme.surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  children: List.generate(
-                    3,
-                    (index) => Container(
-                      height: 38,
-                      width: 110,
-                      decoration: BoxDecoration(
-                        color: colorScheme.surfaceContainerHighest,
-                        borderRadius: BorderRadius.circular(20),
+                      const SizedBox(height: 6),
+                      Container(
+                        height: 14,
+                        width: 200,
+                        decoration: BoxDecoration(
+                          color: colorScheme.surfaceContainerHighest,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
                       ),
-                    ),
+                    ],
                   ),
                 ),
               ],
@@ -1131,79 +1150,105 @@ class _StreamScreenState extends State<StreamScreen>
                   child: InkWell(
                     onTap: () => _playVideo(item),
                     splashColor:
-                        colorScheme.primaryContainer.withValues(alpha: 0.18),
+                        colorScheme.primaryContainer.withValues(alpha: 0.12),
                     highlightColor:
-                        colorScheme.primaryContainer.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(20),
+                        colorScheme.primaryContainer.withValues(alpha: 0.06),
+                    borderRadius: BorderRadius.circular(12),
                     child: Container(
                       decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: colorScheme.outline.withValues(alpha: 0.12),
-                        ),
-                        gradient: LinearGradient(
-                          colors: [
-                            colorScheme.surfaceContainerHigh,
-                            colorScheme.surface,
-                          ],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
+                        borderRadius: BorderRadius.circular(12),
+                        color: colorScheme.surfaceContainerLow,
                         boxShadow: [
                           BoxShadow(
-                            color: colorScheme.shadow.withOpacity(0.08),
-                            blurRadius: 14,
-                            offset: const Offset(0, 6),
+                            color: colorScheme.shadow.withOpacity(0.04),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
                           ),
                         ],
                       ),
-                      padding: const EdgeInsets.all(12),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(16),
-                            child: SizedBox(
-                              width: imageSize,
-                              height: imageSize,
-                              child: FittedBox(
-                                fit: BoxFit.cover,
-                                child: Image.network(
-                                  thumbnail ??
-                                      'https://img.youtube.com/vi/${item['id']}/maxresdefault.jpg',
-                                  errorBuilder: (context, error, stackTrace) =>
-                                      Container(
-                                    alignment: Alignment.center,
-                                    color: colorScheme.surfaceContainerHighest,
-                                    child: Icon(
-                                      Icons.music_note,
-                                      color: colorScheme.onSurfaceVariant
-                                          .withOpacity(0.6),
+                          // Album art with overlay gradient
+                          Stack(
+                            children: [
+                              ClipRRect(
+                                borderRadius: const BorderRadius.vertical(
+                                  top: Radius.circular(12),
+                                ),
+                                child: SizedBox(
+                                  width: cardWidth,
+                                  height: imageSize,
+                                  child: Image.network(
+                                    thumbnail ??
+                                        'https://img.youtube.com/vi/${item['id']}/maxresdefault.jpg',
+                                    fit: BoxFit.cover,
+                                    errorBuilder:
+                                        (context, error, stackTrace) =>
+                                            Container(
+                                      alignment: Alignment.center,
+                                      color:
+                                          colorScheme.surfaceContainerHighest,
+                                      child: Icon(
+                                        Icons.music_note_rounded,
+                                        size: 48,
+                                        color: colorScheme.onSurfaceVariant
+                                            .withOpacity(0.3),
+                                      ),
                                     ),
                                   ),
                                 ),
                               ),
-                            ),
+                              // Subtle shadow overlay at bottom for text readability
+                              Positioned(
+                                bottom: 0,
+                                left: 0,
+                                right: 0,
+                                child: Container(
+                                  height: 40,
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      begin: Alignment.topCenter,
+                                      end: Alignment.bottomCenter,
+                                      colors: [
+                                        Colors.transparent,
+                                        Colors.black.withOpacity(0.02),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(height: 10),
-                          Text(
-                            title,
-                            style: theme.textTheme.titleSmall?.copyWith(
-                              fontWeight: FontWeight.w700,
-                              color: colorScheme.onSurface,
+                          // Text content
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(12, 12, 12, 14),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  title,
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                    color: colorScheme.onSurface,
+                                    height: 1.3,
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  channel,
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: colorScheme.onSurfaceVariant
+                                        .withOpacity(0.7),
+                                    fontSize: 12,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
                             ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          Text(
-                            channel,
-                            style: theme.textTheme.labelSmall?.copyWith(
-                              height: 1.1,
-                              color:
-                                  colorScheme.onSurfaceVariant.withOpacity(0.8),
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
                           ),
                         ],
                       ),
@@ -1230,63 +1275,53 @@ class _StreamScreenState extends State<StreamScreen>
 
     return Container(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(20),
         gradient: LinearGradient(
           colors: [
-            colorScheme.primary.withValues(alpha: 0.16),
-            colorScheme.primaryContainer.withValues(alpha: 0.34),
+            colorScheme.primary.withValues(alpha: 0.12),
+            colorScheme.primaryContainer.withValues(alpha: 0.24),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        border: Border.all(color: colorScheme.primary.withValues(alpha: 0.22)),
+        border: Border.all(color: colorScheme.primary.withValues(alpha: 0.18)),
       ),
-      padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+      child: Row(
         children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: colorScheme.primary,
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  Icons.explore,
-                  color: colorScheme.onPrimary,
-                  size: 26,
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Text(
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: colorScheme.primary,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.explore,
+              color: colorScheme.onPrimary,
+              size: 22,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
                   'Discover something new',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w700,
                         color: colorScheme.onSurface,
                       ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Curated picks, fresh tracks, and playlists tailored for every moment.',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
+                const SizedBox(height: 4),
+                Text(
+                  'Fresh tracks & playlists for you',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant.withOpacity(0.8),
+                      ),
                 ),
-          ),
-          const SizedBox(height: 20),
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: [
-              _buildHeroChip(context, Icons.flash_on, 'Trending hits'),
-              _buildHeroChip(context, Icons.playlist_play, 'Mood playlists'),
-              _buildHeroChip(context, Icons.public, 'Global picks'),
-            ],
+              ],
+            ),
           ),
         ],
       ),
@@ -1351,7 +1386,7 @@ class _StreamScreenState extends State<StreamScreen>
                   },
                 )
               : null,
-          hintText: 'Search YouTube music…',
+          hintText: 'Search YouTube…',
           hintStyle: theme.textTheme.bodyMedium?.copyWith(
             color: colorScheme.onSurfaceVariant.withOpacity(0.8),
           ),
@@ -1469,25 +1504,28 @@ class _StreamScreenState extends State<StreamScreen>
         onTap: () => _playVideo(item),
         borderRadius: BorderRadius.circular(12),
         child: Container(
-          height: 120,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: colorScheme.outline.withValues(alpha: 0.12),
-            ),
-            color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+            color: colorScheme.surfaceContainerLow,
+            boxShadow: [
+              BoxShadow(
+                color: colorScheme.shadow.withOpacity(0.03),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
           child: Row(
             children: [
-              // Thumbnail
               ClipRRect(
                 borderRadius: const BorderRadius.only(
                   topLeft: Radius.circular(12),
                   bottomLeft: Radius.circular(12),
                 ),
                 child: Container(
-                  width: 65,
-                  height: 65,
+                  width: 68,
+                  height: 72,
+                  color: colorScheme.surfaceContainerHighest,
                   child: Image.network(
                     thumbnail ??
                         'https://img.youtube.com/vi/${item['id']}/default.jpg',
@@ -1495,19 +1533,18 @@ class _StreamScreenState extends State<StreamScreen>
                     errorBuilder: (context, error, stackTrace) => Container(
                       color: colorScheme.surfaceContainerHighest,
                       child: Icon(
-                        Icons.music_note,
-                        color: colorScheme.onSurfaceVariant,
-                        size: 20,
+                        Icons.music_note_rounded,
+                        color: colorScheme.onSurfaceVariant.withOpacity(0.4),
+                        size: 28,
                       ),
                     ),
                   ),
                 ),
               ),
-
-              // Title and artist
               Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.all(8.0),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -1517,15 +1554,16 @@ class _StreamScreenState extends State<StreamScreen>
                         style: theme.textTheme.bodySmall?.copyWith(
                           fontWeight: FontWeight.w600,
                           fontSize: 13,
+                          height: 1.3,
                         ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 2),
+                      const SizedBox(height: 3),
                       Text(
                         channel,
                         style: theme.textTheme.bodySmall?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
+                          color: colorScheme.onSurfaceVariant.withOpacity(0.7),
                           fontSize: 11,
                         ),
                         maxLines: 1,

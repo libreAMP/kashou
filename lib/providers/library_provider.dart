@@ -15,12 +15,13 @@ class LibraryProvider extends ChangeNotifier {
   List<Artist> _artists = [];
   List<Playlist> _playlists = [];
 
-  Set<String> _favoriteTrackIds = {};
+  List<Track> _favoriteTracks = [];
 
   bool _isScanning = false;
   double _scanProgress = 0.0;
 
   static const _libraryCacheKey = 'library_cache_v1';
+  static const _favoriteTracksKey = 'favorite_tracks_v2';
 
   // Getters
   List<Track> get allTracks => _allTracks;
@@ -29,8 +30,8 @@ class LibraryProvider extends ChangeNotifier {
   List<Playlist> get playlists => _playlists;
   bool get isScanning => _isScanning;
   double get scanProgress => _scanProgress;
-  Set<String> get favoriteTrackIds => _favoriteTrackIds;
-  List<Track> get favoriteTracks => _allTracks.where((track) => _favoriteTrackIds.contains(track.id)).toList();
+  Set<String> get favoriteTrackIds => _favoriteTracks.map((t) => t.id).toSet();
+  List<Track> get favoriteTracks => _favoriteTracks;
 
   LibraryProvider() {
     _loadLibrary();
@@ -44,7 +45,8 @@ class LibraryProvider extends ChangeNotifier {
       if (cached != null && cached.isNotEmpty) {
         final List<dynamic> data = jsonDecode(cached) as List<dynamic>;
         _allTracks = data
-            .map((item) => Track.fromMap(Map<String, dynamic>.from(item as Map)))
+            .map(
+                (item) => Track.fromMap(Map<String, dynamic>.from(item as Map)))
             .toList();
         _rebuildCollections();
         _scanProgress = 1.0;
@@ -81,7 +83,8 @@ class LibraryProvider extends ChangeNotifier {
       final tracks = entry.value;
       final artistAlbums = <Album>{};
       for (final track in tracks) {
-        final albumTracks = tracks.where((t) => t.album == track.album).toList();
+        final albumTracks =
+            tracks.where((t) => t.album == track.album).toList();
         artistAlbums.add(Album(
           id: track.album,
           name: track.album,
@@ -103,7 +106,8 @@ class LibraryProvider extends ChangeNotifier {
   Future<void> _saveLibraryCache() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final payload = jsonEncode(_allTracks.map((track) => track.toMap()).toList());
+      final payload =
+          jsonEncode(_allTracks.map((track) => track.toMap()).toList());
       await prefs.setString(_libraryCacheKey, payload);
     } catch (e) {
       debugPrint('Error saving library cache: $e');
@@ -111,23 +115,50 @@ class LibraryProvider extends ChangeNotifier {
   }
 
   Future<void> _loadFavorites() async {
-    final prefs = await SharedPreferences.getInstance();
-    final storedFavorites = prefs.getStringList('favorite_tracks') ?? [];
-    _favoriteTrackIds = storedFavorites.toSet();
-    notifyListeners();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cached = prefs.getString(_favoriteTracksKey);
+      if (cached != null && cached.isNotEmpty) {
+        final List<dynamic> data = jsonDecode(cached) as List<dynamic>;
+        _favoriteTracks = data
+            .map(
+                (item) => Track.fromMap(Map<String, dynamic>.from(item as Map)))
+            .toList();
+        debugPrint('Loaded ${_favoriteTracks.length} favorite tracks');
+        notifyListeners();
+      } else {
+        debugPrint('No cached favorites found');
+      }
+    } catch (e) {
+      debugPrint('Error loading favorite tracks: $e');
+    }
   }
 
-  bool isTrackFavorite(String trackId) => _favoriteTrackIds.contains(trackId);
+  bool isTrackFavorite(String trackId) =>
+      _favoriteTracks.any((t) => t.id == trackId);
 
   Future<void> toggleFavorite(Track track) async {
-    final prefs = await SharedPreferences.getInstance();
-    if (_favoriteTrackIds.contains(track.id)) {
-      _favoriteTrackIds.remove(track.id);
-    } else {
-      _favoriteTrackIds.add(track.id);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final index = _favoriteTracks.indexWhere((t) => t.id == track.id);
+
+      if (index != -1) {
+        _favoriteTracks.removeAt(index);
+        debugPrint('Removed from favorites: ${track.title}');
+      } else {
+        _favoriteTracks.add(track);
+        debugPrint('Added to favorites: ${track.title}');
+      }
+
+      // Save to storage
+      final payload =
+          jsonEncode(_favoriteTracks.map((t) => t.toMap()).toList());
+      await prefs.setString(_favoriteTracksKey, payload);
+      debugPrint('Saved ${_favoriteTracks.length} favorites to storage');
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error toggling favorite: $e');
     }
-    await prefs.setStringList('favorite_tracks', _favoriteTrackIds.toList());
-    notifyListeners();
   }
 
   Future<void> scanLibrary({bool force = false}) async {

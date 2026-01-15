@@ -22,7 +22,7 @@ class _LibraryScreenState extends State<LibraryScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 5, vsync: this);
   }
 
   @override
@@ -74,6 +74,7 @@ class _LibraryScreenState extends State<LibraryScreen>
                         controller: _tabController,
                         isScrollable: true,
                         tabs: const [
+                          Tab(icon: Icon(Icons.favorite), text: 'Liked'),
                           Tab(icon: Icon(Icons.music_note), text: 'Songs'),
                           Tab(icon: Icon(Icons.album), text: 'Albums'),
                           Tab(icon: Icon(Icons.person), text: 'Artists'),
@@ -286,6 +287,7 @@ class _LibraryScreenState extends State<LibraryScreen>
                             child: TabBarView(
                               controller: _tabController,
                               children: [
+                                _buildLikedTab(library, bottomPadding),
                                 _buildSongsTab(library, bottomPadding),
                                 _buildAlbumsTab(library, bottomPadding),
                                 _buildArtistsTab(library, bottomPadding),
@@ -302,6 +304,144 @@ class _LibraryScreenState extends State<LibraryScreen>
             ],
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildLikedTab(LibraryProvider library, double bottomPadding) {
+    final favoriteTracks = library.favoriteTracks;
+
+    if (favoriteTracks.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceContainerLow,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.favorite_border,
+                  size: 64,
+                  color: Theme.of(context)
+                      .colorScheme
+                      .onSurfaceVariant
+                      .withOpacity(0.4),
+                ),
+              ),
+              const SizedBox(height: 24),
+              Text(
+                'No liked songs yet',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Tap the heart icon on songs you love',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context)
+                          .colorScheme
+                          .onSurfaceVariant
+                          .withOpacity(0.7),
+                    ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Separate local and online tracks
+    final localTracks = favoriteTracks.where((track) {
+      return !track.path.contains('youtube.com') &&
+          !track.path.contains('youtu.be') &&
+          track.album != 'YouTube';
+    }).toList();
+
+    final onlineTracks = favoriteTracks.where((track) {
+      return track.path.contains('youtube.com') ||
+          track.path.contains('youtu.be') ||
+          track.album == 'YouTube';
+    }).toList();
+
+    return ListView(
+      padding: EdgeInsets.fromLTRB(16, 16, 16, bottomPadding),
+      children: [
+        if (onlineTracks.isNotEmpty) ...[
+          _buildSectionHeader(
+            context,
+            icon: Icons.cloud_outlined,
+            title: 'Online Songs',
+            subtitle: '${onlineTracks.length} tracks',
+          ),
+          const SizedBox(height: 8),
+          ...onlineTracks.map((track) => TrackListItem(track: track)),
+          if (localTracks.isNotEmpty) const SizedBox(height: 24),
+        ],
+        if (localTracks.isNotEmpty) ...[
+          _buildSectionHeader(
+            context,
+            icon: Icons.phone_android,
+            title: 'Local Songs',
+            subtitle: '${localTracks.length} tracks',
+          ),
+          const SizedBox(height: 8),
+          ...localTracks.map((track) => TrackListItem(track: track)),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildSectionHeader(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String subtitle,
+  }) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primaryContainer.withOpacity(0.5),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(
+              icon,
+              size: 20,
+              color: theme.colorScheme.onPrimaryContainer,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: theme.colorScheme.onSurface,
+                ),
+              ),
+              Text(
+                subtitle,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

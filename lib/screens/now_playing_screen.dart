@@ -464,9 +464,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      body: Consumer2<AudioProvider, LibraryProvider>(
+    return Material(
+      color: Colors.transparent,
+      child: Consumer2<AudioProvider, LibraryProvider>(
         builder: (context, audio, library, child) {
           final track = audio.currentTrack;
 
@@ -482,67 +482,90 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
 
           return Container(
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  colorScheme.surface.withOpacity(0.9),
-                  colorScheme.surface,
-                ],
+              color: colorScheme.surface,
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(28),
               ),
             ),
+            clipBehavior: Clip.antiAlias,
             child: Stack(
               children: [
                 // Ambient background covering entire screen
                 Positioned.fill(child: _buildAmbientBackground(context, track)),
 
                 // Content overlay
-                SafeArea(
-                  top: true,
-                  bottom: false,
-                  child: Column(
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 12),
-                        child: _buildTopBar(context, track),
-                      ),
-                      Expanded(
-                        child: SingleChildScrollView(
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 20),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: [
-                                _buildArtworkCard(context, track, size),
-                                const SizedBox(height: 28),
-                                _buildTrackMeta(context, track, audio),
-                                const SizedBox(height: 28),
-                              ],
-                            ),
+                Column(
+                  children: [
+                    // Drag handle
+                    SafeArea(
+                      bottom: false,
+                      child: Center(
+                        child: Container(
+                          margin: const EdgeInsets.only(top: 8, bottom: 4),
+                          width: 40,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color:
+                                colorScheme.onSurfaceVariant.withOpacity(0.4),
+                            borderRadius: BorderRadius.circular(2),
                           ),
                         ),
                       ),
-                      SafeArea(
+                    ),
+                    Expanded(
+                      child: SafeArea(
                         top: false,
-                        minimum: const EdgeInsets.only(bottom: 12),
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              _buildProgressStrip(context, audio),
-                              const SizedBox(height: 18),
-                              _buildPrimaryControls(context, audio),
-                              const SizedBox(height: 34),
-                              _buildSecondaryControlRow(
-                                  context, audio, library),
-                            ],
-                          ),
+                        bottom: false,
+                        child: Column(
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 8),
+                              child: _buildTopBar(context, track),
+                            ),
+                            Expanded(
+                              child: SingleChildScrollView(
+                                physics: const BouncingScrollPhysics(),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 20),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.center,
+                                    children: [
+                                      _buildArtworkCard(context, track, size),
+                                      const SizedBox(height: 28),
+                                      _buildTrackMeta(context, track, audio),
+                                      const SizedBox(height: 28),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                            SafeArea(
+                              top: false,
+                              minimum: const EdgeInsets.only(bottom: 12),
+                              child: Padding(
+                                padding:
+                                    const EdgeInsets.fromLTRB(20, 16, 20, 12),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    _buildProgressStrip(context, audio),
+                                    const SizedBox(height: 18),
+                                    _buildPrimaryControls(context, audio),
+                                    const SizedBox(height: 34),
+                                    _buildSecondaryControlRow(
+                                        context, audio, library),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -616,25 +639,25 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
 
   Widget _buildArtworkCard(BuildContext context, Track track, Size size) {
     final colorScheme = Theme.of(context).colorScheme;
-    final dimension = size.width * 0.78;
-    final borderRadius = BorderRadius.circular(36);
+    final dimension = size.width * 0.85;
+    final borderRadius = BorderRadius.circular(24);
 
     Widget buildFallback() {
       return Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
             colors: [
               colorScheme.primaryContainer,
-              colorScheme.surface,
+              colorScheme.tertiaryContainer,
             ],
           ),
         ),
         child: Icon(
-          Icons.music_note,
-          size: 120,
-          color: colorScheme.onPrimaryContainer.withOpacity(0.35),
+          Icons.music_note_rounded,
+          size: 140,
+          color: colorScheme.onPrimaryContainer.withOpacity(0.4),
         ),
       );
     }
@@ -669,9 +692,15 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           borderRadius: borderRadius,
           boxShadow: [
             BoxShadow(
-              color: colorScheme.shadow.withOpacity(0.18),
-              blurRadius: 28,
+              color: colorScheme.primary.withOpacity(0.15),
+              blurRadius: 40,
+              spreadRadius: 8,
               offset: const Offset(0, 20),
+            ),
+            BoxShadow(
+              color: colorScheme.shadow.withOpacity(0.12),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
             ),
           ],
         ),
@@ -681,24 +710,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
             fit: StackFit.expand,
             children: [
               image,
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: 0,
-                height: dimension * 0.35,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.bottomCenter,
-                      end: Alignment.topCenter,
-                      colors: [
-                        Colors.black.withOpacity(0.35),
-                        Colors.transparent,
-                      ],
-                    ),
-                  ),
-                ),
-              ),
+              // Subtle gradient overlay removed for cleaner look
             ],
           ),
         ),
@@ -708,19 +720,93 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
 
   Widget _buildAmbientBackground(BuildContext context, Track track) {
     final colorScheme = Theme.of(context).colorScheme;
+    final String? youtubeThumbnailUrl = _buildYoutubeThumbnailUrl(track);
 
-    return Container(
+    Widget fallbackGradient = Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
           colors: [
-            colorScheme.primaryContainer,
+            colorScheme.primaryContainer.withOpacity(0.3),
             colorScheme.surface,
+            colorScheme.tertiaryContainer.withOpacity(0.2),
           ],
+          stops: const [0.0, 0.5, 1.0],
         ),
       ),
     );
+
+    if (youtubeThumbnailUrl != null) {
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          Image.network(
+            youtubeThumbnailUrl,
+            fit: BoxFit.cover,
+            loadingBuilder: (context, child, loadingProgress) {
+              // Show fallback gradient while loading
+              if (loadingProgress != null) {
+                return fallbackGradient;
+              }
+              // Once loaded, show blurred image
+              return Stack(
+                fit: StackFit.expand,
+                children: [
+                  child,
+                  BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 100, sigmaY: 100),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            colorScheme.surface.withOpacity(0.7),
+                            colorScheme.surface.withOpacity(0.85),
+                            colorScheme.surface.withOpacity(0.95),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            },
+            errorBuilder: (_, __, ___) => fallbackGradient,
+          ),
+        ],
+      );
+    } else if (track.albumArt != null) {
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          Image.memory(
+            track.albumArt!,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => fallbackGradient,
+          ),
+          BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 100, sigmaY: 100),
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    colorScheme.surface.withOpacity(0.7),
+                    colorScheme.surface.withOpacity(0.85),
+                    colorScheme.surface.withOpacity(0.95),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    return fallbackGradient;
   }
 
   Widget _buildTrackMeta(
@@ -735,24 +821,24 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           textAlign: TextAlign.center,
           style: theme.textTheme.headlineSmall?.copyWith(
             fontWeight: FontWeight.w700,
-            letterSpacing: 0.2,
-            fontSize: 20,
+            letterSpacing: -0.3,
+            fontSize: 22,
+            height: 1.2,
           ),
-          maxLines: 2,
+          maxLines: 3,
           overflow: TextOverflow.ellipsis,
-          softWrap: true,
         ),
-        const SizedBox(height: 2),
+        const SizedBox(height: 8),
         Text(
           track.artist,
           textAlign: TextAlign.center,
           style: theme.textTheme.titleMedium?.copyWith(
-            color: colorScheme.onSurfaceVariant,
+            color: colorScheme.onSurfaceVariant.withOpacity(0.9),
             fontWeight: FontWeight.w500,
+            fontSize: 16,
           ),
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
-          softWrap: true,
         ),
         const SizedBox(height: 6),
         Column(
@@ -898,31 +984,29 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       {required IconData icon, required VoidCallback onTap}) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    return Material(
-      color: Colors.transparent,
-      shape: const CircleBorder(),
-      child: InkWell(
-        customBorder: const CircleBorder(),
-        onTap: onTap,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: colorScheme.surfaceContainerHighest.withOpacity(0.9),
-            border:
-                Border.all(color: colorScheme.outlineVariant.withOpacity(0.5)),
-            boxShadow: [
-              BoxShadow(
-                color: colorScheme.shadow.withOpacity(0.05),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
+    return Container(
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: colorScheme.surfaceContainerHigh,
+        boxShadow: [
+          BoxShadow(
+            color: colorScheme.shadow.withOpacity(0.08),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        shape: const CircleBorder(),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onTap,
           child: Padding(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(16),
             child: Icon(
               icon,
-              size: 24,
+              size: 28,
               color: colorScheme.onSurface,
             ),
           ),
@@ -936,7 +1020,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     final isLoading = audio.isLoadingTrack;
     final isPlaying = audio.isPlaying;
 
-    final targetSize = 64.0;
+    final targetSize = 72.0;
 
     return Container(
       width: targetSize,
@@ -946,9 +1030,15 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
         shape: BoxShape.circle,
         boxShadow: [
           BoxShadow(
-            color: colorScheme.primary.withOpacity(0.22),
-            blurRadius: 18,
+            color: colorScheme.primary.withOpacity(0.4),
+            blurRadius: 24,
+            spreadRadius: 2,
             offset: const Offset(0, 8),
+          ),
+          BoxShadow(
+            color: colorScheme.primary.withOpacity(0.2),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -971,7 +1061,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                   )
                 : Icon(
                     isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                    size: 30,
+                    size: 36,
                     color: colorScheme.onPrimary,
                   ),
           ),
@@ -982,7 +1072,6 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
 
   Widget _buildSecondaryControlRow(
       BuildContext context, AudioProvider audio, LibraryProvider library) {
-    final colorScheme = Theme.of(context).colorScheme;
     final isShuffle = audio.shuffleMode != ShuffleMode.off;
     final isRepeatActive = audio.repeatMode != RepeatMode.off;
     final isFavorite = library.isTrackFavorite(audio.currentTrack?.id ?? '');
@@ -1091,22 +1180,37 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     final colorScheme = Theme.of(context).colorScheme;
 
     final backgroundColor = active
-        ? colorScheme.primary.withOpacity(0.15)
+        ? colorScheme.primaryContainer
         : colorScheme.surfaceContainerHigh;
     final iconColor =
         active ? colorScheme.primary : colorScheme.onSurfaceVariant;
 
     return Tooltip(
       message: tooltip,
-      child: Material(
-        color: backgroundColor,
-        shape: const CircleBorder(),
-        child: InkWell(
-          customBorder: const CircleBorder(),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Icon(icon, color: iconColor, size: 22),
+      child: Container(
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: backgroundColor,
+          boxShadow: active
+              ? [
+                  BoxShadow(
+                    color: colorScheme.primary.withOpacity(0.2),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
+        ),
+        child: Material(
+          color: Colors.transparent,
+          shape: const CircleBorder(),
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Icon(icon, color: iconColor, size: 24),
+            ),
           ),
         ),
       ),

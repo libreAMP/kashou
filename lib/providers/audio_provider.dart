@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:audio_session/audio_session.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/track.dart';
 import '../services/audio_service.dart' as audio_svc;
@@ -325,6 +326,8 @@ class AudioProvider extends ChangeNotifier {
   }
 
   void _initializePlayer() {
+    _configureAudioSession();
+
     audioPlayer.positionStream.listen((position) {
       _position = position;
       if (_isLoadingTrack &&
@@ -372,6 +375,30 @@ class AudioProvider extends ChangeNotifier {
       _masterVolume = volume;
       notifyListeners();
     });
+  }
+
+  Future<void> _configureAudioSession() async {
+    try {
+      final session = await AudioSession.instance;
+      await session.configure(const AudioSessionConfiguration(
+        avAudioSessionCategory: AVAudioSessionCategory.playback,
+        avAudioSessionCategoryOptions: AVAudioSessionCategoryOptions.duckOthers,
+        avAudioSessionMode: AVAudioSessionMode.defaultMode,
+        avAudioSessionRouteSharingPolicy:
+            AVAudioSessionRouteSharingPolicy.defaultPolicy,
+        avAudioSessionSetActiveOptions: AVAudioSessionSetActiveOptions.none,
+        androidAudioAttributes: AndroidAudioAttributes(
+          contentType: AndroidAudioContentType.music,
+          flags: AndroidAudioFlags.none,
+          usage: AndroidAudioUsage.media,
+        ),
+        androidAudioFocusGainType: AndroidAudioFocusGainType.gain,
+        androidWillPauseWhenDucked: true,
+      ));
+      debugPrint('[AudioProvider] Audio session configured successfully');
+    } catch (e) {
+      debugPrint('[AudioProvider] Failed to configure audio session: $e');
+    }
   }
 
   bool preparePendingTrack(Track track, {List<Track>? playlist}) {
