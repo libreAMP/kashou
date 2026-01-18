@@ -395,6 +395,37 @@ class AudioProvider extends ChangeNotifier {
         androidAudioFocusGainType: AndroidAudioFocusGainType.gain,
         androidWillPauseWhenDucked: true,
       ));
+
+      // Listen for interruptions (calls, other apps, Android Auto disconnect, etc.)
+      session.interruptionEventStream.listen((event) {
+        debugPrint(
+            '[AudioSession] Interruption event: ${event.type}, begin=${event.begin}');
+        if (event.begin) {
+          switch (event.type) {
+            case AudioInterruptionType.duck:
+              break;
+            case AudioInterruptionType.pause:
+            case AudioInterruptionType.unknown:
+              audioPlayer.pause();
+              break;
+          }
+        } else {
+          if (event.type != AudioInterruptionType.duck &&
+              _currentTrack != null &&
+              !audioPlayer.playing) {
+            debugPrint('[AudioSession] Resuming playback after interruption');
+            audioPlayer.play();
+          }
+        }
+      });
+
+      // Listen for "becoming noisy" events (headphones unplugged, BT disconnect)
+      session.becomingNoisyEventStream.listen((_) {
+        debugPrint(
+            '[AudioSession] Becoming noisy - pausing (headphones/BT disconnected)');
+        audioPlayer.pause();
+      });
+
       debugPrint('[AudioProvider] Audio session configured successfully');
     } catch (e) {
       debugPrint('[AudioProvider] Failed to configure audio session: $e');
