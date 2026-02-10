@@ -9,6 +9,8 @@ import 'providers/audio_provider.dart';
 import 'providers/theme_provider.dart';
 import 'providers/library_provider.dart';
 import 'providers/settings_provider.dart';
+import 'providers/recommendation_provider.dart';
+import 'services/youtube/youtube_service.dart';
 import 'screens/splash_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/library_screen.dart';
@@ -21,9 +23,11 @@ import 'widgets/mini_player.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  await YoutubeService.instance.initialize();
+
   const appId = GoogleCastDiscoveryCriteria.kDefaultApplicationId;
   GoogleCastOptions? options;
-  
+
   if (Platform.isIOS) {
     options = IOSGoogleCastOptions(
       GoogleCastDiscoveryCriteriaInitialize.initWithApplicationID(appId),
@@ -33,7 +37,7 @@ void main() async {
       appId: appId,
     );
   }
-  
+
   GoogleCastContext.instance.setSharedInstanceWithOptions(options!);
 
   SystemChrome.setSystemUIOverlayStyle(
@@ -57,7 +61,8 @@ class KashouApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => SettingsProvider()),
         ChangeNotifierProxyProvider<SettingsProvider, AudioProvider>(
           create: (context) => AudioProvider(
-            settingsProvider: Provider.of<SettingsProvider>(context, listen: false),
+            settingsProvider:
+                Provider.of<SettingsProvider>(context, listen: false),
           ),
           update: (context, settings, audio) {
             audio?.updateSettings(settings);
@@ -65,6 +70,7 @@ class KashouApp extends StatelessWidget {
           },
         ),
         ChangeNotifierProvider(create: (_) => LibraryProvider()),
+        ChangeNotifierProvider(create: (_) => RecommendationProvider()),
       ],
       child: Consumer2<ThemeProvider, SettingsProvider>(
         builder: (context, themeProvider, settingsProvider, child) {
@@ -92,9 +98,12 @@ class KashouApp extends StatelessWidget {
               TextTheme getTextTheme(ColorScheme colorScheme) {
                 try {
                   final fontFamily = settingsProvider.fontFamily;
-                  final baseTheme = ThemeData(colorScheme: colorScheme).textTheme;
-                  
+                  final baseTheme =
+                      ThemeData(colorScheme: colorScheme).textTheme;
+
                   switch (fontFamily) {
+                    case 'System':
+                      return baseTheme;
                     case 'DM Sans':
                       return GoogleFonts.dmSansTextTheme(baseTheme);
                     case 'Manrope':
@@ -184,7 +193,11 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _selectedIndex = 0;
   bool _showMiniPlayer = true;
 
-  static const List<Widget> _screens = [HomeScreen(), LibraryScreen(), StreamScreen()];
+  static const List<Widget> _screens = [
+    StreamScreen(),
+    HomeScreen(),
+    LibraryScreen()
+  ];
 
   @override
   void initState() {
@@ -234,19 +247,36 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       isScrollControlled: true,
       useSafeArea: true,
       enableDrag: true,
+      isDismissible: true,
       backgroundColor: Colors.transparent,
       barrierColor: Colors.black.withOpacity(0.5),
+      transitionAnimationController: AnimationController(
+        vsync: Navigator.of(context),
+        duration: const Duration(milliseconds: 350),
+        reverseDuration: const Duration(milliseconds: 300),
+      ),
+      clipBehavior: Clip.none,
       builder: (sheetContext) {
         final mediaQuery = MediaQuery.of(sheetContext);
         final topInset = mediaQuery.viewPadding.top;
-        return AnimatedPadding(
-          duration: const Duration(milliseconds: 220),
-          curve: Curves.easeOutCubic,
-          padding: EdgeInsets.only(
-            top: topInset,
-            bottom: mediaQuery.viewInsets.bottom,
-          ),
-          child: const NowPlayingScreen(),
+        return DraggableScrollableSheet(
+          initialChildSize: 1.0,
+          minChildSize: 0.0,
+          maxChildSize: 1.0,
+          snap: true,
+          snapSizes: const [1.0],
+          expand: false,
+          builder: (context, scrollController) {
+            return AnimatedPadding(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOutCubic,
+              padding: EdgeInsets.only(
+                top: topInset,
+                bottom: mediaQuery.viewInsets.bottom,
+              ),
+              child: const NowPlayingScreen(),
+            );
+          },
         );
       },
     ).whenComplete(() {
@@ -277,17 +307,19 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       bottomNavigationBar: NavigationBarTheme(
         data: NavigationBarThemeData(
           height: 72,
-          labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-          indicatorColor: colorScheme.secondaryContainer.withOpacity(0.9),
+          indicatorColor: Colors.transparent,
           iconTheme: MaterialStateProperty.resolveWith<IconThemeData>((states) {
             final onSurface = colorScheme.onSurfaceVariant;
             final onSelected = colorScheme.onSecondaryContainer;
             return IconThemeData(
-              color: states.contains(MaterialState.selected) ? onSelected : onSurface,
+              color: states.contains(MaterialState.selected)
+                  ? onSelected
+                  : onSurface,
               size: states.contains(MaterialState.selected) ? 26 : 24,
             );
           }),
-          labelTextStyle: MaterialStateProperty.resolveWith<TextStyle>((states) {
+          labelTextStyle:
+              MaterialStateProperty.resolveWith<TextStyle>((states) {
             final base = theme.textTheme.labelMedium;
             if (base == null) return const TextStyle();
             return states.contains(MaterialState.selected)
@@ -300,52 +332,58 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                   );
           }),
         ),
-        child: NavigationBar(
-          selectedIndex: _selectedIndex,
-          onDestinationSelected: _onItemTapped,
-          destinations: const [
-            NavigationDestination(
-              icon: Icon(Icons.home_outlined),
-              selectedIcon: Icon(Icons.home),
-              label: 'Home',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.library_music_outlined),
-              selectedIcon: Icon(Icons.library_music),
-              label: 'Library',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.cloud_outlined),
-              selectedIcon: Icon(Icons.cloud),
-              label: 'Stream',
-            ),
-          ],
+        child: Consumer2<AudioProvider, SettingsProvider>(
+          builder: (context, audioProvider, settings, child) {
+            final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
+            final route = ModalRoute.of(context);
+            final isModalOpen = route != null && !route.isFirst;
+            final hasPlayer =
+                audioProvider.currentTrack != null && _showMiniPlayer;
+
+            final navigationBar = NavigationBar(
+              selectedIndex: _selectedIndex,
+              onDestinationSelected: _onItemTapped,
+              labelBehavior: settings.minimalBottomBar
+                  ? NavigationDestinationLabelBehavior.onlyShowSelected
+                  : NavigationDestinationLabelBehavior.alwaysShow,
+              destinations: const [
+                NavigationDestination(
+                  icon: Icon(Icons.music_note_outlined),
+                  selectedIcon: Icon(Icons.music_note),
+                  label: 'Stream',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.folder_outlined),
+                  selectedIcon: Icon(Icons.folder),
+                  label: 'Local',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.library_music_outlined),
+                  selectedIcon: Icon(Icons.library_music),
+                  label: 'Library',
+                ),
+              ],
+            );
+
+            if (!hasPlayer || keyboardHeight > 0 || isModalOpen) {
+              return navigationBar;
+            }
+
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                MiniPlayer(
+                  onTap: _openNowPlaying,
+                  onDismiss: _dismissMiniPlayer,
+                ),
+                navigationBar,
+              ],
+            );
+          },
         ),
       ),
-      floatingActionButton: Consumer<AudioProvider>(
-        builder: (context, audioProvider, child) {
-          final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
-          final route = ModalRoute.of(context);
-          final isModalOpen = route != null && !route.isFirst;
-          final hasPlayer = audioProvider.currentTrack != null && _showMiniPlayer;
-
-          if (!hasPlayer || keyboardHeight > 0 || isModalOpen) {
-            return const SizedBox.shrink();
-          }
-
-          return Container(
-            margin: const EdgeInsets.only(bottom: 90),
-            child: MiniPlayer(
-              onTap: _openNowPlaying,
-              onDismiss: _dismissMiniPlayer,
-            ),
-          );
-        },
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
     );
   }
-
 }
 
 class BottomNavDestination {
@@ -391,9 +429,11 @@ class _AnimatedBottomNavBarState extends State<AnimatedBottomNavBar>
         vsync: this,
       ),
     );
-    _scales = _controllers.map((controller) => Tween<double>(begin: 1.0, end: 1.08).animate(
-      CurvedAnimation(parent: controller, curve: Curves.easeOut),
-    )).toList();
+    _scales = _controllers
+        .map((controller) => Tween<double>(begin: 1.0, end: 1.08).animate(
+              CurvedAnimation(parent: controller, curve: Curves.easeOut),
+            ))
+        .toList();
   }
 
   @override
@@ -421,7 +461,8 @@ class _AnimatedBottomNavBarState extends State<AnimatedBottomNavBar>
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainer,
         border: Border(
-          top: BorderSide(color: colorScheme.outlineVariant.withOpacity(0.2), width: 1),
+          top: BorderSide(
+              color: colorScheme.outlineVariant.withOpacity(0.2), width: 1),
         ),
       ),
       child: Row(
@@ -443,7 +484,8 @@ class _AnimatedBottomNavBarState extends State<AnimatedBottomNavBar>
                     alignment: Alignment.center,
                     decoration: isSelected
                         ? BoxDecoration(
-                            color: colorScheme.secondaryContainer.withOpacity(0.3),
+                            color:
+                                colorScheme.secondaryContainer.withOpacity(0.3),
                             borderRadius: BorderRadius.circular(16),
                           )
                         : null,
@@ -451,16 +493,23 @@ class _AnimatedBottomNavBarState extends State<AnimatedBottomNavBar>
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
-                          isSelected ? destination.selectedIcon : destination.icon,
-                          color: isSelected ? colorScheme.onSecondaryContainer : colorScheme.onSurfaceVariant,
+                          isSelected
+                              ? destination.selectedIcon
+                              : destination.icon,
+                          color: isSelected
+                              ? colorScheme.onSecondaryContainer
+                              : colorScheme.onSurfaceVariant,
                           size: 24,
                         ),
                         const SizedBox(height: 4),
                         Text(
                           destination.label,
                           style: theme.textTheme.labelSmall?.copyWith(
-                            color: isSelected ? colorScheme.onSecondaryContainer : colorScheme.onSurfaceVariant,
-                            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                            color: isSelected
+                                ? colorScheme.onSecondaryContainer
+                                : colorScheme.onSurfaceVariant,
+                            fontWeight:
+                                isSelected ? FontWeight.w600 : FontWeight.w400,
                           ),
                         ),
                       ],

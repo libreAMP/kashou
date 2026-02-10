@@ -1,5 +1,12 @@
+import 'dart:io';
+
+import 'package:audiotags/audiotags.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
 import '../models/track.dart';
+import '../providers/audio_provider.dart';
+import '../providers/library_provider.dart';
 
 class MetadataEditorScreen extends StatefulWidget {
   final Track track;
@@ -21,6 +28,8 @@ class _MetadataEditorScreenState extends State<MetadataEditorScreen> {
   late TextEditingController _commentController;
 
   bool _hasChanges = false;
+  bool _isSaving = false;
+  bool _isEditable = true;
 
   @override
   void initState() {
@@ -37,6 +46,9 @@ class _MetadataEditorScreenState extends State<MetadataEditorScreen> {
       text: widget.track.trackNumber?.toString() ?? '',
     );
     _commentController = TextEditingController();
+
+    final source = widget.track.sourceUrl ?? widget.track.path;
+    _isEditable = !source.startsWith('http');
 
     // Add listeners to detect changes
     _titleController.addListener(_onFieldChanged);
@@ -96,14 +108,85 @@ class _MetadataEditorScreenState extends State<MetadataEditorScreen> {
     return result ?? false;
   }
 
-  void _saveMetadata() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Metadata saved successfully!'),
-        backgroundColor: Colors.green,
-      ),
+  Future<void> _saveMetadata() async {
+    if (!_isEditable || _isSaving) return;
+    setState(() => _isSaving = true);
+
+    try {
+      final updatedTrack = await _writeTags();
+      if (!mounted) return;
+
+      final library = context.read<LibraryProvider>();
+      final audio = context.read<AudioProvider>();
+      library.updateTrackMetadata(updatedTrack);
+      audio.updateTrackMetadata(updatedTrack);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Metadata saved successfully!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+      Navigator.pop(context);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to save metadata: $e'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
+    }
+  }
+
+  Future<Track> _writeTags() async {
+    final path = widget.track.path;
+    final file = File(path);
+    if (!await file.exists()) {
+      throw Exception('File not found on disk');
+    }
+
+    Tag? existing;
+    try {
+      existing = await AudioTags.read(path);
+    } catch (_) {
+      existing = const Tag(pictures: []);
+    }
+
+    final updatedTag = Tag(
+      title: _titleController.text.trim(),
+      trackArtist: _artistController.text.trim(),
+      album: _albumController.text.trim(),
+      albumArtist: _albumArtistController.text.trim(),
+      genre: _genreController.text.trim().isEmpty ? null : _genreController.text.trim(),
+      year: int.tryParse(_yearController.text.trim()),
+      trackNumber: int.tryParse(_trackNumberController.text.trim()),
+      trackTotal: existing?.trackTotal,
+      discNumber: existing?.discNumber,
+      discTotal: existing?.discTotal,
+      duration: existing?.duration,
+      pictures: existing?.pictures ?? const [],
     );
-    Navigator.pop(context);
+
+    try {
+      await AudioTags.write(path, updatedTag);
+    } catch (e) {
+      throw Exception('Tag writing failed: $e');
+    }
+
+    return widget.track.copyWith(
+      title: _titleController.text.trim(),
+      artist: _artistController.text.trim(),
+      album: _albumController.text.trim(),
+      genre: _genreController.text.trim().isEmpty ? null : _genreController.text.trim(),
+      year: int.tryParse(_yearController.text.trim()),
+      trackNumber: int.tryParse(_trackNumberController.text.trim()),
+    );
   }
 
   @override
@@ -114,16 +197,27 @@ class _MetadataEditorScreenState extends State<MetadataEditorScreen> {
         appBar: AppBar(
           title: const Text('Edit Metadata'),
           actions: [
-            if (_hasChanges)
+            if (_hasChanges && _isEditable)
               TextButton(
-                onPressed: _saveMetadata,
-                child: Text(
-                  'SAVE',
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.primary,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+                onPressed: _isSaving ? null : _saveMetadata,
+                child: _isSaving
+                    ? SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation(
+                            Theme.of(context).colorScheme.primary,
+                          ),
+                        ),
+                      )
+                    : Text(
+                        'SAVE',
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.primary,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
               ),
           ],
         ),
@@ -159,13 +253,15 @@ class _MetadataEditorScreenState extends State<MetadataEditorScreen> {
                     right: 8,
                     bottom: 8,
                     child: FloatingActionButton.small(
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Select album art from gallery'),
-                          ),
-                        );
-                      },
+                      onPressed: _isEditable
+                          ? () {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Select album art from gallery'),
+                                ),
+                              );
+                            }
+                          : null,
                       child: const Icon(Icons.edit),
                     ),
                   ),
@@ -182,25 +278,25 @@ class _MetadataEditorScreenState extends State<MetadataEditorScreen> {
                   ),
             ),
             const SizedBox(height: 16),
-            _buildTextField(
+            _buildEditableField(
               controller: _titleController,
               label: 'Title',
               icon: Icons.music_note,
             ),
             const SizedBox(height: 16),
-            _buildTextField(
+            _buildEditableField(
               controller: _artistController,
               label: 'Artist',
               icon: Icons.person,
             ),
             const SizedBox(height: 16),
-            _buildTextField(
+            _buildEditableField(
               controller: _albumController,
               label: 'Album',
               icon: Icons.album,
             ),
             const SizedBox(height: 16),
-            _buildTextField(
+            _buildEditableField(
               controller: _albumArtistController,
               label: 'Album Artist',
               icon: Icons.people,
@@ -218,7 +314,7 @@ class _MetadataEditorScreenState extends State<MetadataEditorScreen> {
             Row(
               children: [
                 Expanded(
-                  child: _buildTextField(
+                  child: _buildEditableField(
                     controller: _yearController,
                     label: 'Year',
                     icon: Icons.calendar_today,
@@ -227,7 +323,7 @@ class _MetadataEditorScreenState extends State<MetadataEditorScreen> {
                 ),
                 const SizedBox(width: 16),
                 Expanded(
-                  child: _buildTextField(
+                  child: _buildEditableField(
                     controller: _trackNumberController,
                     label: 'Track #',
                     icon: Icons.numbers,
@@ -237,13 +333,13 @@ class _MetadataEditorScreenState extends State<MetadataEditorScreen> {
               ],
             ),
             const SizedBox(height: 16),
-            _buildTextField(
+            _buildEditableField(
               controller: _genreController,
               label: 'Genre',
               icon: Icons.category,
             ),
             const SizedBox(height: 16),
-            _buildTextField(
+            _buildEditableField(
               controller: _commentController,
               label: 'Comment',
               icon: Icons.comment,
@@ -320,6 +416,31 @@ class _MetadataEditorScreenState extends State<MetadataEditorScreen> {
     );
   }
 
+  Widget _buildEditableField({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    TextInputType? keyboardType,
+    int maxLines = 1,
+  }) {
+    if (_isEditable) {
+      return _buildTextField(
+        controller: controller,
+        label: label,
+        icon: icon,
+        keyboardType: keyboardType,
+        maxLines: maxLines,
+      );
+    }
+
+    return _DisabledField(
+      label: label,
+      icon: icon,
+      value: controller.text,
+      maxLines: maxLines,
+    );
+  }
+
   Widget _buildInfoCard(String label, String value, IconData icon) {
     return Card(
       child: ListTile(
@@ -343,5 +464,62 @@ class _MetadataEditorScreenState extends State<MetadataEditorScreen> {
       return '$hours:${twoDigits(minutes)}:${twoDigits(seconds)}';
     }
     return '$minutes:${twoDigits(seconds)}';
+  }
+}
+
+class _DisabledField extends StatelessWidget {
+  const _DisabledField({
+    required this.label,
+    required this.icon,
+    required this.value,
+    this.maxLines = 1,
+  });
+
+  final String label;
+  final IconData icon;
+  final String value;
+  final int maxLines;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: theme.textTheme.labelMedium?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            color: theme.colorScheme.surfaceContainerHighest,
+            border: Border.all(color: theme.colorScheme.outline.withOpacity(0.2)),
+          ),
+          child: Row(
+            crossAxisAlignment:
+                maxLines > 1 ? CrossAxisAlignment.start : CrossAxisAlignment.center,
+            children: [
+              Icon(icon, color: theme.colorScheme.onSurfaceVariant),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  value.isEmpty ? 'Unavailable for online tracks' : value,
+                  maxLines: maxLines,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 }

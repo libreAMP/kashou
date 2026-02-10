@@ -42,37 +42,34 @@ class _SplashScreenState extends State<SplashScreen>
 
       if (!mounted) return;
 
-      final hasPermissions = await PermissionService.requestPermissions();
+      // Request permissions (optional, won't block app)
+      await PermissionService.requestPermissions();
 
-      if (hasPermissions && mounted) {
-        // Check if welcome screen has been shown
-        final prefs = await SharedPreferences.getInstance();
-        final hasSeenWelcome = prefs.getBool('has_seen_welcome') ?? false;
+      // Check if welcome screen has been shown
+      final prefs = await SharedPreferences.getInstance();
+      final hasSeenWelcome = prefs.getBool('has_seen_welcome') ?? false;
 
-        if (!hasSeenWelcome) {
-          // Show welcome screen for first-time users
-          Navigator.pushReplacementNamed(context, '/welcome');
-          return;
-        }
+      if (!hasSeenWelcome) {
+        // Show welcome screen for first-time users
+        Navigator.pushReplacementNamed(context, '/welcome');
+        return;
+      }
 
-        await _initializeAudioService();
+      await _initializeAudioService();
 
-        // Start library scan
-        final libraryProvider = Provider.of<LibraryProvider>(
-          context,
-          listen: false,
-        );
+      // Start library scan
+      final libraryProvider = Provider.of<LibraryProvider>(
+        context,
+        listen: false,
+      );
 
-        await Future.delayed(const Duration(milliseconds: 500));
+      await Future.delayed(const Duration(milliseconds: 500));
 
+      if (mounted) {
+        await libraryProvider.scanLibrary(force: true);
         if (mounted) {
-          await libraryProvider.scanLibrary(force: true);
-          if (mounted) {
-            Navigator.pushReplacementNamed(context, '/home');
-          }
+          Navigator.pushReplacementNamed(context, '/home');
         }
-      } else {
-        _showPermissionDialog();
       }
     } catch (e) {
       debugPrint('Error during initialization: $e');
@@ -88,32 +85,6 @@ class _SplashScreenState extends State<SplashScreen>
     } catch (e) {
       debugPrint('Error initializing audio service: $e');
     }
-  }
-
-  void _showPermissionDialog() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: const Text('Permissions Required'),
-        content: const Text(
-          'Kashou needs storage and notification permissions to function properly. '
-          'Please grant the required permissions.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              final granted = await PermissionService.requestPermissions();
-              if (granted) {
-                _initialize();
-              }
-            },
-            child: const Text('Grant Permissions'),
-          ),
-        ],
-      ),
-    );
   }
 
   @override

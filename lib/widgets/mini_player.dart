@@ -53,7 +53,8 @@ class _MiniPlayerSnapshot {
   }
 
   @override
-  int get hashCode => Object.hash(track, isLoading, isPlaying, position, duration);
+  int get hashCode =>
+      Object.hash(track, isLoading, isPlaying, position, duration);
 }
 
 class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
@@ -63,6 +64,10 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
   late Animation<double> _fadeAnimation;
   double _dragDistance = 0;
   bool _isSwipingHorizontal = false;
+  StreamSubscription<GoogleCastSession?>? _castSessionSubscription;
+  bool _castingEnabled = false;
+  Timer? _castConnectionDebounce;
+  bool _isCastConnecting = false;
 
   @override
   void initState() {
@@ -92,19 +97,57 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
       reverseCurve: Curves.easeInOutCubic,
     ));
 
-    GoogleCastSessionManager.instance.currentSessionStream.listen((session) {
+    final settings = Provider.of<SettingsProvider>(context, listen: false);
+    _castingEnabled = settings.enableCasting;
+
+    _castSessionSubscription = GoogleCastSessionManager
+        .instance.currentSessionStream
+        .listen((session) {
+      if (!mounted) return;
+
       if (session != null) {
-        _onCastConnected();
+        debugPrint(
+            '[Cast] Session connected to ${session.device?.friendlyName}');
+
+        // Debounce to prevent reconnect loops
+        _castConnectionDebounce?.cancel();
+        _castConnectionDebounce = Timer(const Duration(milliseconds: 500), () {
+          if (mounted && !_isCastConnecting) {
+            _isCastConnecting = true;
+            _onCastConnected().then((_) {
+              _isCastConnecting = false;
+            }).catchError((e) {
+              _isCastConnecting = false;
+              debugPrint('[Cast] Connection handler error: $e');
+            });
+          }
+        });
       } else {
+        debugPrint('[Cast] Session disconnected - restoring local playback');
+        _castConnectionDebounce?.cancel();
+        _isCastConnecting = false;
         LocalMediaServer.instance.stop();
-        final audioProvider = Provider.of<AudioProvider>(context, listen: false);
-        audioProvider.audioPlayer.setVolume(1.0);
-        audioProvider.audioPlayer.play();
+
+        // Restore local playback asynchronously
+        final audioProvider =
+            Provider.of<AudioProvider>(context, listen: false);
+
+        Future.microtask(() async {
+          await audioProvider.audioPlayer.setVolume(1.0);
+
+          if (audioProvider.currentTrack != null) {
+            try {
+              await audioProvider.audioPlayer.play();
+              debugPrint('[Cast] Local playback restored');
+            } catch (e) {
+              debugPrint('[Cast] Failed to restore playback: $e');
+            }
+          }
+        });
       }
     });
 
-    final settings = Provider.of<SettingsProvider>(context, listen: false);
-    if (settings.enableCasting) {
+    if (_castingEnabled) {
       GoogleCastDiscoveryManager.instance.startDiscovery();
     }
   }
@@ -112,54 +155,129 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
   Future<void> _onCastConnected() async {
     final audioProvider = Provider.of<AudioProvider>(context, listen: false);
     final track = audioProvider.currentTrack;
-    if (track != null) {
-      final server = LocalMediaServer.instance;
-      final baseUrl = await server.ensureStarted();
-      final streamUrl = baseUrl != null ? server.buildStreamUrl(track.path) : null;
+    if (track == null) {
+      debugPrint('[Cast] No track to cast');
+      return;
+    }
 
-      if (streamUrl == null) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Unable to start local media server for casting.')),
-          );
+    try {
+      String streamUrl;
+      final isRemoteUrl =
+          track.path.startsWith('http://') || track.path.startsWith('https://');
+
+      if (isRemoteUrl) {
+        // For YouTube/remote streams, cast the URL directly
+        streamUrl = track.path;
+      } else {
+        // For local files, use the media server
+        final server = LocalMediaServer.instance;
+        final baseUrl = await server.ensureStarted();
+        final serverUrl =
+            baseUrl != null ? server.buildStreamUrl(track.path) : null;
+
+        if (serverUrl == null) {
+          debugPrint('[Cast] Failed to start local media server');
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                  content:
+                      Text('Unable to start local media server for casting.')),
+            );
+          }
+          return;
         }
-        return;
+        streamUrl = serverUrl;
       }
 
       await audioProvider.audioPlayer.pause();
       await audioProvider.audioPlayer.setVolume(0.0);
 
-      GoogleCastRemoteMediaClient.instance.loadMedia(
+      final contentType = _inferTrackMimeType(track.path) ?? 'audio/mpeg';
+
+      // Use generic metadata with explicit duration as int to avoid null Long error
+      final metadata = GoogleCastGenericMediaMetadata(
+        title: track.title,
+        subtitle: track.artist,
+        images: track.albumArt != null
+            ? [
+                GoogleCastImage(
+                    url: Uri.parse(
+                        'data:image/jpeg;base64,${base64Encode(track.albumArt!)}'))
+              ]
+            : [],
+      );
+
+      await GoogleCastRemoteMediaClient.instance.loadMedia(
         GoogleCastMediaInformationIOS(
           contentId: streamUrl,
           streamType: CastMediaStreamType.buffered,
           contentUrl: Uri.parse(streamUrl),
-          contentType: _inferTrackMimeType(track.path) ?? 'audio/mpeg',
-          metadata: GoogleCastMusicMediaMetadata(
-            title: track.title,
-            artist: track.artist,
-            albumName: track.album,
-            images: track.albumArt != null
-                ? [GoogleCastImage(url: Uri.parse('data:image/jpeg;base64,${base64Encode(track.albumArt!)}'))]
-                : null,
-          ),
+          contentType: contentType,
+          metadata: metadata,
         ),
         autoPlay: true,
         playPosition: audioProvider.position,
         playbackRate: 1.0,
       );
+
+      // Wait a moment for media to load on TV, then explicitly send play command
+      await Future.delayed(const Duration(milliseconds: 800));
+
+      try {
+        await GoogleCastRemoteMediaClient.instance.play();
+      } catch (e) {
+        debugPrint('[Cast] Play command failed: $e');
+      }
+    } catch (e) {
+      debugPrint('[Cast] Error loading media: $e');
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Cast error: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _toggleCastPlayPause() async {
+    try {
+      final audioProvider = Provider.of<AudioProvider>(context, listen: false);
+      if (audioProvider.isPlaying) {
+        await GoogleCastRemoteMediaClient.instance.pause();
+      } else {
+        await GoogleCastRemoteMediaClient.instance.play();
+      }
+    } catch (e) {
+      debugPrint('[Cast] Toggle play/pause error: $e');
+    }
+  }
+
+  Future<void> _castSkipNext() async {
+    try {
+      // Stop current cast media
+      await GoogleCastRemoteMediaClient.instance.stop();
+      debugPrint('[Cast] Stopped current cast media');
+
+      // Skip to next track in local queue
+      final audioProvider = Provider.of<AudioProvider>(context, listen: false);
+      await audioProvider.skipNext();
+
+      // Wait a moment for the new track to load locally
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      // Cast the new track
+      await _onCastConnected();
+    } catch (e) {
+      debugPrint('[Cast] Skip next error: $e');
     }
   }
 
   @override
   void dispose() {
-    final settings = Provider.of<SettingsProvider>(context, listen: false);
-    if (settings.enableCasting) {
+    _castConnectionDebounce?.cancel();
+    _castSessionSubscription?.cancel();
+    if (_castingEnabled) {
       GoogleCastDiscoveryManager.instance.stopDiscovery();
     }
-    final audioProvider = Provider.of<AudioProvider>(context, listen: false);
-    audioProvider.audioPlayer.setVolume(1.0);
-    audioProvider.audioPlayer.play();
     _slideController.dispose();
     _swipeController.dispose();
     super.dispose();
@@ -193,7 +311,8 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
 
   void _handleVerticalDragEnd(DragEndDetails details) {
     if (_isSwipingHorizontal) return;
-    if (_dragDistance > 70 || details.primaryVelocity != null && details.primaryVelocity! > 500) {
+    if (_dragDistance > 70 ||
+        details.primaryVelocity != null && details.primaryVelocity! > 500) {
       _slideController.forward().then((_) {
         widget.onDismiss();
         _slideController.reset();
@@ -227,7 +346,7 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-    
+
     return Selector<AudioProvider, _MiniPlayerSnapshot>(
       selector: (context, provider) => _MiniPlayerSnapshot(
         track: provider.currentTrack,
@@ -254,7 +373,11 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
         final useWhiteText = isDarkMode;
         final gradientColors = isDarkMode
             ? [Colors.black.withOpacity(0.7), Colors.black.withOpacity(0.5)]
-            : [colorScheme.surfaceContainerHighest, colorScheme.surfaceContainer];
+            : [
+                colorScheme.surfaceContainerHighest,
+                colorScheme.surfaceContainer
+              ];
+        final settings = Provider.of<SettingsProvider>(context);
 
         return FadeTransition(
           opacity: _fadeAnimation,
@@ -265,171 +388,196 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
               onVerticalDragUpdate: _handleVerticalDragUpdate,
               onVerticalDragEnd: _handleVerticalDragEnd,
               onHorizontalDragStart: _handleHorizontalDragStart,
-              onHorizontalDragEnd: (details) =>
-                  _handleHorizontalDragEnd(details, context.read<AudioProvider>()),
-              child: Container(
-                width: MediaQuery.of(context).size.width - 32,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(14),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.2),
-                      blurRadius: 8,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
+              onHorizontalDragEnd: (details) => _handleHorizontalDragEnd(
+                  details, context.read<AudioProvider>()),
+              child: RepaintBoundary(
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(14),
-                  child: RepaintBoundary(
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        image: track.albumArt != null && isDarkMode
-                            ? DecorationImage(
-                                image: MemoryImage(track.albumArt!),
-                                fit: BoxFit.cover,
-                                filterQuality: FilterQuality.low,
-                                colorFilter: ColorFilter.mode(
-                                  Colors.black.withOpacity(0.55),
-                                  BlendMode.srcOver,
-                                ),
-                              )
-                            : null,
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: gradientColors,
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(12),
+                    topRight: Radius.circular(12),
+                  ),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: gradientColors,
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      border: Border(
+                        top: BorderSide(
+                          color: colorScheme.outlineVariant.withOpacity(0.35),
+                          width: 0.8,
                         ),
                       ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          LinearProgressIndicator(
-                            value: progress,
-                            minHeight: 2.5,
-                            backgroundColor: useWhiteText
-                                ? Colors.white.withOpacity(0.2)
-                                : Colors.black.withOpacity(0.1),
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              colorScheme.primary,
-                            ),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        LinearProgressIndicator(
+                          value: isLoading ? null : progress,
+                          minHeight: 2.5,
+                          backgroundColor: useWhiteText
+                              ? Colors.white.withOpacity(0.2)
+                              : colorScheme.surfaceVariant.withOpacity(0.3),
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            colorScheme.primary,
                           ),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 10,
-                            ),
-                            child: Row(
-                              children: [
-                                Hero(
-                                  tag: 'album_art_${track.id}',
-                                  createRectTween: albumArtRectTween,
-                                  flightShuttleBuilder: albumArtFlightShuttleBuilder,
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(6),
-                                    child: DecoratedBox(
-                                      decoration: BoxDecoration(
-                                        color: colorScheme.primaryContainer,
-                                      ),
-                                      child: SizedBox(
-                                        width: 46,
-                                        height: 46,
-                                        child: track.albumArt != null
-                                            ? Image.memory(
-                                                track.albumArt!,
-                                                fit: BoxFit.cover,
-                                                errorBuilder: (context, _, __) {
-                                                  return Icon(
-                                                    Icons.music_note,
-                                                    size: 24,
-                                                    color: colorScheme.onPrimaryContainer,
-                                                  );
-                                                },
-                                              )
-                                            : Icon(
-                                                Icons.music_note,
-                                                size: 24,
-                                                color: colorScheme.onPrimaryContainer,
-                                              ),
-                                      ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 10,
+                          ),
+                          child: Row(
+                            children: [
+                              Hero(
+                                tag: 'album_art_${track.id}',
+                                createRectTween: albumArtRectTween,
+                                flightShuttleBuilder:
+                                    albumArtFlightShuttleBuilder,
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(6),
+                                  child: DecoratedBox(
+                                    decoration: BoxDecoration(
+                                      color: colorScheme.primaryContainer,
+                                    ),
+                                    child: SizedBox(
+                                      width: 48,
+                                      height: 48,
+                                      child: track.albumArt != null
+                                          ? Image.memory(
+                                              track.albumArt!,
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (context, _, __) {
+                                                return Icon(
+                                                  Icons.music_note,
+                                                  size: 24,
+                                                  color: colorScheme
+                                                      .onPrimaryContainer,
+                                                );
+                                              },
+                                            )
+                                          : Icon(
+                                              Icons.music_note,
+                                              size: 24,
+                                              color: colorScheme
+                                                  .onPrimaryContainer,
+                                            ),
                                     ),
                                   ),
                                 ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Text(
-                                        track.title,
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w600,
-                                          fontSize: 14,
-                                          color: useWhiteText
-                                              ? Colors.white
-                                              : colorScheme.onSurface,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      track.title,
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 14,
+                                        color: useWhiteText
+                                            ? Colors.white
+                                            : colorScheme.onSurface,
                                       ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        track.artist,
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: useWhiteText
-                                              ? Colors.white.withOpacity(0.7)
-                                              : colorScheme.onSurfaceVariant,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      track.artist,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: useWhiteText
+                                            ? Colors.white.withOpacity(0.7)
+                                            : colorScheme.onSurfaceVariant,
                                       ),
-                                    ],
-                                  ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
                                 ),
-                                const SizedBox(width: 8),
-                                if (isLoading) ...[
-                                  SizedBox(
-                                    width: 28,
-                                    height: 28,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2.6,
-                                      valueColor: AlwaysStoppedAnimation<Color>(
-                                        colorScheme.primary,
-                                      ),
+                              ),
+                              const SizedBox(width: 6),
+                              if (isLoading) ...[
+                                SizedBox(
+                                  width: 28,
+                                  height: 28,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.6,
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      colorScheme.primary,
                                     ),
                                   ),
-                                  const SizedBox(width: 8),
-                                ] else ...[
+                                ),
+                                const SizedBox(width: 10),
+                              ] else ...[
+                                StreamBuilder<GoogleCastSession?>(
+                                  stream: GoogleCastSessionManager
+                                      .instance.currentSessionStream,
+                                  builder: (context, castSnapshot) {
+                                    final isCasting = castSnapshot.data != null;
+                                    return IconButton(
+                                      icon: Icon(
+                                        snapshot.isPlaying
+                                            ? Icons.pause_rounded
+                                            : Icons.play_arrow_rounded,
+                                        color: useWhiteText
+                                            ? Colors.white
+                                            : colorScheme.onSurface,
+                                      ),
+                                      iconSize: 26,
+                                      onPressed: () => isCasting
+                                          ? _toggleCastPlayPause()
+                                          : context
+                                              .read<AudioProvider>()
+                                              .togglePlayPause(),
+                                      splashRadius: 24,
+                                    );
+                                  },
+                                ),
+                                StreamBuilder<GoogleCastSession?>(
+                                  stream: GoogleCastSessionManager
+                                      .instance.currentSessionStream,
+                                  builder: (context, castSnapshot) {
+                                    final isCasting = castSnapshot.data != null;
+                                    return IconButton(
+                                      icon: Icon(
+                                        Icons.skip_next_rounded,
+                                        color: useWhiteText
+                                            ? Colors.white
+                                            : colorScheme.onSurface,
+                                      ),
+                                      iconSize: 26,
+                                      onPressed: () => isCasting
+                                          ? _castSkipNext()
+                                          : context
+                                              .read<AudioProvider>()
+                                              .skipNext(),
+                                      splashRadius: 24,
+                                    );
+                                  },
+                                ),
+                                if (settings.enableCasting) ...[
                                   IconButton(
                                     icon: Icon(
-                                      snapshot.isPlaying
-                                          ? Icons.pause_rounded
-                                          : Icons.play_arrow_rounded,
+                                      Icons.cast,
                                       color: useWhiteText
                                           ? Colors.white
                                           : colorScheme.onSurface,
                                     ),
                                     iconSize: 26,
-                                    onPressed: context.read<AudioProvider>().togglePlayPause,
-                                  ),
-                                  IconButton(
-                                    icon: Icon(
-                                      Icons.skip_next_rounded,
-                                      color: useWhiteText
-                                          ? Colors.white
-                                          : colorScheme.onSurface,
-                                    ),
-                                    iconSize: 26,
-                                    onPressed: context.read<AudioProvider>().skipNext,
+                                    onPressed: () => _showCastDialog(context),
+                                    splashRadius: 24,
                                   ),
                                 ],
                               ],
-                            ),
+                            ],
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -453,52 +601,85 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
           builder: (context, sessionSnapshot) {
             final session = sessionSnapshot.data;
             final connectedDeviceId = session?.device?.deviceID;
-            final connectedDeviceName = session?.device?.friendlyName ?? 'Cast device';
+            final connectedDeviceName =
+                session?.device?.friendlyName ?? 'Cast device';
 
             Future<void> stopCasting() async {
-              Future<void> tryStopRemoteMedia() async {
-                try {
-                  await GoogleCastRemoteMediaClient.instance.stop();
-                } catch (_) {
-                }
-              }
+              debugPrint('[Cast] Stopping cast session...');
 
               try {
-                await tryStopRemoteMedia();
+                // Stop remote media first
+                try {
+                  await GoogleCastRemoteMediaClient.instance.stop();
+                  debugPrint('[Cast] Remote media stopped');
+                } catch (e) {
+                  debugPrint('[Cast] Error stopping remote media: $e');
+                }
 
-                final result = await GoogleCastSessionManager.instance.endSessionAndStopCasting();
-                final success = result != false;
+                // End the cast session
+                final result = await GoogleCastSessionManager.instance
+                    .endSessionAndStopCasting();
+                debugPrint('[Cast] endSessionAndStopCasting result: $result');
 
-                if (!success) {
-                  final fallback = await GoogleCastSessionManager.instance.endSession();
+                // Wait a bit for session state to update
+                await Future.delayed(const Duration(milliseconds: 300));
+
+                if (result == false) {
+                  debugPrint('[Cast] Trying fallback endSession()');
+                  final fallback =
+                      await GoogleCastSessionManager.instance.endSession();
+                  debugPrint('[Cast] endSession result: $fallback');
+
+                  await Future.delayed(const Duration(milliseconds: 300));
+
                   if (fallback == true) {
-                    Navigator.of(dialogContext).pop();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Disconnected from $connectedDeviceName')),
-                    );
+                    if (dialogContext.mounted)
+                      Navigator.of(dialogContext).pop();
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                            content:
+                                Text('Disconnected from $connectedDeviceName')),
+                      );
+                    }
                     return;
                   }
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Could not disconnect from $connectedDeviceName')),
-                  );
+
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                          content: Text(
+                              'Could not disconnect from $connectedDeviceName')),
+                    );
+                  }
+                  if (dialogContext.mounted) Navigator.of(dialogContext).pop();
                   return;
                 }
 
-                Navigator.of(dialogContext).pop();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Disconnected from $connectedDeviceName')),
-                );
+                if (dialogContext.mounted) Navigator.of(dialogContext).pop();
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                        content:
+                            Text('Disconnected from $connectedDeviceName')),
+                  );
+                }
               } catch (error) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Failed to disconnect: $error')),
-                );
+                debugPrint('[Cast] Disconnect error: $error');
+                if (dialogContext.mounted) Navigator.of(dialogContext).pop();
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Failed to disconnect: $error')),
+                  );
+                }
               }
             }
 
             return AlertDialog(
               titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
               contentPadding: const EdgeInsets.fromLTRB(0, 0, 0, 0),
-              insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+              insetPadding:
+                  const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
               title: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -518,7 +699,8 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
                       ),
                       child: Row(
                         children: [
-                          Icon(Icons.cast_connected, color: colorScheme.primary),
+                          Icon(Icons.cast_connected,
+                              color: colorScheme.primary),
                           const SizedBox(width: 12),
                           Expanded(
                             child: Column(
@@ -536,7 +718,8 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
                                   Text(
                                     session.deviceStatusText,
                                     style: theme.textTheme.bodySmall?.copyWith(
-                                      color: colorScheme.onPrimaryContainer.withOpacity(0.8),
+                                      color: colorScheme.onPrimaryContainer
+                                          .withOpacity(0.8),
                                     ),
                                   ),
                               ],
@@ -566,7 +749,10 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.cast, size: 36, color: colorScheme.onSurfaceVariant.withOpacity(0.5)),
+                            Icon(Icons.cast,
+                                size: 36,
+                                color: colorScheme.onSurfaceVariant
+                                    .withOpacity(0.5)),
                             const SizedBox(height: 12),
                             Text(
                               'Searching for cast devices...',
@@ -583,19 +769,37 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
                       padding: const EdgeInsets.only(bottom: 16),
                       itemBuilder: (context, index) {
                         final device = devices[index];
-                        final isConnected = device.deviceID == connectedDeviceId;
+                        final isConnected =
+                            device.deviceID == connectedDeviceId;
 
                         Future<void> connectToDevice() async {
-                          Navigator.of(dialogContext).pop();
+                          debugPrint(
+                              '[Cast] Connecting to ${device.friendlyName} (${device.deviceID})');
+                          if (dialogContext.mounted)
+                            Navigator.of(dialogContext).pop();
+
                           try {
-                            await GoogleCastSessionManager.instance.startSessionWithDevice(device);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Connecting to ${device.friendlyName}...')),
-                            );
+                            final result = await GoogleCastSessionManager
+                                .instance
+                                .startSessionWithDevice(device);
+                            debugPrint(
+                                '[Cast] startSessionWithDevice result: $result');
+
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                    content: Text(
+                                        'Connecting to ${device.friendlyName}...')),
+                              );
+                            }
                           } catch (error) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Failed to connect: $error')),
-                            );
+                            debugPrint('[Cast] Connection error: $error');
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                    content: Text('Failed to connect: $error')),
+                              );
+                            }
                           }
                         }
 
@@ -631,10 +835,9 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
                             ),
                           ),
                           trailing: isConnected
-                              ? OutlinedButton.icon(
-                                  onPressed: stopCasting,
-                                  icon: const Icon(Icons.close),
-                                  label: const Text('Disconnect'),
+                              ? Icon(
+                                  Icons.cast_connected,
+                                  color: colorScheme.primary,
                                 )
                               : Icon(
                                   Icons.chevron_right,

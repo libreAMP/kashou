@@ -1,145 +1,343 @@
-import 'dart:convert';
-import 'dart:io';
+import 'dart:async';
+import 'dart:collection';
 
-import 'package:flutter/services.dart';
-import 'package:http/http.dart' as http;
+import 'package:collection/collection.dart';
+import 'package:youtube_explode_dart/youtube_explode_dart.dart';
+import 'package:muzoapi/youtube_stream_provider.dart' as muzo;
+
+import '../models/youtube_streaming_data.dart';
+import 'youtube/youtube_service.dart';
 
 class YtdlWrapperService {
-  static const MethodChannel _channel = MethodChannel('com.libreamp.kashou/ytmusic');
-  static bool get _supportsNativeBridge => Platform.isAndroid;
+  static final YoutubeExplode _client = YoutubeExplode();
+  static final Map<String, _CachedResult<List<Map<String, dynamic>>>>
+      _searchCache = HashMap();
+  static final Map<String, _CachedResult<YouTubeStreamingData>> _streamCache =
+      HashMap();
 
-  final String? _customServerUrl;
+  static const Duration _defaultStreamCacheTtl = Duration(minutes: 10);
 
-  YtdlWrapperService([String? serverUrl])
-      : _customServerUrl = (serverUrl != null && serverUrl.isNotEmpty) ? serverUrl : null;
-
-  String get baseUrl => _customServerUrl ?? 'native';
-
-  bool get _useNativeBridge => _supportsNativeBridge && _customServerUrl == null;
-
-  Uri _buildUri(String path, [Map<String, dynamic>? query]) {
-    final base = _customServerUrl!;
-    final normalizedBase = base.endsWith('/') ? base.substring(0, base.length - 1) : base;
-    return Uri.parse('$normalizedBase$path').replace(
-      queryParameters: query?.map((key, value) => MapEntry(key, value?.toString() ?? '')),
-    );
-  }
+  const YtdlWrapperService();
 
   Future<List<Map<String, dynamic>>> search(
     String query, {
     int limit = 10,
   }) async {
-    if (_useNativeBridge) {
-      try {
-        final response = await _channel.invokeMethod<String>('search', {
-          'query': query,
-          'limit': limit,
-        });
-
-        if (response == null || response.isEmpty) return [];
-        final decoded = json.decode(response);
-
-        if (decoded is Map<String, dynamic>) {
-          if (decoded['error'] != null) {
-            print('Search error: ${decoded['error']}');
-            return [];
-          }
-          final results = decoded['results'];
-          if (results is List) {
-            return results
-                .map<Map<String, dynamic>>((item) => Map<String, dynamic>.from(item as Map))
-                .toList();
-          }
-        }
-      } catch (e) {
-        print('Native search error: $e');
-      }
-
-      return [];
+    final key = '${query.trim().toLowerCase()}_$limit';
+    final cached = _searchCache[key];
+    if (cached != null && !cached.isExpired) {
+      return cached.value;
     }
-
-    // Fallback to HTTP server if explicitly configured
-    if (_customServerUrl == null) return [];
 
     try {
-      final response = await http.get(
-        _buildUri('/search', {
-          'q': query,
-          'limit': limit,
-          'page': page,
-        }),
-        headers: const {'accept': 'application/json'},
-      );
-      if (response.statusCode == 200) {
-        final decoded = json.decode(response.body);
-        if (decoded is Map<String, dynamic>) {
-          final results = decoded['results'];
-          if (results is List) {
-            return results
-                .map<Map<String, dynamic>>((item) => Map<String, dynamic>.from(item as Map<String, dynamic>))
-                .toList();
-          }
-        } else if (decoded is List) {
-          return decoded
-              .map<Map<String, dynamic>>((item) => Map<String, dynamic>.from(item as Map<String, dynamic>))
-              .toList();
-        }
-      }
-    } catch (e) {
-      print('HTTP search error: $e');
-    }
+      final searchResults = await _client.search.search(query);
+      final videos = searchResults.take(limit).toList();
 
-    return [];
+      print(
+          '[youtube_explode] search "$query" (limit=$limit) -> ${videos.length} results');
+
+      final items = videos.map<Map<String, dynamic>>((video) {
+        final duration = video.duration;
+        final uploadDate = video.uploadDate;
+        return <String, dynamic>{
+          'id': video.id.value,
+          'title': video.title,
+          'url': video.url,
+          'channel': video.author,
+          'duration': duration?.inSeconds,
+          'views': video.engagement.viewCount,
+          'upload_date': uploadDate != null
+              ? uploadDate.millisecondsSinceEpoch ~/ 1000
+              : null,
+          'thumbnail': video.thumbnails.highResUrl,
+        };
+      }).toList(growable: false);
+
+      _searchCache[key] = _CachedResult(items);
+      return items;
+    } catch (e) {
+      print('youtube_explode search error: $e');
+      return [];
+    }
   }
 
-  Future<Map<String, dynamic>?> fetchAudioDetails(String videoUrl) async {
-    if (_useNativeBridge) {
-      try {
-        print('Fetching audio details from native yt-dlp for: $videoUrl');
-        final response = await _channel.invokeMethod<String>('fetchAudioDetails', {
-          'url': videoUrl,
-        });
+  Future<YouTubeStreamingData?> fetchStreamingData(
+    String videoUrl, {
+    bool forceRefresh = false,
+    bool useMuzoApi = true,
+  }) async {
+    final trimmedUrl = videoUrl.trim();
+    final parsedVideoId = VideoId.parseVideoId(trimmedUrl);
 
-        if (response == null || response.isEmpty) {
-          print('Native yt-dlp returned empty response');
-          return null;
-        }
-        
-        final decoded = json.decode(response);
-        if (decoded is Map<String, dynamic>) {
-          if (decoded.containsKey('error')) {
-            print('yt-dlp error: ${decoded['error']}');
-            return null;
-          }
-          print('Native yt-dlp returned: ${decoded.keys}');
-          return Map<String, dynamic>.from(decoded);
-        }
-      } catch (e) {
-        print('Native yt-dlp error: $e');
-      }
-
+    if (parsedVideoId == null) {
+      print('Invalid YouTube URL: $videoUrl');
       return null;
     }
 
-    if (_customServerUrl == null) return null;
-
-    try {
-      final response = await http.get(
-        _buildUri('/download', {
-          'url': videoUrl,
-        }),
-        headers: const {'accept': 'application/json'},
-      );
-      if (response.statusCode == 200) {
-        final decoded = json.decode(response.body);
-        if (decoded is Map<String, dynamic>) {
-          return Map<String, dynamic>.from(decoded);
-        }
-      }
-    } catch (e) {
-      print('HTTP fetch error: $e');
+    final cacheKey = parsedVideoId;
+    final cached = forceRefresh ? null : _streamCache[cacheKey];
+    if (cached != null && !cached.isExpired) {
+      return cached.value;
     }
 
-    return null;
+    if (useMuzoApi) {
+      try {
+
+        final streamInfo = await YoutubeService.instance
+            .fetchStreams(parsedVideoId, forceRefresh: forceRefresh);
+
+        if (streamInfo != null && streamInfo.audioStreams.isNotEmpty) {
+
+          Video? videoMetadata;
+          try {
+            final videoId = VideoId(parsedVideoId);
+            videoMetadata = await _client.videos.get(videoId);
+          } catch (e, stackTrace) {
+            print('[muzoapi] Metadata fetch failed: $e');
+            print('[muzoapi] Stack trace: $stackTrace');
+          }
+
+          final streamingData = _convertMuzoToStreamingData(
+              streamInfo, trimmedUrl, videoMetadata);
+          _streamCache[cacheKey] =
+              _CachedResult(streamingData, ttl: _defaultStreamCacheTtl);
+          return streamingData;
+        }
+
+        print('[muzoapi] No streams found, falling back to youtube_explode');
+      } catch (e) {
+        print('[muzoapi] Error: $e, falling back to youtube_explode');
+      }
+    }
+
+    // Fallback to youtube_explode_dart
+    try {
+      final videoId = VideoId(parsedVideoId);
+      final video = await _client.videos.get(videoId);
+      final manifest = await _client.videos.streamsClient.getManifest(
+        video.id,
+        ytClients: [
+          YoutubeApiClient.safari,
+          YoutubeApiClient.android,
+        ],
+      );
+
+      final hlsAudioStreams = manifest.hls
+          .whereType<HlsAudioStreamInfo>()
+          .sorted((a, b) => b.bitrate.compareTo(a.bitrate))
+          .toList(growable: false);
+      final hlsMuxedStreams = manifest.hls
+          .whereType<HlsMuxedStreamInfo>()
+          .sorted((a, b) => b.bitrate.compareTo(a.bitrate))
+          .toList(growable: false);
+      final progressiveStreams =
+          manifest.audioOnly.sortByBitrate().reversed.toList(growable: false);
+
+      if (hlsAudioStreams.isEmpty &&
+          hlsMuxedStreams.isEmpty &&
+          progressiveStreams.isEmpty) {
+        print('No audio streams available for $videoUrl');
+        return null;
+      }
+
+      final primaryFormats = <YouTubeStreamFormat>[
+        ...hlsAudioStreams.map(_mapToStreamFormat),
+        ...hlsMuxedStreams.map(_mapToStreamFormat),
+      ];
+      final fallbackFormats = <YouTubeStreamFormat>[
+        ...progressiveStreams.map(_mapToStreamFormat),
+      ];
+
+      final streamingData = YouTubeStreamingData(
+        videoId: video.id.value,
+        sourceUrl: trimmedUrl,
+        title: video.title,
+        channelName: video.author,
+        channelUrl: 'https://www.youtube.com/channel/${video.channelId.value}',
+        thumbnailUrl: video.thumbnails.highResUrl,
+        duration: video.duration,
+        viewCount: video.engagement.viewCount,
+        uploadDate: video.uploadDate,
+        tags: video.keywords.toList(growable: false),
+        description: video.description,
+        primaryStreams: primaryFormats,
+        fallbackStreams: fallbackFormats,
+        fetchedAt: DateTime.now(),
+        cacheTtl: _defaultStreamCacheTtl,
+      );
+
+      _streamCache[cacheKey] =
+          _CachedResult(streamingData, ttl: streamingData.cacheTtl);
+
+      return streamingData;
+    } catch (e) {
+      print('youtube_explode streaming fetch error: $e');
+      return null;
+    }
   }
+
+  Future<Map<String, dynamic>?> fetchAudioDetails(
+    String videoUrl, {
+    bool forceRefresh = false,
+  }) async {
+    final streamingData =
+        await fetchStreamingData(videoUrl, forceRefresh: forceRefresh);
+    if (streamingData == null) {
+      return null;
+    }
+    return _legacyMapFromStreamingData(streamingData);
+  }
+
+  static YouTubeStreamFormat _mapToStreamFormat(StreamInfo stream) {
+    final bitrate = stream.bitrate.bitsPerSecond;
+    final mimeType = stream.codec.mimeType;
+    final codecLabel = stream.codec.toString();
+    final container = stream.container.name;
+    final itag = stream.tag.toString();
+    final url = stream.url.toString();
+
+    YouTubeStreamType type;
+    if (stream is HlsAudioStreamInfo) {
+      type = YouTubeStreamType.hlsAudio;
+    } else if (stream is HlsMuxedStreamInfo) {
+      type = YouTubeStreamType.hlsMuxed;
+    } else {
+      type = YouTubeStreamType.progressive;
+    }
+
+    final contentLength =
+        stream is AudioOnlyStreamInfo ? stream.size.totalBytes : null;
+    final approxLifetime = type == YouTubeStreamType.progressive
+        ? null
+        : const Duration(minutes: 5);
+
+    return YouTubeStreamFormat(
+      itag: itag,
+      url: url,
+      bitrate: bitrate,
+      mimeType: mimeType,
+      codecLabel: codecLabel,
+      container: container,
+      type: type,
+      audioSampleRate: null,
+      approxLifetime: approxLifetime,
+      contentLength: contentLength,
+    );
+  }
+
+  YouTubeStreamingData _convertMuzoToStreamingData(
+    dynamic streamInfo,
+    String sourceUrl,
+    Video? videoMetadata,
+  ) {
+    final videoId = streamInfo.videoId as String;
+    final title = streamInfo.title as String;
+    final audioStreams = streamInfo.audioStreams as List<muzo.AudioStream>;
+
+    final primaryFormats = audioStreams.map((stream) {
+      print(
+          '[muzoapi] Audio stream: ${stream.itag}, ${stream.bitrate}bps, ${stream.mimeType}');
+      print(
+          '[muzoapi] Audio URL: ${stream.url.substring(0, stream.url.length > 100 ? 100 : stream.url.length)}...');
+      return YouTubeStreamFormat(
+        url: stream.url,
+        itag: stream.itag.toString(),
+        bitrate: stream.bitrate,
+        mimeType: stream.mimeType,
+        codecLabel: stream.mimeType.split('/').last,
+        container: stream.mimeType.split('/').last,
+        type: YouTubeStreamType.progressive,
+        audioSampleRate: stream.audioSampleRate,
+        approxLifetime: const Duration(hours: 6),
+        contentLength: stream.contentLength,
+      );
+    }).toList();
+
+    final fallbackFormats = <YouTubeStreamFormat>[];
+
+    String? thumbnailUrl;
+    if (videoMetadata != null) {
+      final videoId = videoMetadata.id.value;
+      thumbnailUrl = 'https://i.ytimg.com/vi/$videoId/maxresdefault.jpg';
+    }
+
+    return YouTubeStreamingData(
+      videoId: videoId,
+      sourceUrl: sourceUrl,
+      title: videoMetadata?.title ?? title,
+      channelName: videoMetadata?.author ?? 'Unknown',
+      channelUrl: videoMetadata != null
+          ? 'https://www.youtube.com/channel/${videoMetadata.channelId.value}'
+          : 'https://youtube.com',
+      thumbnailUrl: thumbnailUrl ?? videoMetadata?.thumbnails.highResUrl,
+      duration: videoMetadata?.duration,
+      viewCount: videoMetadata?.engagement.viewCount,
+      uploadDate: videoMetadata?.uploadDate,
+      tags: videoMetadata?.keywords.toList(growable: false) ?? [],
+      description: videoMetadata?.description,
+      primaryStreams: primaryFormats,
+      fallbackStreams: fallbackFormats,
+      fetchedAt: DateTime.now(),
+      cacheTtl: _defaultStreamCacheTtl,
+    );
+  }
+
+  Map<String, dynamic> _legacyMapFromStreamingData(YouTubeStreamingData data) {
+    final bestStream = data.bestStream ?? data.fallbackStream;
+    if (bestStream == null) {
+      return {};
+    }
+
+    final fallbackStream = data.fallbackStream;
+
+    return <String, dynamic>{
+      'id': data.videoId,
+      'title': data.title,
+      'channel': data.channelName,
+      'channel_url': data.channelUrl,
+      'thumbnail': data.thumbnailUrl,
+      'duration': data.duration?.inSeconds,
+      'views': data.viewCount,
+      'upload_date': data.uploadDate?.millisecondsSinceEpoch != null
+          ? data.uploadDate!.millisecondsSinceEpoch ~/ 1000
+          : null,
+      'tags': data.tags,
+      'description': data.description,
+      'audio': {
+        'download_url': bestStream.url,
+        'ext': bestStream.isHls ? 'm3u8' : bestStream.container,
+        'abr': bestStream.bitrateKbps.toDouble(),
+        'asr': bestStream.audioSampleRate,
+        'filesize': bestStream.contentLength,
+        'codec': bestStream.codecLabel,
+        'format_id': bestStream.itag,
+        'protocol': bestStream.isHls ? 'm3u8' : 'https',
+        'mime_type': bestStream.mimeType,
+        if (fallbackStream != null) ...{
+          'fallback_download_url': fallbackStream.url,
+          'fallback_codec': fallbackStream.codecLabel,
+        },
+      },
+      'source_url': data.sourceUrl,
+    };
+  }
+
+  static Future<void> dispose() async {
+    _client.close();
+    return Future.value();
+  }
+}
+
+class _CachedResult<T> {
+  _CachedResult(
+    this.value, {
+    Duration? ttl,
+  })  : timestamp = DateTime.now(),
+        ttl = ttl ?? const Duration(minutes: 5);
+
+  final T value;
+  final DateTime timestamp;
+  final Duration ttl;
+
+  bool get isExpired => DateTime.now().difference(timestamp) > ttl;
 }

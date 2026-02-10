@@ -1,12 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shimmer/shimmer.dart';
 import 'package:http/http.dart' as http;
 import 'dart:typed_data';
 import 'dart:async';
+import 'online_search_screen.dart';
+import 'section_page.dart';
+import 'youtube_history_screen.dart';
 import '../providers/audio_provider.dart';
 import '../providers/settings_provider.dart';
+import '../providers/recommendation_provider.dart';
 import '../services/ytdl_service.dart';
 import '../models/track.dart';
+import '../models/youtube_streaming_data.dart';
 
 class StreamScreen extends StatefulWidget {
   const StreamScreen({super.key});
@@ -19,10 +25,9 @@ class _StreamScreenState extends State<StreamScreen>
     with AutomaticKeepAliveClientMixin {
   late YtdlWrapperService _service;
   List<Map<String, dynamic>> _featured = [];
-  List<Map<String, dynamic>> _topArtists = [];
-  List<Map<String, dynamic>> _topAlbums = [];
+  List<Map<String, dynamic>> _quickPicks = [];
+  Map<String, List<Map<String, dynamic>>> _languagePlaylists = {};
   List<Map<String, dynamic>> _trendingSongs = [];
-  List<Map<String, dynamic>> _moodMixes = [];
   List<Map<String, dynamic>> _searchResults = [];
   bool _isLoading = true;
   bool _isSearching = false;
@@ -31,6 +36,7 @@ class _StreamScreenState extends State<StreamScreen>
   final TextEditingController _searchController = TextEditingController();
   Timer? _searchDebounceTimer;
   bool _isInitialized = false;
+  String? _lastTrackId; // Track the last track to avoid duplicate updates
 
   @override
   bool get wantKeepAlive => true;
@@ -42,13 +48,55 @@ class _StreamScreenState extends State<StreamScreen>
     if (_currentQuery.isNotEmpty) {
       _searchController.text = _currentQuery;
     }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final audioProvider = Provider.of<AudioProvider>(context, listen: false);
+      final recommendationProvider =
+          Provider.of<RecommendationProvider>(context, listen: false);
+
+      recommendationProvider.loadInitialRecommendations();
+
+      // Wait a bit for stream history to load from SharedPreferences
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      if (audioProvider.streamHistory.isNotEmpty) {
+        recommendationProvider.fetchPersonalizedFromHistory(
+          audioProvider.streamHistory,
+        );
+      }
+
+      if (audioProvider.currentTrack != null) {
+        recommendationProvider.updateRecommendations(
+          audioProvider.currentTrack,
+          audioProvider: audioProvider,
+        );
+      }
+
+      audioProvider.addListener(() {
+        final currentTrack = audioProvider.currentTrack;
+
+        if (currentTrack != null && currentTrack.id != _lastTrackId) {
+          _lastTrackId = currentTrack.id;
+
+          recommendationProvider.updateRecommendations(
+            currentTrack,
+            audioProvider: audioProvider,
+          );
+
+          if (audioProvider.streamHistory.isNotEmpty) {
+            recommendationProvider.fetchPersonalizedFromHistory(
+              audioProvider.streamHistory,
+            );
+          }
+        }
+      });
+    });
   }
 
   void _initializeService() {
     if (_isInitialized) return;
-    
-    final settings = Provider.of<SettingsProvider>(context, listen: false);
-    _service = YtdlWrapperService(settings.ytdlBaseUrl);
+
+    _service = const YtdlWrapperService();
     _isInitialized = true;
     _loadFeatured();
   }
@@ -67,11 +115,7 @@ class _StreamScreenState extends State<StreamScreen>
     if (!_isInitialized) {
       _initializeService();
     } else {
-      final settings = Provider.of<SettingsProvider>(context, listen: false);
-      if (_service.baseUrl != settings.ytdlBaseUrl) {
-        _service = YtdlWrapperService(settings.ytdlBaseUrl);
-        _loadFeatured();
-      }
+      // Service has no dynamic configuration; nothing to update here.
     }
     if (_currentQuery.isNotEmpty && _searchController.text != _currentQuery) {
       _searchController.text = _currentQuery;
@@ -99,28 +143,43 @@ class _StreamScreenState extends State<StreamScreen>
     });
 
     try {
-      final featuredFuture = _service.search('Latest music songs', limit: 20);
-      final trendingFuture = _service.search('Trending songs 2024', limit: 20);
-      final topArtistsFuture = _service.search('Top music artists', limit: 20);
-      final topAlbumsFuture = _service.search('Top music albums', limit: 20);
-      final moodFuture = _service.search('Chill mix playlist music', limit: 20);
+      final languages = [
+        'Hindi',
+        'English',
+        'Punjabi',
+        'Tamil',
+        'Telugu',
+        'Kannada',
+        'Malayalam',
+        'Bengali'
+      ];
 
-      final results = await Future.wait<List<Map<String, dynamic>>>([
-        featuredFuture,
+      final quickPicksFuture = _service.search('popular songs', limit: 20);
+      final trendingFuture = _service.search('trending songs', limit: 20);
+      final featuredFuture = _service.search('latest music songs', limit: 20);
+
+      final languageFutures = languages
+          .map((lang) => _service.search('$lang music playlist', limit: 15))
+          .toList();
+
+      final results = await Future.wait([
+        quickPicksFuture,
         trendingFuture,
-        topArtistsFuture,
-        topAlbumsFuture,
-        moodFuture,
+        featuredFuture,
+        ...languageFutures,
       ]);
 
       if (!mounted) return;
 
       setState(() {
-        _featured = results[0];
+        _quickPicks = results[0];
         _trendingSongs = results[1];
-        _topArtists = results[2];
-        _topAlbums = results[3];
-        _moodMixes = results[4];
+        _featured = results[2];
+
+        for (int i = 0; i < languages.length; i++) {
+          _languagePlaylists[languages[i]] = results[3 + i];
+        }
+
         _isLoading = false;
       });
     } catch (e) {
@@ -192,45 +251,42 @@ class _StreamScreenState extends State<StreamScreen>
       sourceUrl: videoUrl,
     );
 
-    audioProvider.preparePendingTrack(placeholderTrack);
+    await audioProvider.prepareTrackLoad(placeholderTrack);
 
-    Map<String, dynamic>? details;
+    YouTubeStreamingData? streamingData;
     try {
-      details = await _service.fetchAudioDetails(videoUrl);
+      streamingData = await _service.fetchStreamingData(videoUrl);
     } catch (_) {
-      details = null;
+      streamingData = null;
     }
 
-    if (details == null) {
+    if (streamingData == null || !streamingData.playable) {
       audioProvider.cancelPendingTrack();
       _showSnackBar('Unable to load audio stream.');
       return;
     }
 
-    String? downloadUrl;
-    final audio = details['audio'];
-    if (audio is Map) {
-      downloadUrl = audio['download_url'] as String?;
-    } else if (audio is String) {
-      downloadUrl = audio;
-    }
-    downloadUrl ??= details['download_url'] as String?;
-    downloadUrl ??= details['audio_url'] as String?;
-    final download = details['download'];
-    if (downloadUrl == null && download is Map) {
-      downloadUrl = download['url'] as String? ?? download['download_url'] as String?;
-    } else if (downloadUrl == null && download is String) {
-      downloadUrl = download;
-    }
-
-    if (downloadUrl == null) {
+    final selectedFormat =
+        streamingData.bestStream ?? streamingData.fallbackStream;
+    if (selectedFormat == null) {
+      print('[stream_screen] No audio format found!');
+      print(
+          '[stream_screen] Primary streams: ${streamingData.primaryStreams.length}');
+      print(
+          '[stream_screen] Fallback streams: ${streamingData.fallbackStreams.length}');
       audioProvider.cancelPendingTrack();
       _showSnackBar('Audio stream unavailable.');
       return;
     }
 
+    print(
+        '[stream_screen] Selected format: itag=${selectedFormat.itag}, bitrate=${selectedFormat.bitrateKbps}kbps, type=${selectedFormat.type}');
+    print(
+        '[stream_screen] Audio URL: ${selectedFormat.url.substring(0, selectedFormat.url.length > 150 ? 150 : selectedFormat.url.length)}...');
+
     Uint8List? albumArt;
-    final thumbUrl = (details['thumbnail'] ?? video['thumbnail']) as String?;
+    final thumbUrl =
+        streamingData.thumbnailUrl ?? video['thumbnail'] as String?;
     if (thumbUrl != null && thumbUrl.isNotEmpty) {
       try {
         final thumbnailResponse = await http.get(Uri.parse(thumbUrl));
@@ -241,16 +297,24 @@ class _StreamScreenState extends State<StreamScreen>
     }
 
     final finalTrack = placeholderTrack.copyWith(
-      title: details['title'] as String? ?? placeholderTrack.title,
-      artist: details['channel'] as String? ?? placeholderTrack.artist,
+      title: streamingData.title.isNotEmpty
+          ? streamingData.title
+          : placeholderTrack.title,
+      artist: streamingData.channelName.isNotEmpty
+          ? streamingData.channelName
+          : placeholderTrack.artist,
       album: 'YouTube',
-      path: downloadUrl,
-      duration: Duration(seconds: _asInt(details['duration']) ?? durationSeconds),
+      path: selectedFormat.url,
+      duration: streamingData.duration ?? Duration(seconds: durationSeconds),
       albumArt: albumArt ?? placeholderTrack.albumArt,
       sourceUrl: placeholderTrack.sourceUrl,
     );
 
+    print(
+        '[stream_screen] Final track path: ${finalTrack.path.substring(0, finalTrack.path.length > 100 ? 100 : finalTrack.path.length)}...');
+    print('[stream_screen] Calling audioProvider.playTrack()');
     await audioProvider.playTrack(finalTrack);
+    print('[stream_screen] audioProvider.playTrack() completed');
   }
 
   void _showSnackBar(String message) {
@@ -267,122 +331,95 @@ class _StreamScreenState extends State<StreamScreen>
       height: height,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: colorScheme.outline.withValues(alpha: 0.08)),
+        color: colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: colorScheme.shadow.withOpacity(0.02),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Text(
-        message,
-        style: theme.textTheme.bodyMedium?.copyWith(
-          color: colorScheme.onSurfaceVariant,
-        ),
-        textAlign: TextAlign.center,
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: colorScheme.surfaceContainerHighest.withOpacity(0.5),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
+              Icons.music_note_rounded,
+              size: 24,
+              color: colorScheme.onSurfaceVariant.withOpacity(0.5),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Text(
+              message,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: colorScheme.onSurfaceVariant.withOpacity(0.7),
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildVideoTile(Map<String, dynamic> video) {
     final thumbnail = video['thumbnail'] as String?;
-    final durationSeconds = _asInt(video['duration']);
-    final duration = durationSeconds != null ? _formatDuration(durationSeconds) : '';
     final colorScheme = Theme.of(context).colorScheme;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 4),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        color: colorScheme.surfaceContainerLow,
+        boxShadow: [
+          BoxShadow(
+            color: colorScheme.shadow.withOpacity(0.03),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
       child: Material(
         color: Colors.transparent,
-        borderRadius: BorderRadius.circular(16),
         child: InkWell(
           onTap: () => _playVideo(video),
-          borderRadius: BorderRadius.circular(16),
-          splashColor: colorScheme.primary.withValues(alpha: 0.05),
-          highlightColor: colorScheme.primary.withValues(alpha: 0.03),
-          child: Container(
+          borderRadius: BorderRadius.circular(14),
+          child: Padding(
             padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  colorScheme.surface.withValues(alpha: 0.8),
-                  colorScheme.surface.withValues(alpha: 0.4),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: colorScheme.outline.withValues(alpha: 0.1),
-                width: 1,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: colorScheme.shadow.withValues(alpha: 0.05),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                  spreadRadius: 0,
-                ),
-              ],
-            ),
             child: Row(
               children: [
                 ClipRRect(
                   borderRadius: BorderRadius.circular(10),
                   child: Container(
-                    width: 120,
-                    height: 68,
-                    decoration: BoxDecoration(
-                      boxShadow: [
-                        BoxShadow(
-                          color: colorScheme.shadow.withValues(alpha: 0.1),
-                          blurRadius: 6,
-                          offset: const Offset(0, 2),
+                    width: 72,
+                    height: 72,
+                    color: colorScheme.surfaceContainerHighest,
+                    child: Image.network(
+                      thumbnail ??
+                          'https://img.youtube.com/vi/${video['id']}/maxresdefault.jpg',
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) => Container(
+                        alignment: Alignment.center,
+                        color: colorScheme.surfaceContainerHighest,
+                        child: Icon(
+                          Icons.music_note_rounded,
+                          size: 32,
+                          color: colorScheme.onSurfaceVariant.withOpacity(0.4),
                         ),
-                      ],
-                    ),
-                    child: Stack(
-                      children: [
-                        Image.network(
-                          thumbnail ?? 'https://img.youtube.com/vi/${video['id']}/mqdefault.jpg',
-                          width: 120,
-                          height: 68,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) => Container(
-                            width: 120,
-                            height: 68,
-                            color: colorScheme.surfaceContainerHighest,
-                            child: Icon(
-                              Icons.music_note,
-                              color: colorScheme.onSurfaceVariant,
-                              size: 24,
-                            ),
-                          ),
-                        ),
-                        if (duration.isNotEmpty)
-                          Positioned(
-                            bottom: 4,
-                            right: 4,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: Colors.black.withValues(alpha: 0.7),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(
-                                duration,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                          ),
-                      ],
+                      ),
                     ),
                   ),
                 ),
-                const SizedBox(width: 16),
-                // Video info
+                const SizedBox(width: 14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -390,11 +427,11 @@ class _StreamScreenState extends State<StreamScreen>
                     children: [
                       Text(
                         video['title'] ?? 'Unknown',
-                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          color: colorScheme.onSurface,
-                          fontWeight: FontWeight.w600,
-                          height: 1.2,
-                        ),
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: colorScheme.onSurface,
+                              fontWeight: FontWeight.w600,
+                              height: 1.3,
+                            ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -402,50 +439,35 @@ class _StreamScreenState extends State<StreamScreen>
                       Text(
                         video['channel'] ?? 'Unknown',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
-                          fontSize: 12,
-                          height: 1.3,
-                        ),
+                              color:
+                                  colorScheme.onSurfaceVariant.withOpacity(0.7),
+                              fontSize: 13,
+                            ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        _formatViews(_asInt(video['views'])),
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
-                          fontSize: 10,
-                        ),
                       ),
                     ],
                   ),
                 ),
-                SizedBox(
-                  width: 48,
-                  child: Align(
-                    alignment: Alignment.centerRight,
-                    child: Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.8),
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: colorScheme.outline.withValues(alpha: 0.2),
-                          width: 1,
-                        ),
+                const SizedBox(width: 12),
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: colorScheme.primaryContainer,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: colorScheme.primary.withOpacity(0.15),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
                       ),
-                      child: IconButton(
-                        icon: Icon(
-                          Icons.play_arrow_rounded,
-                          color: colorScheme.primary,
-                          size: 20,
-                        ),
-                        onPressed: () => _playVideo(video),
-                        tooltip: 'Play',
-                        padding: EdgeInsets.zero,
-                      ),
-                    ),
+                    ],
+                  ),
+                  child: Icon(
+                    Icons.play_arrow_rounded,
+                    color: colorScheme.onPrimaryContainer,
+                    size: 24,
                   ),
                 ),
               ],
@@ -472,9 +494,31 @@ class _StreamScreenState extends State<StreamScreen>
 
   String _formatViews(int? views) {
     if (views == null || views < 0) return 'N/A views';
-    if (views >= 1000000) return '${(views / 1000000).toStringAsFixed(1)}M views';
+    if (views >= 1000000)
+      return '${(views / 1000000).toStringAsFixed(1)}M views';
     if (views >= 1000) return '${(views / 1000).toStringAsFixed(1)}K views';
     return '$views views';
+  }
+
+  void _openSearchScreen(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => const OnlineSearchScreen(),
+      ),
+    );
+  }
+
+  void _openSectionPage(
+      String title, List<Map<String, dynamic>> items, bool isListView) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => SectionPage(
+          title: title,
+          items: items,
+          isListView: isListView,
+        ),
+      ),
+    );
   }
 
   void _showSettingsDialog() {
@@ -515,7 +559,7 @@ class _StreamScreenState extends State<StreamScreen>
                 if (newUrl.isNotEmpty) {
                   await settings.setYtdlBaseUrl(newUrl);
                   setState(() {
-                    _service = YtdlWrapperService(newUrl);
+                    _service = const YtdlWrapperService();
                   });
                   _loadFeatured();
                 }
@@ -532,96 +576,50 @@ class _StreamScreenState extends State<StreamScreen>
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Scaffold(
       resizeToAvoidBottomInset: false,
       body: NestedScrollView(
         headerSliverBuilder: (context, innerBoxIsScrolled) {
           return [
-            SliverAppBar.medium(
-              title: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: 8),  // Top spacing
-                  Row(
-                    children: [
-                      Icon(Icons.cloud, color: Theme.of(context).colorScheme.primary),
-                      const SizedBox(width: 12),
-                      const Text('Stream'),
-                    ],
-                  ),
-                ],
-              ),
+            SliverAppBar(
+              floating: true,
+              snap: true,
               elevation: 0,
-              backgroundColor: Theme.of(context).colorScheme.surface,
-              foregroundColor: Theme.of(context).colorScheme.onSurface,
+              backgroundColor: colorScheme.surface,
+              foregroundColor: colorScheme.onSurface,
+              title: _buildSearchField(context),
               actions: [
+                Consumer<SettingsProvider>(
+                  builder: (context, settings, _) {
+                    if (!settings.enableYouTubeIntegration)
+                      return const SizedBox.shrink();
+                    return IconButton(
+                      icon: const Icon(Icons.history),
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const YoutubeHistoryScreen(),
+                          ),
+                        );
+                      },
+                      tooltip: 'YouTube History',
+                    );
+                  },
+                ),
                 IconButton(
                   icon: const Icon(Icons.settings_outlined),
-                  onPressed: _showSettingsDialog,
+                  onPressed: () => Navigator.pushNamed(context, '/settings'),
                   tooltip: 'Settings',
                 ),
               ],
-              bottom: PreferredSize(
-                preferredSize: const Size.fromHeight(96),  // Increased height
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),  // Top padding
-                  child: Material(
-                    color: Colors.transparent,
-                    borderRadius: BorderRadius.circular(24),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            Theme.of(context).colorScheme.primary.withValues(alpha: 0.15),
-                            Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
-                          ],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.circular(24),
-                        border: Border.all(
-                          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
-                          width: 1,
-                        ),
-                      ),
-                      child: SearchBar(
-                        controller: _searchController,
-                        leading: const Padding(
-                          padding: EdgeInsets.only(left: 8),
-                          child: Icon(Icons.search),
-                        ),
-                        trailing: _searchController.text.isNotEmpty
-                            ? [
-                                IconButton(
-                                  icon: const Icon(Icons.clear),
-                                  onPressed: () {
-                                    _searchController.clear();
-                                    _onSearchChanged('');
-                                  },
-                                ),
-                              ]
-                            : null,
-                        hintText: 'Search music...',
-                        elevation: const WidgetStatePropertyAll(0),
-                        shape: WidgetStatePropertyAll(
-                          RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(24),
-                          ),
-                        ),
-                        padding: const WidgetStatePropertyAll(
-                          EdgeInsets.symmetric(horizontal: 16),
-                        ),
-                        onChanged: _onSearchChanged,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
             ),
           ];
         },
         body: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+          padding: const EdgeInsets.symmetric(horizontal: 20),
           child: _buildContent(),
         ),
       ),
@@ -630,7 +628,7 @@ class _StreamScreenState extends State<StreamScreen>
 
   Widget _buildContent() {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return _buildShimmerLoading();
     }
 
     if (_error != null) {
@@ -638,9 +636,12 @@ class _StreamScreenState extends State<StreamScreen>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.error_outline, size: 48, color: Theme.of(context).colorScheme.error),
+            Icon(Icons.error_outline,
+                size: 48, color: Theme.of(context).colorScheme.error),
             const SizedBox(height: 16),
-            Text(_error!, textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodyMedium),
+            Text(_error!,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyMedium),
             const SizedBox(height: 16),
             FilledButton(
               onPressed: _loadFeatured,
@@ -658,65 +659,133 @@ class _StreamScreenState extends State<StreamScreen>
     final showingSearch = _currentQuery.isNotEmpty;
     if (showingSearch && _searchResults.isEmpty) {
       return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.music_off, size: 48, color: Theme.of(context).colorScheme.onSurfaceVariant),
-            const SizedBox(height: 16),
-            Text(
-              'No results found',
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-          ],
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceContainerLow,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.search_off_rounded,
+                  size: 64,
+                  color: Theme.of(context)
+                      .colorScheme
+                      .onSurfaceVariant
+                      .withOpacity(0.4),
+                ),
+              ),
+              const SizedBox(height: 24),
+              Text(
+                'No results found',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Try searching with different keywords',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context)
+                          .colorScheme
+                          .onSurfaceVariant
+                          .withOpacity(0.7),
+                    ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
         ),
       );
     }
 
     return RefreshIndicator(
-      onRefresh: showingSearch ? () async => _search(_currentQuery) : () => _loadDiscoverSections(forceRefresh: true),
+      onRefresh: showingSearch
+          ? () async => _search(_currentQuery)
+          : () => _loadDiscoverSections(forceRefresh: true),
       child: Consumer<AudioProvider>(
         builder: (context, audioProvider, child) {
           final hasMiniPlayer = audioProvider.currentTrack != null;
           final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
-          final shouldShowMiniPlayer = hasMiniPlayer && keyboardHeight == 0;
+          final showMiniPlayer = hasMiniPlayer && keyboardHeight == 0;
+          final safeArea = MediaQuery.of(context).padding.bottom;
+          final bottomPadding =
+              showMiniPlayer ? safeArea + 96.0 : safeArea + 24;
 
           if (showingSearch) {
             return ListView.separated(
-              padding: EdgeInsets.only(
-                bottom: shouldShowMiniPlayer ? 120 : 16,
-                top: 12,
-              ),
+              padding: EdgeInsets.only(bottom: bottomPadding, top: 16),
               keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               itemCount: _searchResults.length,
               separatorBuilder: (_, __) => const SizedBox(height: 12),
-              itemBuilder: (context, index) => _buildVideoTile(_searchResults[index]),
+              itemBuilder: (context, index) =>
+                  _buildVideoTile(_searchResults[index]),
             );
           }
 
           return ListView(
-            padding: EdgeInsets.only(
-              bottom: shouldShowMiniPlayer ? 140 : 24,
-            ),
+            padding: EdgeInsets.only(bottom: bottomPadding, top: 16),
             children: [
-              _buildSectionHeader('Featured for you'),
+              _buildHeroHeader(context),
+              const SizedBox(height: 24),
+
+              Consumer<RecommendationProvider>(
+                builder: (context, recommendationProvider, child) {
+                  final relatedVideos = recommendationProvider.relatedVideos;
+                  final recommendations =
+                      recommendationProvider.recommendations;
+                  final isLoading = recommendationProvider.isLoading;
+
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (relatedVideos.isNotEmpty) ...[
+                        _buildSectionHeader('Now Playing Radio',
+                            items: relatedVideos, isListView: false),
+                        const SizedBox(height: 12),
+                        _buildHorizontalCarousel(relatedVideos),
+                        const SizedBox(height: 28),
+                      ],
+
+                      // Personalized recommendations (grid layout)
+                      if (recommendations.isNotEmpty) ...[
+                        _buildSectionHeader('Personalized for You',
+                            items: recommendations, isListView: false),
+                        const SizedBox(height: 12),
+                        _buildGridCarousel(recommendations),
+                        const SizedBox(height: 28),
+                      ],
+
+                      if (isLoading &&
+                          relatedVideos.isEmpty &&
+                          recommendations.isEmpty) ...[
+                        const SizedBox(
+                          height: 200,
+                          child: Center(child: CircularProgressIndicator()),
+                        ),
+                        const SizedBox(height: 28),
+                      ],
+                    ],
+                  );
+                },
+              ),
+
+              _buildSectionHeader('Quick picks',
+                  items: _quickPicks, isListView: false),
               const SizedBox(height: 12),
-              _buildHorizontalCarousel(_featured),
-              const SizedBox(height: 32),
-              _buildSectionHeader('Trending now'),
+              _buildHorizontalCarousel(_quickPicks),
+              const SizedBox(height: 28),
+
+              // Trending section
+              _buildSectionHeader('Trending now',
+                  items: _trendingSongs.take(6).toList(), isListView: true),
               const SizedBox(height: 12),
               _buildTileList(_trendingSongs.take(6).toList()),
-              const SizedBox(height: 32),
-              _buildSectionHeader('Top artists'),
-              const SizedBox(height: 12),
-              _buildArtistChips(_topArtists),
-              const SizedBox(height: 32),
-              _buildSectionHeader('Top albums'),
-              const SizedBox(height: 12),
-              _buildAlbumGrid(_topAlbums.take(6).toList()),
-              const SizedBox(height: 32),
-              _buildSectionHeader('Mood mixes'),
-              const SizedBox(height: 12),
-              _buildHorizontalCarousel(_moodMixes),
             ],
           );
         },
@@ -724,119 +793,470 @@ class _StreamScreenState extends State<StreamScreen>
     );
   }
 
-  Widget _buildSectionHeader(String title) {
+  Widget _buildShimmerLoading() {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          title,
-          style: theme.textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.bold,
-            color: colorScheme.onSurface,
+
+    return Shimmer.fromColors(
+      baseColor: colorScheme.surfaceContainerHighest.withOpacity(0.4),
+      highlightColor: colorScheme.surfaceContainerHighest.withOpacity(0.7),
+      child: ListView(
+        padding: const EdgeInsets.only(bottom: 120, top: 16),
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              color: colorScheme.surface,
+            ),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+            child: Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: colorScheme.surfaceContainerHighest,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        height: 18,
+                        width: 140,
+                        decoration: BoxDecoration(
+                          color: colorScheme.surfaceContainerHighest,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Container(
+                        height: 14,
+                        width: 200,
+                        decoration: BoxDecoration(
+                          color: colorScheme.surfaceContainerHighest,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
-        Icon(Icons.chevron_right, size: 20, color: colorScheme.onSurfaceVariant),
-      ],
+          const SizedBox(height: 24),
+
+          Container(
+            height: 28,
+            width: 160,
+            margin: const EdgeInsets.only(bottom: 8),
+            decoration: BoxDecoration(
+              color: colorScheme.surface,
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+
+          // Horizontal carousel cards with modern design
+          SizedBox(
+            height: 240,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: 6,
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              separatorBuilder: (_, __) => const SizedBox(width: 18),
+              itemBuilder: (context, index) {
+                return Container(
+                  width: 150,
+                  decoration: BoxDecoration(
+                    color: colorScheme.surface,
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: colorScheme.shadow.withOpacity(0.08),
+                        blurRadius: 14,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
+                  ),
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        height: 126,
+                        decoration: BoxDecoration(
+                          color: colorScheme.surfaceContainerHighest,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Container(
+                        height: 14,
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          color: colorScheme.surfaceContainerHighest,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Container(
+                        height: 14,
+                        width: 100,
+                        decoration: BoxDecoration(
+                          color: colorScheme.surfaceContainerHighest,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Container(
+                        height: 12,
+                        width: 80,
+                        decoration: BoxDecoration(
+                          color: colorScheme.surfaceContainerHighest,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // More sections
+          ...List.generate(
+            3,
+            (sectionIndex) => Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  height: 28,
+                  width: 140,
+                  margin: const EdgeInsets.only(bottom: 8),
+                  decoration: BoxDecoration(
+                    color: colorScheme.surface,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+
+                // Carousel
+                SizedBox(
+                  height: 240,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: 4,
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    separatorBuilder: (_, __) => const SizedBox(width: 18),
+                    itemBuilder: (context, index) {
+                      return Container(
+                        width: 150,
+                        decoration: BoxDecoration(
+                          color: colorScheme.surface,
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(
+                              color: colorScheme.shadow.withOpacity(0.08),
+                              blurRadius: 14,
+                              offset: const Offset(0, 6),
+                            ),
+                          ],
+                        ),
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              height: 126,
+                              decoration: BoxDecoration(
+                                color: colorScheme.surfaceContainerHighest,
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            Container(
+                              height: 14,
+                              width: double.infinity,
+                              decoration: BoxDecoration(
+                                color: colorScheme.surfaceContainerHighest,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Container(
+                              height: 14,
+                              width: 100,
+                              decoration: BoxDecoration(
+                                color: colorScheme.surfaceContainerHighest,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Container(
+                              height: 12,
+                              width: 80,
+                              decoration: BoxDecoration(
+                                color: colorScheme.surfaceContainerHighest,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 20),
+              ],
+            ),
+          ),
+
+          // Trending section header
+          Container(
+            height: 28,
+            width: 120,
+            margin: const EdgeInsets.only(bottom: 12),
+            decoration: BoxDecoration(
+              color: colorScheme.surface,
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+
+          // Trending tiles
+          ...List.generate(
+            5,
+            (index) => Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: colorScheme.surface,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: colorScheme.shadow.withOpacity(0.06),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 68,
+                    height: 68,
+                    decoration: BoxDecoration(
+                      color: colorScheme.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  // Text content
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          height: 15,
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            color: colorScheme.surfaceContainerHighest,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Container(
+                          height: 13,
+                          width: 120,
+                          decoration: BoxDecoration(
+                            color: colorScheme.surfaceContainerHighest,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  // Play button
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: colorScheme.surfaceContainerHighest,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
     );
+  }
+
+  List<Widget> _buildLanguagePlaylistsSections() {
+    final widgets = <Widget>[];
+
+    _languagePlaylists.forEach((language, playlist) {
+      if (playlist.isEmpty) return;
+
+      widgets.addAll([
+        _buildSectionHeader('$language songs',
+            items: playlist, isListView: false),
+        const SizedBox(height: 8),
+        _buildHorizontalCarousel(playlist),
+        const SizedBox(height: 20),
+      ]);
+    });
+
+    return widgets;
   }
 
   Widget _buildHorizontalCarousel(List<Map<String, dynamic>> items) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final itemCount = items.length > 15 ? 15 : items.length;
-    if (itemCount == 0) {
-      return _buildEmptySectionCard('Nothing to show yet', height: 140);
-    }
-    return SizedBox(
-      height: 210,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: itemCount,
-        separatorBuilder: (_, __) => const SizedBox(width: 16),
-        itemBuilder: (context, index) {
-          final item = items[index];
-          final thumbnail = item['thumbnail'] as String? ?? 'https://img.youtube.com/vi/${item['id']}/hqdefault.jpg';
-          final title = item['title'] as String? ?? 'Unknown';
-          final subtitle = item['channel'] as String? ?? 'Unknown artist';
 
-          return GestureDetector(
-            onTap: () => _playVideo(item),
-            child: Container(
-              width: 170,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    colorScheme.surfaceContainerHighest.withValues(alpha: 0.8),
-                    colorScheme.surfaceContainer.withValues(alpha: 0.6),
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: colorScheme.outline.withValues(alpha: 0.1)),
-                boxShadow: [
-                  BoxShadow(
-                    color: colorScheme.shadow.withValues(alpha: 0.07),
-                    blurRadius: 12,
-                    offset: const Offset(0, 6),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  ClipRRect(
-                    borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(18),
-                      topRight: Radius.circular(18),
-                    ),
-                    child: AspectRatio(
-                      aspectRatio: 16 / 9,
-                      child: Image.network(
-                        thumbnail,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) => Container(
-                          alignment: Alignment.center,
-                          color: colorScheme.surfaceContainerHighest,
-                          child: Icon(Icons.music_note, color: colorScheme.onSurfaceVariant),
-                        ),
+    if (itemCount == 0) {
+      return _buildEmptySectionCard('Nothing to show right now');
+    }
+
+    return SizedBox(
+      height: 240,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final maxWidth = constraints.maxWidth;
+          final cardWidth = (maxWidth * 0.42).clamp(132.0, 168.0);
+          final imageSize = cardWidth - 24;
+
+          return ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            itemCount: itemCount,
+            separatorBuilder: (_, __) => const SizedBox(width: 18),
+            itemBuilder: (context, index) {
+              final item = items[index];
+              final thumbnail = item['thumbnail'] as String?;
+              final title = item['title'] as String? ?? 'Unknown';
+              final channel = item['channel'] as String? ?? 'Unknown';
+
+              return SizedBox(
+                width: cardWidth,
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () => _playVideo(item),
+                    splashColor:
+                        colorScheme.primaryContainer.withValues(alpha: 0.12),
+                    highlightColor:
+                        colorScheme.primaryContainer.withValues(alpha: 0.06),
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        color: colorScheme.surfaceContainerLow,
+                        boxShadow: [
+                          BoxShadow(
+                            color: colorScheme.shadow.withOpacity(0.04),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
                       ),
-                    ),
-                  ),
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Text(
-                            title,
-                            style: theme.textTheme.titleSmall?.copyWith(
-                              color: colorScheme.onSurface,
-                              fontWeight: FontWeight.w600,
-                            ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
+                          // Album art with overlay gradient
+                          Stack(
+                            children: [
+                              ClipRRect(
+                                borderRadius: const BorderRadius.vertical(
+                                  top: Radius.circular(12),
+                                ),
+                                child: SizedBox(
+                                  width: cardWidth,
+                                  height: imageSize,
+                                  child: Image.network(
+                                    thumbnail ??
+                                        'https://img.youtube.com/vi/${item['id']}/maxresdefault.jpg',
+                                    fit: BoxFit.cover,
+                                    errorBuilder:
+                                        (context, error, stackTrace) =>
+                                            Container(
+                                      alignment: Alignment.center,
+                                      color:
+                                          colorScheme.surfaceContainerHighest,
+                                      child: Icon(
+                                        Icons.music_note_rounded,
+                                        size: 48,
+                                        color: colorScheme.onSurfaceVariant
+                                            .withOpacity(0.3),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              // Subtle shadow overlay at bottom for text readability
+                              Positioned(
+                                bottom: 0,
+                                left: 0,
+                                right: 0,
+                                child: Container(
+                                  height: 40,
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      begin: Alignment.topCenter,
+                                      end: Alignment.bottomCenter,
+                                      colors: [
+                                        Colors.transparent,
+                                        Colors.black.withOpacity(0.02),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(height: 6),
-                          Text(
-                            subtitle,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: colorScheme.onSurfaceVariant,
+                          // Text content
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(12, 12, 12, 14),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  title,
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                    color: colorScheme.onSurface,
+                                    height: 1.3,
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  channel,
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: colorScheme.onSurfaceVariant
+                                        .withOpacity(0.7),
+                                    fontSize: 12,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
                             ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
                           ),
                         ],
                       ),
                     ),
                   ),
-                ],
-              ),
-            ),
+                ),
+              );
+            },
           );
         },
       ),
@@ -850,128 +1270,313 @@ class _StreamScreenState extends State<StreamScreen>
     return Column(children: items.map(_buildVideoTile).toList(growable: false));
   }
 
-  Widget _buildArtistChips(List<Map<String, dynamic>> items) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    if (items.isEmpty) {
-      return _buildEmptySectionCard('No top artists yet', height: 96);
-    }
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
+  Widget _buildHeroHeader(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        gradient: LinearGradient(
+          colors: [
+            colorScheme.primary.withValues(alpha: 0.12),
+            colorScheme.primaryContainer.withValues(alpha: 0.24),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        border: Border.all(color: colorScheme.primary.withValues(alpha: 0.18)),
+      ),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
       child: Row(
-        children: items.take(12).map((artist) {
-          final name = artist['channel'] as String? ?? artist['title'] as String? ?? 'Unknown Artist';
-          final thumbnail = artist['thumbnail'] as String? ?? 'https://img.youtube.com/vi/${artist['id']}/hqdefault.jpg';
-          return Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: ActionChip(
-              onPressed: () => _playVideo(artist),
-              label: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
-              avatar: CircleAvatar(
-                backgroundImage: NetworkImage(thumbnail),
-                onBackgroundImageError: (_, __) {},
-                backgroundColor: colorScheme.surfaceContainerHighest,
-              ),
-              backgroundColor: colorScheme.surfaceContainer,
-              side: BorderSide(color: colorScheme.outline.withValues(alpha: 0.12)),
-              labelStyle: theme.textTheme.bodyMedium?.copyWith(
-                color: colorScheme.onSurface,
-              ),
-            ),
-          );
-        }).toList(),
-      ),
-    );
-  }
-
-  Widget _buildAlbumGrid(List<Map<String, dynamic>> items) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    if (items.isEmpty) {
-      return _buildEmptySectionCard('No albums available yet');
-    }
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        mainAxisSpacing: 16,
-        crossAxisSpacing: 16,
-        childAspectRatio: 0.9,
-      ),
-      itemCount: items.length,
-      itemBuilder: (context, index) {
-        final album = items[index];
-        final thumbnail = album['thumbnail'] as String? ?? 'https://img.youtube.com/vi/${album['id']}/hqdefault.jpg';
-        final title = album['title'] as String? ?? 'Unknown album';
-        final artist = album['channel'] as String? ?? 'Unknown artist';
-
-        return GestureDetector(
-          onTap: () => _playVideo(album),
-          child: Container(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: colorScheme.surfaceContainer,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: colorScheme.outline.withValues(alpha: 0.12)),
-              boxShadow: [
-                BoxShadow(
-                  color: colorScheme.shadow.withValues(alpha: 0.06),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ],
+              color: colorScheme.primary,
+              shape: BoxShape.circle,
             ),
+            child: Icon(
+              Icons.explore,
+              color: colorScheme.onPrimary,
+              size: 22,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                ClipRRect(
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-                  child: Image.network(
-                    thumbnail,
-                    height: 120,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) => Container(
-                      height: 120,
-                      alignment: Alignment.center,
-                      color: colorScheme.surfaceContainerHighest,
-                      child: Icon(Icons.album, color: colorScheme.onSurfaceVariant),
-                    ),
-                  ),
+                Text(
+                  'Discover something new',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: colorScheme.onSurface,
+                      ),
                 ),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          title,
-                          style: theme.textTheme.titleSmall?.copyWith(
-                            color: colorScheme.onSurface,
-                            fontWeight: FontWeight.w600,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          artist,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: colorScheme.onSurfaceVariant,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ),
-                  ),
+                const SizedBox(height: 4),
+                Text(
+                  'Fresh tracks & playlists for you',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant.withOpacity(0.8),
+                      ),
                 ),
               ],
             ),
           ),
-        );
-      },
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeroChip(BuildContext context, IconData icon, String label) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: colorScheme.surface.withValues(alpha: 0.7),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: colorScheme.primary.withValues(alpha: 0.18)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 18, color: colorScheme.primary),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: colorScheme.onSurface,
+                  fontWeight: FontWeight.w600,
+                ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSearchField(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Container(
+      height: 44,
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: colorScheme.outline.withOpacity(0.08)),
+      ),
+      child: TextField(
+        controller: _searchController,
+        onChanged: _onSearchChanged,
+        textAlignVertical: TextAlignVertical.center,
+        decoration: InputDecoration(
+          isDense: true,
+          prefixIcon: Icon(Icons.search, color: colorScheme.onSurfaceVariant),
+          prefixIconConstraints:
+              const BoxConstraints(minWidth: 44, minHeight: 44),
+          suffixIcon: (_isSearching || _currentQuery.isNotEmpty)
+              ? IconButton(
+                  tooltip: 'Clear',
+                  icon: Icon(Icons.close, color: colorScheme.onSurfaceVariant),
+                  onPressed: () {
+                    _searchController.clear();
+                    _searchDebounceTimer?.cancel();
+                    _search('');
+                  },
+                )
+              : null,
+          hintText: 'Search YouTube…',
+          hintStyle: theme.textTheme.bodyMedium?.copyWith(
+            color: colorScheme.onSurfaceVariant.withOpacity(0.8),
+          ),
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader(
+    String title, {
+    required List<Map<String, dynamic>> items,
+    required bool isListView,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: colorScheme.primary.withValues(alpha: 0.18),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                isListView ? Icons.bar_chart : Icons.queue_music,
+                color: colorScheme.primary,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              title,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: colorScheme.onSurface,
+                  ),
+            ),
+          ],
+        ),
+        if (items.isNotEmpty)
+          TextButton(
+            onPressed: () => _openSectionPage(title, items, isListView),
+            style: TextButton.styleFrom(foregroundColor: colorScheme.primary),
+            child: const Text('See all'),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildGridCarousel(List<Map<String, dynamic>> items) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final itemCount = items.length > 15 ? 15 : items.length;
+
+    if (itemCount == 0) {
+      return _buildEmptySectionCard('Nothing to show right now', height: 400);
+    }
+
+    // Group items into columns of 3
+    final columns = <List<Map<String, dynamic>>>[];
+    for (var i = 0; i < itemCount; i += 3) {
+      final end = (i + 3) > itemCount ? itemCount : i + 3;
+      columns.add(items.sublist(i, end));
+    }
+
+    return SizedBox(
+      height: 240, // Height for 3 items vertically
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        itemCount: columns.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 12),
+        itemBuilder: (context, columnIndex) {
+          final columnItems = columns[columnIndex];
+
+          return SizedBox(
+            width: 300, // Width of each column
+            child: Column(
+              children: columnItems.asMap().entries.map((entry) {
+                final item = entry.value;
+                final isLast = entry.key == columnItems.length - 1;
+
+                return Padding(
+                  padding: EdgeInsets.only(bottom: isLast ? 0 : 8),
+                  child: SizedBox(
+                    height: 72,
+                    child: _buildGridItem(item, colorScheme, theme),
+                  ),
+                );
+              }).toList(),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildGridItem(
+    Map<String, dynamic> item,
+    ColorScheme colorScheme,
+    ThemeData theme,
+  ) {
+    final thumbnail = item['thumbnail'] as String?;
+    final title = item['title'] as String? ?? 'Unknown';
+    final channel = item['channel'] as String? ?? 'Unknown';
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => _playVideo(item),
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            color: colorScheme.surfaceContainerLow,
+            boxShadow: [
+              BoxShadow(
+                color: colorScheme.shadow.withOpacity(0.03),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              ClipRRect(
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(12),
+                  bottomLeft: Radius.circular(12),
+                ),
+                child: Container(
+                  width: 68,
+                  height: 72,
+                  color: colorScheme.surfaceContainerHighest,
+                  child: Image.network(
+                    thumbnail ??
+                        'https://img.youtube.com/vi/${item['id']}/default.jpg',
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) => Container(
+                      color: colorScheme.surfaceContainerHighest,
+                      child: Icon(
+                        Icons.music_note_rounded,
+                        color: colorScheme.onSurfaceVariant.withOpacity(0.4),
+                        size: 28,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Expanded(
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        title,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                          height: 1.3,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        channel,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colorScheme.onSurfaceVariant.withOpacity(0.7),
+                          fontSize: 11,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

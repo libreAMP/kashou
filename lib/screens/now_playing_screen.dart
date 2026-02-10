@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
 import '../providers/audio_provider.dart';
 import '../widgets/equalizer_widget.dart';
 import 'metadata_editor_screen.dart';
@@ -34,9 +35,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       _downloadProgress = 0.0;
     });
 
-    final isOnlineTrack = track.path.contains('youtube.com') || 
-                         track.path.contains('youtu.be') ||
-                         track.album == 'YouTube';
+    final isOnlineTrack = track.path.contains('youtube.com') ||
+        track.path.contains('youtu.be') ||
+        track.album == 'YouTube';
 
     if (!isOnlineTrack) {
       if (context.mounted) {
@@ -72,7 +73,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
 
       setState(() => _downloadProgress = 0.1);
 
-      final ytdlService = YtdlWrapperService(settings.ytdlBaseUrl);
+      const ytdlService = YtdlWrapperService();
       final details = await ytdlService.fetchAudioDetails(track.path);
 
       if (details == null) {
@@ -83,13 +84,13 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
 
       String? downloadUrl;
       final audio = details['audio'];
-      
+
       if (audio is Map<String, dynamic>) {
         downloadUrl = audio['download_url'] as String?;
       } else if (audio is String) {
         downloadUrl = audio;
       }
-      
+
       downloadUrl ??= details['download_url'] as String?;
       downloadUrl ??= details['audio_url'] as String?;
 
@@ -106,7 +107,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       setState(() => _downloadProgress = 0.3);
 
       bool hasPermission = false;
-      
+
       try {
         if (await Permission.manageExternalStorage.isGranted) {
           hasPermission = true;
@@ -177,7 +178,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
         _isDownloading = false;
         _downloadProgress = 0.0;
       });
-      
+
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -195,8 +196,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       if (downloadsDir != null) {
         return downloadsDir;
       }
-    } catch (e) {
-    }
+    } catch (e) {}
 
     try {
       final externalDir = await getExternalStorageDirectory();
@@ -207,20 +207,19 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
         }
         return musicDir;
       }
-    } catch (e) {
-    }
+    } catch (e) {}
 
     try {
       final externalDir = await getExternalStorageDirectory();
       if (externalDir != null) {
-        final mediaDir = Directory('${externalDir.path}/Android/media/com.libreamp.kashou');
+        final mediaDir =
+            Directory('${externalDir.path}/Android/media/com.libreamp.kashou');
         if (!await mediaDir.exists()) {
           await mediaDir.create(recursive: true);
         }
         return mediaDir;
       }
-    } catch (e) {
-    }
+    } catch (e) {}
 
     final tempDir = await getTemporaryDirectory();
     final downloadDir = Directory('${tempDir.path}/Downloads');
@@ -250,7 +249,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
               const SizedBox(height: 16),
               LinearProgressIndicator(
                 value: _downloadProgress,
-                backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                backgroundColor:
+                    Theme.of(context).colorScheme.surfaceContainerHighest,
                 valueColor: AlwaysStoppedAnimation<Color>(
                   Theme.of(context).colorScheme.primary,
                 ),
@@ -264,7 +264,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           ),
           actions: [
             TextButton(
-              onPressed: _isDownloading ? null : () => Navigator.of(dialogContext).pop(),
+              onPressed: _isDownloading
+                  ? null
+                  : () => Navigator.of(dialogContext).pop(),
               child: Text(_isDownloading ? 'Downloading...' : 'Close'),
             ),
           ],
@@ -273,7 +275,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     );
   }
 
-  Future<void> _downloadHLSStream(String playlistUrl, File outputFile, String downloadPath) async {
+  Future<void> _downloadHLSStream(
+      String playlistUrl, File outputFile, String downloadPath) async {
     final client = http.Client();
     try {
       final playlistResponse = await client.get(Uri.parse(playlistUrl));
@@ -287,9 +290,11 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       final lines = playlistContent.split('\n');
       for (final line in lines) {
         final trimmed = line.trim();
-        if (trimmed.isNotEmpty && 
-            !trimmed.startsWith('#') && 
-            (trimmed.endsWith('.ts') || trimmed.endsWith('.aac') || trimmed.endsWith('.mp4'))) {
+        if (trimmed.isNotEmpty &&
+            !trimmed.startsWith('#') &&
+            (trimmed.endsWith('.ts') ||
+                trimmed.endsWith('.aac') ||
+                trimmed.endsWith('.mp4'))) {
           // Convert relative URLs to absolute
           if (trimmed.startsWith('http')) {
             segmentUrls.add(trimmed);
@@ -343,7 +348,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     }
   }
 
-  Future<void> _downloadDirectFile(String fileUrl, File outputFile, String downloadPath) async {
+  Future<void> _downloadDirectFile(
+      String fileUrl, File outputFile, String downloadPath) async {
     final client = http.Client();
     try {
       final request = http.Request('GET', Uri.parse(fileUrl));
@@ -352,14 +358,14 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       if (response.statusCode == 200) {
         final contentLength = response.contentLength ?? 0;
         int downloadedBytes = 0;
-        
+
         final sink = outputFile.openWrite();
-        
+
         await response.stream.listen(
           (List<int> chunk) {
             sink.add(chunk);
             downloadedBytes += chunk.length;
-            
+
             if (contentLength > 0 && mounted) {
               final progress = 0.6 + (downloadedBytes / contentLength) * 0.3;
               setState(() => _downloadProgress = progress.clamp(0.6, 0.9));
@@ -387,7 +393,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
               _isDownloading = false;
               _downloadProgress = 0.0;
             });
-            
+
             if (context.mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
@@ -438,7 +444,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
 
   String _getFileExtension(String? codec) {
     if (codec == null) return '.mp3';
-    
+
     switch (codec.toLowerCase()) {
       case 'mp3':
         return '.mp3';
@@ -458,9 +464,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      body: Consumer2<AudioProvider, LibraryProvider>(
+    return Material(
+      color: Colors.transparent,
+      child: Consumer2<AudioProvider, LibraryProvider>(
         builder: (context, audio, library, child) {
           final track = audio.currentTrack;
 
@@ -476,65 +482,90 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
 
           return Container(
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  colorScheme.surface.withOpacity(0.9),
-                  colorScheme.surface,
-                ],
+              color: colorScheme.surface,
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(28),
               ),
             ),
+            clipBehavior: Clip.antiAlias,
             child: Stack(
               children: [
                 // Ambient background covering entire screen
                 Positioned.fill(child: _buildAmbientBackground(context, track)),
-                
+
                 // Content overlay
-                SafeArea(
-                  top: true,
-                  bottom: false,
-                  child: Column(
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        child: _buildTopBar(context, track),
-                      ),
-                      Expanded(
-                        child: SingleChildScrollView(
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 20),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: [
-                                _buildArtworkCard(context, track, size),
-                                const SizedBox(height: 28),
-                                _buildTrackMeta(context, track, audio),
-                                const SizedBox(height: 28),
-                              ],
-                            ),
+                Column(
+                  children: [
+                    // Drag handle
+                    SafeArea(
+                      bottom: false,
+                      child: Center(
+                        child: Container(
+                          margin: const EdgeInsets.only(top: 8, bottom: 4),
+                          width: 40,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color:
+                                colorScheme.onSurfaceVariant.withOpacity(0.4),
+                            borderRadius: BorderRadius.circular(2),
                           ),
                         ),
                       ),
-                      SafeArea(
+                    ),
+                    Expanded(
+                      child: SafeArea(
                         top: false,
-                        minimum: const EdgeInsets.only(bottom: 12),
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              _buildProgressStrip(context, audio),
-                              const SizedBox(height: 18),
-                              _buildPrimaryControls(context, audio),
-                              const SizedBox(height: 34),
-                              _buildSecondaryControlRow(context, audio, library),
-                            ],
-                          ),
+                        bottom: false,
+                        child: Column(
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 8),
+                              child: _buildTopBar(context, track),
+                            ),
+                            Expanded(
+                              child: SingleChildScrollView(
+                                physics: const BouncingScrollPhysics(),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 20),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.center,
+                                    children: [
+                                      _buildArtworkCard(context, track, size),
+                                      const SizedBox(height: 28),
+                                      _buildTrackMeta(context, track, audio),
+                                      const SizedBox(height: 28),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                            SafeArea(
+                              top: false,
+                              minimum: const EdgeInsets.only(bottom: 12),
+                              child: Padding(
+                                padding:
+                                    const EdgeInsets.fromLTRB(20, 16, 20, 12),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    _buildProgressStrip(context, audio),
+                                    const SizedBox(height: 18),
+                                    _buildPrimaryControls(context, audio),
+                                    const SizedBox(height: 34),
+                                    _buildSecondaryControlRow(
+                                        context, audio, library),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -556,6 +587,13 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           tooltip: 'Collapse player',
           onPressed: () => Navigator.of(context).pop(),
         ),
+        const SizedBox(width: 8),
+        _buildSurfaceIconButton(
+          context,
+          icon: Icons.equalizer,
+          tooltip: 'Equalizer',
+          onPressed: () => _showEqualizerSheet(context),
+        ),
         Expanded(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -564,7 +602,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
               Text(
                 'Now Playing',
                 textAlign: TextAlign.center,
-                style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+                style: theme.textTheme.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 2),
               // SizedBox(
@@ -583,9 +622,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
         ),
         _buildSurfaceIconButton(
           context,
-          icon: Icons.equalizer,
-          tooltip: 'Equalizer',
-          onPressed: () => _showEqualizerSheet(context),
+          icon: Icons.share,
+          tooltip: 'Share',
+          onPressed: () => _shareTrack(context, track),
         ),
         const SizedBox(width: 8),
         _buildSurfaceIconButton(
@@ -600,36 +639,47 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
 
   Widget _buildArtworkCard(BuildContext context, Track track, Size size) {
     final colorScheme = Theme.of(context).colorScheme;
-    final dimension = size.width * 0.78;
-    final borderRadius = BorderRadius.circular(36);
+    final dimension = size.width * 0.85;
+    final borderRadius = BorderRadius.circular(24);
 
     Widget buildFallback() {
       return Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
             colors: [
               colorScheme.primaryContainer,
-              colorScheme.surface,
+              colorScheme.tertiaryContainer,
             ],
           ),
         ),
         child: Icon(
-          Icons.music_note,
-          size: 120,
-          color: colorScheme.onPrimaryContainer.withOpacity(0.35),
+          Icons.music_note_rounded,
+          size: 140,
+          color: colorScheme.onPrimaryContainer.withOpacity(0.4),
         ),
       );
     }
 
-    final Widget image = track.albumArt != null
-        ? Image.memory(
-            track.albumArt!,
-            fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => buildFallback(),
-          )
-        : buildFallback();
+    final String? youtubeThumbnailUrl = _buildYoutubeThumbnailUrl(track);
+
+    final Widget image;
+    if (youtubeThumbnailUrl != null) {
+      image = Image.network(
+        youtubeThumbnailUrl,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => buildFallback(),
+      );
+    } else if (track.albumArt != null) {
+      image = Image.memory(
+        track.albumArt!,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => buildFallback(),
+      );
+    } else {
+      image = buildFallback();
+    }
 
     return Hero(
       tag: 'album_art_${track.id}',
@@ -642,9 +692,15 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           borderRadius: borderRadius,
           boxShadow: [
             BoxShadow(
-              color: colorScheme.shadow.withOpacity(0.18),
-              blurRadius: 28,
+              color: colorScheme.primary.withOpacity(0.15),
+              blurRadius: 40,
+              spreadRadius: 8,
               offset: const Offset(0, 20),
+            ),
+            BoxShadow(
+              color: colorScheme.shadow.withOpacity(0.12),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
             ),
           ],
         ),
@@ -654,24 +710,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
             fit: StackFit.expand,
             children: [
               image,
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: 0,
-                height: dimension * 0.35,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.bottomCenter,
-                      end: Alignment.topCenter,
-                      colors: [
-                        Colors.black.withOpacity(0.35),
-                        Colors.transparent,
-                      ],
-                    ),
-                  ),
-                ),
-              ),
+              // Subtle gradient overlay removed for cleaner look
             ],
           ),
         ),
@@ -681,44 +720,97 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
 
   Widget _buildAmbientBackground(BuildContext context, Track track) {
     final colorScheme = Theme.of(context).colorScheme;
+    final String? youtubeThumbnailUrl = _buildYoutubeThumbnailUrl(track);
 
-    final placeholder = Container(
+    Widget fallbackGradient = Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
           colors: [
-            colorScheme.primaryContainer,
+            colorScheme.primaryContainer.withOpacity(0.3),
             colorScheme.surface,
+            colorScheme.tertiaryContainer.withOpacity(0.2),
           ],
+          stops: const [0.0, 0.5, 1.0],
         ),
       ),
     );
 
-    if (track.albumArt == null) {
-      return placeholder;
+    if (youtubeThumbnailUrl != null) {
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          Image.network(
+            youtubeThumbnailUrl,
+            fit: BoxFit.cover,
+            loadingBuilder: (context, child, loadingProgress) {
+              // Show fallback gradient while loading
+              if (loadingProgress != null) {
+                return fallbackGradient;
+              }
+              // Once loaded, show blurred image
+              return Stack(
+                fit: StackFit.expand,
+                children: [
+                  child,
+                  BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 100, sigmaY: 100),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            colorScheme.surface.withOpacity(0.7),
+                            colorScheme.surface.withOpacity(0.85),
+                            colorScheme.surface.withOpacity(0.95),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            },
+            errorBuilder: (_, __, ___) => fallbackGradient,
+          ),
+        ],
+      );
+    } else if (track.albumArt != null) {
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          Image.memory(
+            track.albumArt!,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => fallbackGradient,
+          ),
+          BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 100, sigmaY: 100),
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    colorScheme.surface.withOpacity(0.7),
+                    colorScheme.surface.withOpacity(0.85),
+                    colorScheme.surface.withOpacity(0.95),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
     }
 
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        Image.memory(
-          track.albumArt!,
-          fit: BoxFit.cover,
-          filterQuality: FilterQuality.low,
-          errorBuilder: (_, __, ___) => placeholder,
-        ),
-        BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 45, sigmaY: 45),
-          child: Container(
-            color: colorScheme.surface.withOpacity(0.8),
-          ),
-        ),
-      ],
-    );
+    return fallbackGradient;
   }
 
-  Widget _buildTrackMeta(BuildContext context, Track track, AudioProvider audio) {
+  Widget _buildTrackMeta(
+      BuildContext context, Track track, AudioProvider audio) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
@@ -729,42 +821,46 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           textAlign: TextAlign.center,
           style: theme.textTheme.headlineSmall?.copyWith(
             fontWeight: FontWeight.w700,
-            letterSpacing: 0.2,
-            fontSize: 20,
+            letterSpacing: -0.3,
+            fontSize: 22,
+            height: 1.2,
           ),
-          maxLines: 2,
+          maxLines: 3,
           overflow: TextOverflow.ellipsis,
-          softWrap: true,
         ),
-        const SizedBox(height: 2),
+        const SizedBox(height: 8),
         Text(
           track.artist,
           textAlign: TextAlign.center,
           style: theme.textTheme.titleMedium?.copyWith(
-            color: colorScheme.onSurfaceVariant,
+            color: colorScheme.onSurfaceVariant.withOpacity(0.9),
             fontWeight: FontWeight.w500,
+            fontSize: 16,
           ),
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
-          softWrap: true,
         ),
         const SizedBox(height: 6),
         Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _buildMetaAssistChip(context, icon: Icons.album_rounded, label: track.album),
+            // _buildMetaAssistChip(context, icon: Icons.album_rounded, label: track.album),
             const SizedBox(height: 6),
             if (track.genre != null && track.genre!.isNotEmpty)
-              _buildMetaAssistChip(context, icon: Icons.style_outlined, label: track.genre!),
-            if (track.path.contains('youtube.com') || track.path.contains('youtu.be'))
-              _buildMetaAssistChip(context, icon: Icons.play_circle_outline, label: 'YouTube'),
+              _buildMetaAssistChip(context,
+                  icon: Icons.style_outlined, label: track.genre!),
+            if (track.path.contains('youtube.com') ||
+                track.path.contains('youtu.be'))
+              _buildMetaAssistChip(context,
+                  icon: Icons.play_circle_outline, label: 'YouTube'),
           ],
         ),
       ],
     );
   }
 
-  Widget _buildMetaAssistChip(BuildContext context, {required IconData icon, required String label}) {
+  Widget _buildMetaAssistChip(BuildContext context,
+      {required IconData icon, required String label}) {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Container(
@@ -783,9 +879,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
             child: Text(
               label,
               style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                color: colorScheme.onSurface,
-                fontSize: 12,
-              ),
+                    color: colorScheme.onSurface,
+                    fontSize: 12,
+                  ),
               overflow: TextOverflow.ellipsis,
             ),
           ),
@@ -797,8 +893,11 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
   Widget _buildProgressStrip(BuildContext context, AudioProvider audio) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final position = audio.position.inMilliseconds.toDouble();
-    final duration = audio.duration.inMilliseconds.toDouble().clamp(1.0, double.infinity);
+    final isLoading = audio.isLoadingTrack;
+    final position = isLoading ? 0.0 : audio.position.inMilliseconds.toDouble();
+    final duration = isLoading
+        ? 1.0
+        : audio.duration.inMilliseconds.toDouble().clamp(1.0, double.infinity);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -807,13 +906,13 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              _formatDuration(audio.position),
+              _formatDuration(isLoading ? Duration.zero : audio.position),
               style: theme.textTheme.labelSmall?.copyWith(
                 color: colorScheme.onSurfaceVariant,
               ),
             ),
             Text(
-              _formatDuration(audio.duration),
+              _formatDuration(isLoading ? Duration.zero : audio.duration),
               style: theme.textTheme.labelSmall?.copyWith(
                 color: colorScheme.onSurfaceVariant,
               ),
@@ -833,9 +932,11 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           child: Slider(
             value: position.clamp(0, duration),
             max: duration,
-            onChanged: (value) {
-              audio.seek(Duration(milliseconds: value.toInt()));
-            },
+            onChanged: isLoading
+                ? null
+                : (value) {
+                    audio.seek(Duration(milliseconds: value.toInt()));
+                  },
           ),
         ),
       ],
@@ -879,33 +980,33 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     );
   }
 
-  Widget _buildCircleIconButton(BuildContext context, {required IconData icon, required VoidCallback onTap}) {
+  Widget _buildCircleIconButton(BuildContext context,
+      {required IconData icon, required VoidCallback onTap}) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    return Material(
-      color: Colors.transparent,
-      shape: const CircleBorder(),
-      child: InkWell(
-        customBorder: const CircleBorder(),
-        onTap: onTap,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: colorScheme.surfaceContainerHighest.withOpacity(0.9),
-            border: Border.all(color: colorScheme.outlineVariant.withOpacity(0.5)),
-            boxShadow: [
-              BoxShadow(
-                color: colorScheme.shadow.withOpacity(0.05),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
+    return Container(
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: colorScheme.surfaceContainerHigh,
+        boxShadow: [
+          BoxShadow(
+            color: colorScheme.shadow.withOpacity(0.08),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        shape: const CircleBorder(),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onTap,
           child: Padding(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(16),
             child: Icon(
               icon,
-              size: 24,
+              size: 28,
               color: colorScheme.onSurface,
             ),
           ),
@@ -916,9 +1017,10 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
 
   Widget _buildPlayButton(BuildContext context, AudioProvider audio) {
     final colorScheme = Theme.of(context).colorScheme;
+    final isLoading = audio.isLoadingTrack;
     final isPlaying = audio.isPlaying;
 
-    final targetSize = 64.0;
+    final targetSize = 72.0;
 
     return Container(
       width: targetSize,
@@ -928,9 +1030,15 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
         shape: BoxShape.circle,
         boxShadow: [
           BoxShadow(
-            color: colorScheme.primary.withOpacity(0.22),
-            blurRadius: 18,
+            color: colorScheme.primary.withOpacity(0.4),
+            blurRadius: 24,
+            spreadRadius: 2,
             offset: const Offset(0, 8),
+          ),
+          BoxShadow(
+            color: colorScheme.primary.withOpacity(0.2),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -939,28 +1047,38 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
         shape: const CircleBorder(),
         child: InkWell(
           customBorder: const CircleBorder(),
-          onTap: audio.togglePlayPause,
+          onTap: isLoading ? null : audio.togglePlayPause,
           child: Center(
-            child: Icon(
-              isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-              size: 30,
-              color: colorScheme.onPrimary,
-            ),
+            child: isLoading
+                ? SizedBox(
+                    width: 28,
+                    height: 28,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.4,
+                      valueColor:
+                          AlwaysStoppedAnimation<Color>(colorScheme.onPrimary),
+                    ),
+                  )
+                : Icon(
+                    isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                    size: 36,
+                    color: colorScheme.onPrimary,
+                  ),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildSecondaryControlRow(BuildContext context, AudioProvider audio, LibraryProvider library) {
-    final colorScheme = Theme.of(context).colorScheme;
+  Widget _buildSecondaryControlRow(
+      BuildContext context, AudioProvider audio, LibraryProvider library) {
     final isShuffle = audio.shuffleMode != ShuffleMode.off;
     final isRepeatActive = audio.repeatMode != RepeatMode.off;
     final isFavorite = library.isTrackFavorite(audio.currentTrack?.id ?? '');
-    final isOnlineTrack = audio.currentTrack != null && 
-                         (audio.currentTrack!.path.contains('youtube.com') || 
-                          audio.currentTrack!.path.contains('youtu.be') || 
-                          audio.currentTrack!.album == 'YouTube');
+    final isOnlineTrack = audio.currentTrack != null &&
+        (audio.currentTrack!.path.contains('youtube.com') ||
+            audio.currentTrack!.path.contains('youtu.be') ||
+            audio.currentTrack!.album == 'YouTube');
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -971,7 +1089,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           tooltip: 'Shuffle',
           active: isShuffle,
           onTap: () {
-            final newMode = audio.shuffleMode == ShuffleMode.off ? ShuffleMode.songs : ShuffleMode.off;
+            final newMode = audio.shuffleMode == ShuffleMode.off
+                ? ShuffleMode.songs
+                : ShuffleMode.off;
             audio.setShuffleMode(newMode);
           },
         ),
@@ -1060,21 +1180,37 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     final colorScheme = Theme.of(context).colorScheme;
 
     final backgroundColor = active
-        ? colorScheme.primary.withOpacity(0.15)
+        ? colorScheme.primaryContainer
         : colorScheme.surfaceContainerHigh;
-    final iconColor = active ? colorScheme.primary : colorScheme.onSurfaceVariant;
+    final iconColor =
+        active ? colorScheme.primary : colorScheme.onSurfaceVariant;
 
     return Tooltip(
       message: tooltip,
-      child: Material(
-        color: backgroundColor,
-        shape: const CircleBorder(),
-        child: InkWell(
-          customBorder: const CircleBorder(),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Icon(icon, color: iconColor, size: 22),
+      child: Container(
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: backgroundColor,
+          boxShadow: active
+              ? [
+                  BoxShadow(
+                    color: colorScheme.primary.withOpacity(0.2),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
+        ),
+        child: Material(
+          color: Colors.transparent,
+          shape: const CircleBorder(),
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Icon(icon, color: iconColor, size: 24),
+            ),
           ),
         ),
       ),
@@ -1164,8 +1300,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                       child: Text(
                         'Queue',
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
+                              fontWeight: FontWeight.bold,
+                            ),
                       ),
                     ),
                     Expanded(
@@ -1195,8 +1331,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                               ),
                             ),
                             subtitle: Text(track.artist),
-                            onTap: () {
-                            },
+                            onTap: () {},
                           );
                         },
                       ),
@@ -1214,10 +1349,11 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
   void _showMoreOptions(BuildContext context) {
     final audioProvider = Provider.of<AudioProvider>(context, listen: false);
     final track = audioProvider.currentTrack;
-    
+    final rootContext = context;
+
     showModalBottomSheet(
       context: context,
-      builder: (context) {
+      builder: (sheetContext) {
         return SafeArea(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -1227,14 +1363,28 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                 title: const Text('Edit Metadata'),
                 onTap: () {
                   Navigator.pop(context);
-                  if (track != null) {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => MetadataEditorScreen(track: track),
+                  if (track == null) {
+                    return;
+                  }
+
+                  final source = track.sourceUrl ?? track.path;
+                  final isStream = source.startsWith('http');
+
+                  if (isStream) {
+                    ScaffoldMessenger.of(rootContext).showSnackBar(
+                      const SnackBar(
+                        content: Text('Online tracks cannot be edited.'),
                       ),
                     );
+                    return;
                   }
+
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => MetadataEditorScreen(track: track),
+                    ),
+                  );
                 },
               ),
               ListTile(
@@ -1247,16 +1397,29 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
               ListTile(
                 leading: const Icon(Icons.share),
                 title: const Text('Share'),
-                onTap: () {
-                  Navigator.pop(context);
+                onTap: () async {
+                  Navigator.pop(sheetContext);
+                  await _shareTrack(rootContext, track);
                 },
               ),
+              if (track != null &&
+                  (track.sourceUrl ?? track.path).startsWith('http'))
+                ListTile(
+                  leading: const Icon(Icons.download_rounded),
+                  title: const Text('Download'),
+                  onTap: () async {
+                    Navigator.pop(sheetContext);
+                    await _downloadTrack(rootContext, track);
+                  },
+                ),
               ListTile(
                 leading: const Icon(Icons.info_outline),
                 title: const Text('Track Info'),
                 onTap: () {
-                  Navigator.pop(context);
-                  _showTrackInfo(context, track!);
+                  Navigator.pop(sheetContext);
+                  if (track != null) {
+                    _showTrackInfo(rootContext, track);
+                  }
                 },
               ),
             ],
@@ -1264,6 +1427,88 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
         );
       },
     );
+  }
+
+  Future<void> _shareTrack(BuildContext context, Track? track) async {
+    if (track == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Nothing playing to share.')),
+        );
+      }
+      return;
+    }
+
+    final url = _buildYoutubeMusicUrl(track);
+    final shareText = url != null
+        ? 'Listen to ${track.title}${track.artist.isNotEmpty ? ' by ${track.artist}' : ''} on YouTube Music:\n$url'
+        : 'Listen to ${track.title}${track.artist.isNotEmpty ? ' by ${track.artist}' : ''}.';
+
+    try {
+      await Share.share(shareText, subject: 'Share ${track.title}');
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Unable to share track: $e')),
+        );
+      }
+    }
+  }
+
+  String? _buildYoutubeMusicUrl(Track track) {
+    final sourceUrl =
+        (track.sourceUrl?.isNotEmpty ?? false) ? track.sourceUrl : null;
+    final urlToUse = sourceUrl ?? track.path;
+    final videoId = _extractYouTubeId(urlToUse);
+    if (videoId == null) return null;
+
+    final uri = Uri.tryParse(urlToUse);
+    final playlistId = uri?.queryParameters['list'];
+
+    if (playlistId != null && playlistId.isNotEmpty) {
+      return 'https://music.youtube.com/watch?v=$videoId&list=$playlistId';
+    }
+    return 'https://music.youtube.com/watch?v=$videoId';
+  }
+
+  String? _buildYoutubeThumbnailUrl(Track track) {
+    final sourceUrl = track.sourceUrl ?? track.path;
+    final videoId = _extractYouTubeId(sourceUrl);
+    if (videoId == null) return null;
+    return 'https://i.ytimg.com/vi/$videoId/maxresdefault.jpg';
+  }
+
+  String? _extractYouTubeId(String? url) {
+    if (url == null || url.isEmpty) {
+      return null;
+    }
+
+    final uri = Uri.tryParse(url);
+    if (uri == null) {
+      return null;
+    }
+
+    final host = uri.host.toLowerCase();
+
+    if (host.contains('youtu.be')) {
+      return uri.pathSegments.isNotEmpty ? uri.pathSegments.first : null;
+    }
+
+    final idFromQuery = uri.queryParameters['v'];
+    if (idFromQuery != null && idFromQuery.isNotEmpty) {
+      return idFromQuery;
+    }
+
+    if (uri.pathSegments.isNotEmpty) {
+      if (uri.pathSegments.first == 'embed' && uri.pathSegments.length >= 2) {
+        return uri.pathSegments[1];
+      }
+      if (uri.pathSegments.first == 'shorts' && uri.pathSegments.length >= 2) {
+        return uri.pathSegments[1];
+      }
+    }
+
+    return null;
   }
 
   void _showTrackInfo(BuildContext context, Track track) {
@@ -1285,8 +1530,13 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
               MapEntry('Artist', track.artist),
               MapEntry('Album', track.album),
               MapEntry('Format', track.codec ?? 'Unknown'),
-              MapEntry('Bitrate', track.bitrate != null ? '${track.bitrate} kbps' : 'Unknown'),
-              MapEntry('Sample Rate', track.sampleRate != null ? '${track.sampleRate} Hz' : 'Unknown'),
+              MapEntry('Bitrate',
+                  track.bitrate != null ? '${track.bitrate} kbps' : 'Unknown'),
+              MapEntry(
+                  'Sample Rate',
+                  track.sampleRate != null
+                      ? '${track.sampleRate} Hz'
+                      : 'Unknown'),
               MapEntry('Duration', _formatDuration(track.duration)),
               MapEntry('Path', track.path),
             ];
@@ -1294,7 +1544,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
             return Container(
               decoration: BoxDecoration(
                 color: colorScheme.surface,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(24)),
               ),
               child: Column(
                 children: [
@@ -1356,7 +1607,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                 children: [
                                   Text(
                                     track.title,
-                                    style: theme.textTheme.titleMedium?.copyWith(
+                                    style:
+                                        theme.textTheme.titleMedium?.copyWith(
                                       fontWeight: FontWeight.w600,
                                       color: colorScheme.onSurface,
                                     ),
@@ -1401,15 +1653,18 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                               decoration: BoxDecoration(
                                 gradient: LinearGradient(
                                   colors: [
-                                    colorScheme.surfaceContainerHighest.withValues(alpha: 0.8),
-                                    colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+                                    colorScheme.surfaceContainerHighest
+                                        .withValues(alpha: 0.8),
+                                    colorScheme.surfaceContainerHighest
+                                        .withValues(alpha: 0.4),
                                   ],
                                   begin: Alignment.topLeft,
                                   end: Alignment.bottomRight,
                                 ),
                                 borderRadius: BorderRadius.circular(12),
                                 border: Border.all(
-                                  color: colorScheme.outline.withValues(alpha: 0.1),
+                                  color: colorScheme.outline
+                                      .withValues(alpha: 0.1),
                                   width: 1,
                                 ),
                               ),
@@ -1420,7 +1675,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                     width: 100,
                                     child: Text(
                                       '${entry.key}:',
-                                      style: theme.textTheme.bodyMedium?.copyWith(
+                                      style:
+                                          theme.textTheme.bodyMedium?.copyWith(
                                         color: colorScheme.onSurfaceVariant,
                                         fontWeight: FontWeight.w500,
                                       ),
@@ -1430,7 +1686,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                   Expanded(
                                     child: Text(
                                       entry.value,
-                                      style: theme.textTheme.bodyMedium?.copyWith(
+                                      style:
+                                          theme.textTheme.bodyMedium?.copyWith(
                                         color: colorScheme.onSurface,
                                         fontWeight: FontWeight.w600,
                                       ),
