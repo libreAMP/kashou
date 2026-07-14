@@ -34,6 +34,9 @@ setup_icons.sh
 /build/
 /coverage/
 
+# local package is a library, don't pin its lockfile
+packages/*/pubspec.lock
+
 # Symbolication related
 app.*.symbols
 
