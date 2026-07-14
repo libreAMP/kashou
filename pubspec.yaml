@@ -39,7 +39,8 @@ dependencies:
   image: ^4.0.17
   http: ^1.2.1
   youtube_explode_dart: ^3.0.2
-  muzoapi: ^0.0.1
+  innertube_dart:
+    path: packages/innertube_dart
   share_plus: ^7.2.2
   
   flutter_chrome_cast: ^1.2.5
@@ -65,8 +66,8 @@ flutter_launcher_icons:
   android: true
   ios: false
   image_path: "assets/icons/icon.png"
-  adaptive_icon_background: "#fcf5fb"
-  adaptive_icon_foreground: "assets/icons/icon.png"
+  adaptive_icon_background: "#1F2227"
+  adaptive_icon_foreground: "assets/icons/icon_foreground.png"
 
 flutter_native_splash:
   color: "#fcf5fb"

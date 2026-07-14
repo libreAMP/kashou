@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
-import 'package:muzoapi/youtube_stream_provider.dart';
+import 'package:innertube_dart/innertube_dart.dart';
 import 'package:kashou/models/youtube_stream_models.dart';
 
 class YoutubeService {
@@ -17,7 +17,7 @@ class YoutubeService {
   static const Duration _streamExpiration = Duration(hours: 6);
 
   Future<void> initialize() async {
-    debugPrint('[YoutubeService] Initialized with muzoapi InnerTube');
+    debugPrint('[YoutubeService] Initialized with innertube_dart');
   }
 
   Future<YoutubeStreamInfo?> fetchStreams(

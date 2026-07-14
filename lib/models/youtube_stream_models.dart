@@ -1,4 +1,4 @@
-import 'package:muzoapi/youtube_stream_provider.dart';
+import 'package:innertube_dart/innertube_dart.dart';
 
 class YoutubeStreamInfo {
   final String videoId;

@@ -3,7 +3,7 @@ import 'dart:collection';
 
 import 'package:collection/collection.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
-import 'package:muzoapi/youtube_stream_provider.dart' as muzo;
+import 'package:innertube_dart/innertube_dart.dart' as innertube;
 
 import '../models/youtube_streaming_data.dart';
 import 'youtube/youtube_service.dart';
@@ -64,7 +64,7 @@ class YtdlWrapperService {
   Future<YouTubeStreamingData?> fetchStreamingData(
     String videoUrl, {
     bool forceRefresh = false,
-    bool useMuzoApi = true,
+    bool useInnerTube = true,
   }) async {
     final trimmedUrl = videoUrl.trim();
     final parsedVideoId = VideoId.parseVideoId(trimmedUrl);
@@ -80,7 +80,7 @@ class YtdlWrapperService {
       return cached.value;
     }
 
-    if (useMuzoApi) {
+    if (useInnerTube) {
       try {
 
         final streamInfo = await YoutubeService.instance
@@ -93,20 +93,20 @@ class YtdlWrapperService {
             final videoId = VideoId(parsedVideoId);
             videoMetadata = await _client.videos.get(videoId);
           } catch (e, stackTrace) {
-            print('[muzoapi] Metadata fetch failed: $e');
-            print('[muzoapi] Stack trace: $stackTrace');
+            print('[innertube] Metadata fetch failed: $e');
+            print('[innertube] Stack trace: $stackTrace');
           }
 
-          final streamingData = _convertMuzoToStreamingData(
+          final streamingData = _convertInnerTubeToStreamingData(
               streamInfo, trimmedUrl, videoMetadata);
           _streamCache[cacheKey] =
               _CachedResult(streamingData, ttl: _defaultStreamCacheTtl);
           return streamingData;
         }
 
-        print('[muzoapi] No streams found, falling back to youtube_explode');
+        print('[innertube] No streams found, falling back to youtube_explode');
       } catch (e) {
-        print('[muzoapi] Error: $e, falling back to youtube_explode');
+        print('[innertube] Error: $e, falling back to youtube_explode');
       }
     }
 
@@ -225,20 +225,20 @@ class YtdlWrapperService {
     );
   }
 
-  YouTubeStreamingData _convertMuzoToStreamingData(
+  YouTubeStreamingData _convertInnerTubeToStreamingData(
     dynamic streamInfo,
     String sourceUrl,
     Video? videoMetadata,
   ) {
     final videoId = streamInfo.videoId as String;
     final title = streamInfo.title as String;
-    final audioStreams = streamInfo.audioStreams as List<muzo.AudioStream>;
+    final audioStreams = streamInfo.audioStreams as List<innertube.AudioStream>;
 
     final primaryFormats = audioStreams.map((stream) {
       print(
-          '[muzoapi] Audio stream: ${stream.itag}, ${stream.bitrate}bps, ${stream.mimeType}');
+          '[innertube] Audio stream: ${stream.itag}, ${stream.bitrate}bps, ${stream.mimeType}');
       print(
-          '[muzoapi] Audio URL: ${stream.url.substring(0, stream.url.length > 100 ? 100 : stream.url.length)}...');
+          '[innertube] Audio URL: ${stream.url.substring(0, stream.url.length > 100 ? 100 : stream.url.length)}...');
       return YouTubeStreamFormat(
         url: stream.url,
         itag: stream.itag.toString(),
