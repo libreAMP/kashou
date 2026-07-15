@@ -7,6 +7,7 @@ import 'package:audio_session/audio_session.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/track.dart';
 import '../services/audio_service.dart' as audio_svc;
+import '../services/ytdl_service.dart';
 import '../providers/settings_provider.dart';
 import '../providers/library_provider.dart';
 import '../services/custom_equalizer.dart';
@@ -23,7 +24,7 @@ class AudioProvider extends ChangeNotifier {
   ConcatenatingAudioSource? _playlist;
 
   final List<StreamSubscription> _playerSubs = [];
-  // re-subscribed on each gapless setup, so keep a handle to cancel the old one
+  // re-subscribed on each gapless setup
   StreamSubscription<int?>? _gaplessIndexSub;
 
   AudioPlayer get audioPlayer {
@@ -43,6 +44,8 @@ class AudioProvider extends ChangeNotifier {
   bool _pendingShouldUseExistingSource = false;
 
   bool _isPlaying = false;
+  bool _pausedByInterruption = false;
+  int _lastPositionSecond = -1;
   Duration _position = Duration.zero;
   Duration _bufferedPosition = Duration.zero;
   Duration _duration = Duration.zero;
@@ -340,8 +343,14 @@ class AudioProvider extends ChangeNotifier {
           position > Duration.zero) {
         _isLoadingTrack = false;
         _pendingTrack = null;
+        notifyListeners();
+        return;
       }
-      notifyListeners();
+      // ui only shows whole seconds
+      if (position.inSeconds != _lastPositionSecond) {
+        _lastPositionSecond = position.inSeconds;
+        notifyListeners();
+      }
     }));
 
     _playerSubs.add(audioPlayer.bufferedPositionStream.listen((buffered) {
@@ -411,16 +420,19 @@ class AudioProvider extends ChangeNotifier {
               break;
             case AudioInterruptionType.pause:
             case AudioInterruptionType.unknown:
+              // only resume what the interruption paused, not a user pause
+              _pausedByInterruption = audioPlayer.playing;
               audioPlayer.pause();
               break;
           }
         } else {
           if (event.type != AudioInterruptionType.duck &&
-              _currentTrack != null &&
+              _pausedByInterruption &&
+              !_isLoadingTrack &&
               !audioPlayer.playing) {
-            debugPrint('[AudioSession] Resuming playback after interruption');
             audioPlayer.play();
           }
+          _pausedByInterruption = false;
         }
       });
 
@@ -472,7 +484,62 @@ class AudioProvider extends ChangeNotifier {
     return wasPlaying;
   }
 
+  bool _isWatchUrl(String path) =>
+      path.contains('youtube.com/watch') || path.contains('youtu.be/');
+
+  // saved stream urls go stale after a few hours, liked songs hit this
+  bool _isStaleStreamUrl(String path) {
+    if (!path.contains('googlevideo')) return false;
+    final expire = Uri.tryParse(path)?.queryParameters['expire'];
+    final seconds = int.tryParse(expire ?? '');
+    if (seconds == null) return true;
+    return DateTime.now().millisecondsSinceEpoch ~/ 1000 > seconds - 60;
+  }
+
+  // radio queue entries only carry a watch url
+  Future<Track?> _resolveWatchTrack(Track track) async {
+    final watchUrl = _isWatchUrl(track.path) ? track.path : track.sourceUrl;
+    if (watchUrl == null || !_isWatchUrl(watchUrl)) return null;
+    try {
+      final data =
+          await const YtdlWrapperService().fetchStreamingData(watchUrl);
+      if (data == null || !data.playable) return null;
+      final format = data.bestStream ?? data.fallbackStream;
+      if (format == null) return null;
+      return track.copyWith(path: format.url);
+    } catch (e) {
+      debugPrint('[Audio] watch url resolve failed: $e');
+      return null;
+    }
+  }
+
   Future<void> playTrack(Track track, {List<Track>? playlist}) async {
+    if (_isRemotePath(track.path) &&
+        (_isWatchUrl(track.path) || _isStaleStreamUrl(track.path))) {
+      final pendingAlready =
+          _pendingTrack != null && _pendingTrack!.id == track.id;
+      if (!pendingAlready) {
+        preparePendingTrack(track, playlist: playlist);
+      }
+      try {
+        await audioPlayer.pause();
+      } catch (_) {}
+      try {
+        await audioPlayer.stop();
+      } catch (_) {}
+      _isLoadingTrack = true;
+      notifyListeners();
+
+      final resolved = await _resolveWatchTrack(track);
+      if (resolved == null) {
+        cancelPendingTrack();
+        return;
+      }
+      track = resolved;
+      final qi = _queue.indexWhere((t) => t.id == track.id);
+      if (qi != -1) _queue[qi] = track;
+    }
+
     final bool alreadyPending =
         _pendingTrack != null && _pendingTrack!.id == track.id;
     final bool wasPlaying = alreadyPending
@@ -810,19 +877,21 @@ class AudioProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void setEqualizerBand(int index, double value) async {
-    if (index >= 0 && index < _equalizerBands.length) {
-      _equalizerBands[index] = value;
-      if (_equalizerEnabled) {
-        try {
-          final millibels = (value * 125).toInt();
-          await CustomEqualizer.setBandLevel(index, millibels);
-        } catch (e) {
-          debugPrint('Error setting equalizer band $index: $e');
-        }
-      }
-      notifyListeners();
+  Timer? _eqNotifyDebounce;
+
+  void setEqualizerBand(int index, double value) {
+    if (index < 0 || index >= _equalizerBands.length) return;
+    _equalizerBands[index] = value;
+    if (_equalizerEnabled) {
+      final millibels = (value * 125).toInt();
+      CustomEqualizer.setBandLevel(index, millibels).catchError((e) {
+        debugPrint('Error setting equalizer band $index: $e');
+      });
     }
+    // dont notify per tick
+    _eqNotifyDebounce?.cancel();
+    _eqNotifyDebounce =
+        Timer(const Duration(milliseconds: 150), notifyListeners);
   }
 
   void setEqualizerEnabled(bool enabled) async {
@@ -905,6 +974,7 @@ class AudioProvider extends ChangeNotifier {
       sub.cancel();
     }
     _playerSubs.clear();
+    _eqNotifyDebounce?.cancel();
     _gaplessIndexSub?.cancel();
     if (_audioHandler == null && _audioPlayer != null) {
       _audioPlayer!.dispose();

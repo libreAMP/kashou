@@ -9,7 +9,7 @@ class RecommendationProvider extends ChangeNotifier {
   final YtdlWrapperService _ytdl = const YtdlWrapperService();
 
   // off by default, the fan-out (searches + 10 fetches per play) trips youtube's bot detection
-  bool _autoQueueRecommendations = false;
+  bool _autoQueueRecommendations = true;
 
   List<Map<String, dynamic>> _recommendations = [];
   List<Map<String, dynamic>> _relatedVideos = [];
