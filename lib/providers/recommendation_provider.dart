@@ -3,14 +3,13 @@ import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 import '../models/track.dart';
 import '../services/ytdl_service.dart';
 import 'audio_provider.dart';
-import 'audio_provider.dart';
-import 'audio_provider.dart';
 
 class RecommendationProvider extends ChangeNotifier {
   final YoutubeExplode _yt = YoutubeExplode();
   final YtdlWrapperService _ytdl = const YtdlWrapperService();
 
-  bool _autoQueueRecommendations = true;
+  // off by default, the fan-out (searches + 10 fetches per play) trips youtube's bot detection
+  bool _autoQueueRecommendations = false;
 
   List<Map<String, dynamic>> _recommendations = [];
   List<Map<String, dynamic>> _relatedVideos = [];
@@ -35,7 +34,7 @@ class RecommendationProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final trendingResults = await _ytdl.search('popular songs', limit: 15);
+      final trendingResults = await _ytdl.search('popular songs', limit: 15, musicOnly: true);
       _recommendations = trendingResults;
       debugPrint(
           '[Recommendations] Loaded ${_recommendations.length} initial recommendations');
@@ -93,7 +92,7 @@ class RecommendationProvider extends ChangeNotifier {
       final List<Map<String, dynamic>> mixedResults = [];
 
       final artistQuery = '${video.author} music';
-      final artistResults = await _ytdl.search(artistQuery, limit: 10);
+      final artistResults = await _ytdl.search(artistQuery, limit: 10, musicOnly: true);
       mixedResults.addAll(artistResults);
 
       final seen = <String>{};
@@ -120,11 +119,11 @@ class RecommendationProvider extends ChangeNotifier {
       final List<Map<String, dynamic>> mixedResults = [];
 
       final artistQuery = '$artist official audio';
-      final artistResults = await _ytdl.search(artistQuery, limit: 6);
+      final artistResults = await _ytdl.search(artistQuery, limit: 6, musicOnly: true);
       mixedResults.addAll(artistResults);
 
       final similarQuery = 'artists like $artist';
-      final similarResults = await _ytdl.search(similarQuery, limit: 5);
+      final similarResults = await _ytdl.search(similarQuery, limit: 5, musicOnly: true);
       mixedResults.addAll(similarResults);
 
       final seen = <String>{};
@@ -167,7 +166,7 @@ class RecommendationProvider extends ChangeNotifier {
 
       for (final artist in artists.take(3)) {
         try {
-          final results = await _ytdl.search('$artist music', limit: 3);
+          final results = await _ytdl.search('$artist music', limit: 3, musicOnly: true);
           personalizedResults.addAll(results);
         } catch (e) {
           debugPrint('Error searching for $artist: $e');
@@ -177,7 +176,7 @@ class RecommendationProvider extends ChangeNotifier {
       if (artists.length >= 2) {
         final mixQuery = '${artists.take(3).join(' ')} music mix';
         try {
-          final results = await _ytdl.search(mixQuery, limit: 5);
+          final results = await _ytdl.search(mixQuery, limit: 5, musicOnly: true);
           personalizedResults.addAll(results);
         } catch (e) {
           debugPrint('Error searching mix: $e');
@@ -207,7 +206,7 @@ class RecommendationProvider extends ChangeNotifier {
           ? '${track.artist} ${track.genre} music'
           : '${track.artist} ${track.title}';
 
-      final results = await _ytdl.search(searchQuery, limit: 15);
+      final results = await _ytdl.search(searchQuery, limit: 15, musicOnly: true);
       _recommendations = results;
 
       debugPrint(

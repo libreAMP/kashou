@@ -19,11 +19,16 @@ class YtdlWrapperService {
 
   const YtdlWrapperService();
 
+  // filter out stuff too short or too long to really be a song
+  static const _minMusicSeconds = 45;
+  static const _maxMusicSeconds = 15 * 60;
+
   Future<List<Map<String, dynamic>>> search(
     String query, {
     int limit = 10,
+    bool musicOnly = false,
   }) async {
-    final key = '${query.trim().toLowerCase()}_$limit';
+    final key = '${query.trim().toLowerCase()}_${limit}_$musicOnly';
     final cached = _searchCache[key];
     if (cached != null && !cached.isExpired) {
       return cached.value;
@@ -31,10 +36,17 @@ class YtdlWrapperService {
 
     try {
       final searchResults = await _client.search.search(query);
-      final videos = searchResults.take(limit).toList();
+      var videos = searchResults.toList();
+      if (musicOnly) {
+        videos = videos.where((v) {
+          final s = v.duration?.inSeconds;
+          return s != null && s >= _minMusicSeconds && s <= _maxMusicSeconds;
+        }).toList();
+      }
+      videos = videos.take(limit).toList();
 
       print(
-          '[youtube_explode] search "$query" (limit=$limit) -> ${videos.length} results');
+          '[youtube_explode] search "$query" (limit=$limit, music=$musicOnly) -> ${videos.length} results');
 
       final items = videos.map<Map<String, dynamic>>((video) {
         final duration = video.duration;

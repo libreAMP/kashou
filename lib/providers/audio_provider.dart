@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -20,6 +21,10 @@ class AudioProvider extends ChangeNotifier {
   audio_svc.AudioPlayerHandler? _audioHandler;
   SettingsProvider? _settingsProvider;
   ConcatenatingAudioSource? _playlist;
+
+  final List<StreamSubscription> _playerSubs = [];
+  // re-subscribed on each gapless setup, so keep a handle to cancel the old one
+  StreamSubscription<int?>? _gaplessIndexSub;
 
   AudioPlayer get audioPlayer {
     if (_audioPlayer == null) {
@@ -328,7 +333,7 @@ class AudioProvider extends ChangeNotifier {
   void _initializePlayer() {
     _configureAudioSession();
 
-    audioPlayer.positionStream.listen((position) {
+    _playerSubs.add(audioPlayer.positionStream.listen((position) {
       _position = position;
       if (_isLoadingTrack &&
           _pendingTrack != null &&
@@ -337,19 +342,19 @@ class AudioProvider extends ChangeNotifier {
         _pendingTrack = null;
       }
       notifyListeners();
-    });
+    }));
 
-    audioPlayer.bufferedPositionStream.listen((buffered) {
+    _playerSubs.add(audioPlayer.bufferedPositionStream.listen((buffered) {
       _bufferedPosition = buffered;
       notifyListeners();
-    });
+    }));
 
-    audioPlayer.durationStream.listen((duration) {
+    _playerSubs.add(audioPlayer.durationStream.listen((duration) {
       _duration = duration ?? Duration.zero;
       notifyListeners();
-    });
+    }));
 
-    audioPlayer.playerStateStream.listen((state) {
+    _playerSubs.add(audioPlayer.playerStateStream.listen((state) {
       _isPlaying = state.playing;
 
       if (state.playing && _isLoadingTrack) {
@@ -361,20 +366,20 @@ class AudioProvider extends ChangeNotifier {
       }
 
       notifyListeners();
-    });
+    }));
 
-    audioPlayer.androidAudioSessionIdStream.listen((sessionId) {
+    _playerSubs.add(audioPlayer.androidAudioSessionIdStream.listen((sessionId) {
       if (sessionId != null) {
         CustomEqualizer.init(sessionId);
         _loadEqualizerBands();
       }
-    });
+    }));
 
     _masterVolume = audioPlayer.volume;
-    audioPlayer.volumeStream.listen((volume) {
+    _playerSubs.add(audioPlayer.volumeStream.listen((volume) {
       _masterVolume = volume;
       notifyListeners();
-    });
+    }));
   }
 
   Future<void> _configureAudioSession() async {
@@ -586,7 +591,8 @@ class AudioProvider extends ChangeNotifier {
     await audioPlayer.setAudioSource(_playlist!, initialIndex: _currentIndex);
     await audioPlayer.play();
 
-    audioPlayer.currentIndexStream.listen((index) {
+    _gaplessIndexSub?.cancel();
+    _gaplessIndexSub = audioPlayer.currentIndexStream.listen((index) {
       if (index != null && index < _queue.length) {
         _currentIndex = index;
         _currentTrack = _queue[index];
@@ -895,6 +901,11 @@ class AudioProvider extends ChangeNotifier {
 
   @override
   void dispose() {
+    for (final sub in _playerSubs) {
+      sub.cancel();
+    }
+    _playerSubs.clear();
+    _gaplessIndexSub?.cancel();
     if (_audioHandler == null && _audioPlayer != null) {
       _audioPlayer!.dispose();
     }

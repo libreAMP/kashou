@@ -55,7 +55,8 @@ const _ios = InnerTubeClient(
   name: 'IOS',
   version: '19.29.1',
   clientId: 5,
-  userAgent: 'com.google.ios.youtube/19.29.1 (iPhone16,2; U; CPU iOS 17_5_1 like Mac OS X)',
+  userAgent:
+      'com.google.ios.youtube/19.29.1 (iPhone16,2; U; CPU iOS 17_5_1 like Mac OS X)',
   extraContext: {
     'deviceMake': 'Apple',
     'deviceModel': 'iPhone16,2',
@@ -68,7 +69,8 @@ const _androidMusic = InnerTubeClient(
   name: 'ANDROID_MUSIC',
   version: '6.42.52',
   clientId: 21,
-  userAgent: 'com.google.android.apps.youtube.music/6.42.52 (Linux; U; Android 12) gzip',
+  userAgent:
+      'com.google.android.apps.youtube.music/6.42.52 (Linux; U; Android 12) gzip',
   extraContext: {
     'androidSdkVersion': 31,
     'osName': 'Android',
@@ -108,3 +110,11 @@ const List<InnerTubeClient> defaultClients = [
   _android,
   _androidTestsuite,
 ];
+
+const webClient = InnerTubeClient(
+  name: 'WEB',
+  version: '2.20240726.00.00',
+  clientId: 1,
+  userAgent:
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+);

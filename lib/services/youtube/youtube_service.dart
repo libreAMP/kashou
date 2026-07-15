@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:innertube_dart/innertube_dart.dart';
 import 'package:kashou/models/youtube_stream_models.dart';
+import 'package:kashou/services/potoken/po_token_service.dart';
 
 class YoutubeService {
   static final YoutubeService instance = YoutubeService._();
@@ -34,7 +35,13 @@ class YoutubeService {
       }
 
       debugPrint('[YoutubeService] Fetching streams for: $videoId');
-      final streamInfo = await _innerTube.player(videoId);
+      // grab a potoken for gated videos; null just falls through to android_vr in player()
+      final session = await PoTokenService.instance.getSession();
+      final streamInfo = await _innerTube.player(
+        videoId,
+        visitorData: session?.visitorData,
+        poToken: session?.poToken,
+      );
 
       final result = YoutubeStreamInfo(
         videoId: videoId,
