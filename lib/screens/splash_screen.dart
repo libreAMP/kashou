@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/library_provider.dart';
-import '../providers/audio_provider.dart';
 import '../services/permission_service.dart';
 import '../services/audio_service.dart';
+import '../theme/shapes.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -42,18 +42,16 @@ class _SplashScreenState extends State<SplashScreen>
 
       if (!mounted) return;
 
-      // Request permissions (optional, won't block app)
-      await PermissionService.requestPermissions();
-
-      // Check if welcome screen has been shown
       final prefs = await SharedPreferences.getInstance();
       final hasSeenWelcome = prefs.getBool('has_seen_welcome') ?? false;
 
+      // welcome asks for permissions itself on first run
       if (!hasSeenWelcome) {
-        // Show welcome screen for first-time users
         Navigator.pushReplacementNamed(context, '/welcome');
         return;
       }
+
+      await PermissionService.requestPermissions();
 
       await _initializeAudioService();
 
@@ -95,47 +93,59 @@ class _SplashScreenState extends State<SplashScreen>
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final dark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
+      backgroundColor: scheme.surface,
       body: Center(
         child: FadeTransition(
           opacity: _fadeAnimation,
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(32),
-                child: Image.asset(
-                  'assets/images/splash.png',
-                  width: 200,
-                  height: 200,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) {
-                    return Icon(
-                      Icons.music_note_rounded,
-                      size: 120,
-                      color: Theme.of(context).colorScheme.primary,
-                    );
-                  },
+              // badge spins, the ka stays upright
+              SizedBox(
+                width: 168,
+                height: 168,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    RotationTransition(
+                      turns: Tween(begin: -0.08, end: 0.0).animate(
+                          CurvedAnimation(
+                              parent: _controller,
+                              curve: Curves.easeOutCubic)),
+                      child: Material(
+                        color: scheme.primaryContainer,
+                        shape: const WavyCircleBorder(),
+                        child: const SizedBox.expand(),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.all(38),
+                      child: Image.asset(
+                        dark
+                            ? 'assets/images/ka_mark_light_ink.png'
+                            : 'assets/images/ka_mark_dark_ink.png',
+                        errorBuilder: (context, error, stackTrace) => Icon(
+                          Icons.music_note_rounded,
+                          size: 64,
+                          color: scheme.onPrimaryContainer,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 28),
               Text(
-                'Kashou',
-                style: Theme.of(context).textTheme.displayMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Audiophile Music Player',
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(height: 48),
-              CircularProgressIndicator(
-                color: Theme.of(context).colorScheme.primary,
+                'kashou',
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.8,
+                      color: scheme.onSurface,
+                    ),
               ),
             ],
           ),

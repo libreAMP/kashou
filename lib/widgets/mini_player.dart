@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'loading_indicator.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_chrome_cast/flutter_chrome_cast.dart';
 
@@ -66,6 +67,7 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
   bool _isSwipingHorizontal = false;
   StreamSubscription<GoogleCastSession?>? _castSessionSubscription;
   bool _castingEnabled = false;
+  bool _wasCasting = false;
   Timer? _castConnectionDebounce;
   bool _isCastConnecting = false;
 
@@ -108,6 +110,7 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
       if (session != null) {
         debugPrint(
             '[Cast] Session connected to ${session.device?.friendlyName}');
+        _wasCasting = true;
 
         // Debounce to prevent reconnect loops
         _castConnectionDebounce?.cancel();
@@ -123,6 +126,9 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
           }
         });
       } else {
+        // stream replays null on subscribe
+        if (!_wasCasting) return;
+        _wasCasting = false;
         debugPrint('[Cast] Session disconnected - restoring local playback');
         _castConnectionDebounce?.cancel();
         _isCastConnecting = false;
@@ -345,8 +351,6 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-
     return Selector<AudioProvider, _MiniPlayerSnapshot>(
       selector: (context, provider) => _MiniPlayerSnapshot(
         track: provider.currentTrack,
@@ -370,13 +374,6 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
             ? snapshot.position.inMilliseconds / totalMillis
             : 0.0;
 
-        final useWhiteText = isDarkMode;
-        final gradientColors = isDarkMode
-            ? [Colors.black.withOpacity(0.7), Colors.black.withOpacity(0.5)]
-            : [
-                colorScheme.surfaceContainerHighest,
-                colorScheme.surfaceContainer
-              ];
         final settings = Provider.of<SettingsProvider>(context);
 
         return FadeTransition(
@@ -391,43 +388,17 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
               onHorizontalDragEnd: (details) => _handleHorizontalDragEnd(
                   details, context.read<AudioProvider>()),
               child: RepaintBoundary(
-                child: ClipRRect(
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(12),
-                    topRight: Radius.circular(12),
-                  ),
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: gradientColors,
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      border: Border(
-                        top: BorderSide(
-                          color: colorScheme.outlineVariant.withOpacity(0.35),
-                          width: 0.8,
-                        ),
-                      ),
-                    ),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(10, 0, 10, 8),
+                  child: Material(
+                    color: colorScheme.surfaceContainerHigh,
+                    borderRadius: BorderRadius.circular(16),
+                    clipBehavior: Clip.antiAlias,
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        LinearProgressIndicator(
-                          value: isLoading ? null : progress,
-                          minHeight: 2.5,
-                          backgroundColor: useWhiteText
-                              ? Colors.white.withOpacity(0.2)
-                              : colorScheme.surfaceVariant.withOpacity(0.3),
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            colorScheme.primary,
-                          ),
-                        ),
                         Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 10,
-                          ),
+                          padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
                           child: Row(
                             children: [
                               Hero(
@@ -436,14 +407,14 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
                                 flightShuttleBuilder:
                                     albumArtFlightShuttleBuilder,
                                 child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(6),
+                                  borderRadius: BorderRadius.circular(10),
                                   child: DecoratedBox(
                                     decoration: BoxDecoration(
                                       color: colorScheme.primaryContainer,
                                     ),
                                     child: SizedBox(
-                                      width: 48,
-                                      height: 48,
+                                      width: 46,
+                                      height: 46,
                                       child: track.albumArt != null
                                           ? Image.memory(
                                               track.albumArt!,
@@ -478,9 +449,7 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
                                       style: TextStyle(
                                         fontWeight: FontWeight.w600,
                                         fontSize: 14,
-                                        color: useWhiteText
-                                            ? Colors.white
-                                            : colorScheme.onSurface,
+                                        color: colorScheme.onSurface,
                                       ),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
@@ -490,9 +459,7 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
                                       track.artist,
                                       style: TextStyle(
                                         fontSize: 12,
-                                        color: useWhiteText
-                                            ? Colors.white.withOpacity(0.7)
-                                            : colorScheme.onSurfaceVariant,
+                                        color: colorScheme.onSurfaceVariant,
                                       ),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
@@ -502,42 +469,20 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
                               ),
                               const SizedBox(width: 6),
                               if (isLoading) ...[
-                                SizedBox(
-                                  width: 28,
-                                  height: 28,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2.6,
-                                    valueColor: AlwaysStoppedAnimation<Color>(
-                                      colorScheme.primary,
-                                    ),
-                                  ),
-                                ),
+                                KashouLoader(
+                                    size: 26, color: colorScheme.primary),
                                 const SizedBox(width: 10),
                               ] else ...[
-                                StreamBuilder<GoogleCastSession?>(
-                                  stream: GoogleCastSessionManager
-                                      .instance.currentSessionStream,
-                                  builder: (context, castSnapshot) {
-                                    final isCasting = castSnapshot.data != null;
-                                    return IconButton(
-                                      icon: Icon(
-                                        snapshot.isPlaying
-                                            ? Icons.pause_rounded
-                                            : Icons.play_arrow_rounded,
-                                        color: useWhiteText
-                                            ? Colors.white
-                                            : colorScheme.onSurface,
-                                      ),
-                                      iconSize: 26,
-                                      onPressed: () => isCasting
-                                          ? _toggleCastPlayPause()
-                                          : context
-                                              .read<AudioProvider>()
-                                              .togglePlayPause(),
-                                      splashRadius: 24,
-                                    );
-                                  },
-                                ),
+                                if (settings.enableCasting)
+                                  IconButton(
+                                    icon: Icon(
+                                      Icons.cast,
+                                      color: colorScheme.onSurfaceVariant,
+                                    ),
+                                    iconSize: 22,
+                                    onPressed: () => _showCastDialog(context),
+                                    splashRadius: 22,
+                                  ),
                                 StreamBuilder<GoogleCastSession?>(
                                   stream: GoogleCastSessionManager
                                       .instance.currentSessionStream,
@@ -546,9 +491,7 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
                                     return IconButton(
                                       icon: Icon(
                                         Icons.skip_next_rounded,
-                                        color: useWhiteText
-                                            ? Colors.white
-                                            : colorScheme.onSurface,
+                                        color: colorScheme.onSurface,
                                       ),
                                       iconSize: 26,
                                       onPressed: () => isCasting
@@ -560,21 +503,49 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
                                     );
                                   },
                                 ),
-                                if (settings.enableCasting) ...[
-                                  IconButton(
-                                    icon: Icon(
-                                      Icons.cast,
-                                      color: useWhiteText
-                                          ? Colors.white
-                                          : colorScheme.onSurface,
-                                    ),
-                                    iconSize: 26,
-                                    onPressed: () => _showCastDialog(context),
-                                    splashRadius: 24,
-                                  ),
-                                ],
+                                const SizedBox(width: 2),
+                                StreamBuilder<GoogleCastSession?>(
+                                  stream: GoogleCastSessionManager
+                                      .instance.currentSessionStream,
+                                  builder: (context, castSnapshot) {
+                                    final isCasting = castSnapshot.data != null;
+                                    return Material(
+                                      color: colorScheme.primaryContainer,
+                                      borderRadius: BorderRadius.circular(14),
+                                      child: InkWell(
+                                        borderRadius: BorderRadius.circular(14),
+                                        onTap: () => isCasting
+                                            ? _toggleCastPlayPause()
+                                            : context
+                                                .read<AudioProvider>()
+                                                .togglePlayPause(),
+                                        child: SizedBox(
+                                          width: 46,
+                                          height: 46,
+                                          child: Icon(
+                                            snapshot.isPlaying
+                                                ? Icons.pause_rounded
+                                                : Icons.play_arrow_rounded,
+                                            size: 26,
+                                            color:
+                                                colorScheme.onPrimaryContainer,
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
                               ],
                             ],
+                          ),
+                        ),
+                        LinearProgressIndicator(
+                          value: isLoading ? null : progress,
+                          minHeight: 3,
+                          backgroundColor: colorScheme.surfaceContainerHighest
+                              .withOpacity(0.4),
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            colorScheme.primary,
                           ),
                         ),
                       ],

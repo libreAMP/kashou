@@ -24,7 +24,7 @@ class AudioPlayerService {
           androidNotificationChannelName: 'Kashou Audio Service',
           androidNotificationOngoing: true,
           androidShowNotificationBadge: true,
-          androidNotificationIcon: 'mipmap/ic_launcher',
+          androidNotificationIcon: 'drawable/ic_stat_kashou',
         ),
       );
       _isInitialized = true;

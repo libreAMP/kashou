@@ -82,8 +82,15 @@ class KashouApp extends StatelessWidget {
               if (themeProvider.useMaterialYou &&
                   lightDynamic != null &&
                   darkDynamic != null) {
-                lightColorScheme = lightDynamic.harmonized();
-                darkColorScheme = darkDynamic.harmonized();
+                // reseed, the os scheme ships flat surfaces
+                lightColorScheme = ColorScheme.fromSeed(
+                  seedColor: lightDynamic.primary,
+                  brightness: Brightness.light,
+                );
+                darkColorScheme = ColorScheme.fromSeed(
+                  seedColor: darkDynamic.primary,
+                  brightness: Brightness.dark,
+                );
               } else {
                 lightColorScheme = ColorScheme.fromSeed(
                   seedColor: themeProvider.accentColor,
@@ -104,6 +111,8 @@ class KashouApp extends StatelessWidget {
                   switch (fontFamily) {
                     case 'System':
                       return baseTheme;
+                    case 'Google Sans Flex':
+                      return GoogleFonts.googleSansFlexTextTheme(baseTheme);
                     case 'DM Sans':
                       return GoogleFonts.dmSansTextTheme(baseTheme);
                     case 'Manrope':
@@ -365,7 +374,12 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
               ],
             );
 
-            if (!hasPlayer || keyboardHeight > 0 || isModalOpen) {
+            // dont float above the keyboard
+            if (keyboardHeight > 0) {
+              return const SizedBox.shrink();
+            }
+
+            if (!hasPlayer || isModalOpen) {
               return navigationBar;
             }
 

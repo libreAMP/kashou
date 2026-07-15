@@ -13,6 +13,8 @@ import 'package:permission_handler/permission_handler.dart';
 import '../models/track.dart';
 import '../providers/library_provider.dart';
 import '../utils/hero_transitions.dart';
+import '../widgets/loading_indicator.dart';
+import '../widgets/squiggly_slider.dart';
 import '../providers/settings_provider.dart';
 import '../services/ytdl_service.dart';
 
@@ -902,6 +904,15 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        SquigglySlider(
+          value: position.clamp(0, duration),
+          max: duration,
+          animate: audio.isPlaying && !isLoading,
+          onChanged: isLoading
+              ? null
+              : (value) => audio.seek(Duration(milliseconds: value.toInt())),
+        ),
+        const SizedBox(height: 4),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
@@ -919,64 +930,28 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
             ),
           ],
         ),
-        SliderTheme(
-          data: SliderTheme.of(context).copyWith(
-            trackHeight: 5,
-            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 9),
-            overlayShape: const RoundSliderOverlayShape(overlayRadius: 16),
-            activeTrackColor: colorScheme.primary,
-            inactiveTrackColor: colorScheme.surfaceVariant.withOpacity(0.4),
-            thumbColor: colorScheme.primary,
-            overlayColor: colorScheme.primary.withOpacity(0.16),
-          ),
-          child: Slider(
-            value: position.clamp(0, duration),
-            max: duration,
-            onChanged: isLoading
-                ? null
-                : (value) {
-                    audio.seek(Duration(milliseconds: value.toInt()));
-                  },
-          ),
-        ),
       ],
     );
   }
 
   Widget _buildPrimaryControls(BuildContext context, AudioProvider audio) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
-      decoration: BoxDecoration(
-        color: colorScheme.surface.withOpacity(0),
-        borderRadius: BorderRadius.circular(28),
-        boxShadow: [
-          BoxShadow(
-            color: colorScheme.shadow.withOpacity(0.04),
-            blurRadius: 16,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          _buildCircleIconButton(
-            context,
-            icon: Icons.skip_previous_rounded,
-            onTap: audio.skipPrevious,
-          ),
-          const SizedBox(width: 20),
-          _buildPlayButton(context, audio),
-          const SizedBox(width: 20),
-          _buildCircleIconButton(
-            context,
-            icon: Icons.skip_next_rounded,
-            onTap: audio.skipNext,
-          ),
-        ],
-      ),
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        _buildCircleIconButton(
+          context,
+          icon: Icons.skip_previous_rounded,
+          onTap: audio.skipPrevious,
+        ),
+        const SizedBox(width: 18),
+        _buildPlayButton(context, audio),
+        const SizedBox(width: 18),
+        _buildCircleIconButton(
+          context,
+          icon: Icons.skip_next_rounded,
+          onTap: audio.skipNext,
+        ),
+      ],
     );
   }
 
@@ -984,85 +959,44 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       {required IconData icon, required VoidCallback onTap}) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    return Container(
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: colorScheme.surfaceContainerHigh,
-        boxShadow: [
-          BoxShadow(
-            color: colorScheme.shadow.withOpacity(0.08),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        shape: const CircleBorder(),
-        child: InkWell(
-          customBorder: const CircleBorder(),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Icon(
-              icon,
-              size: 28,
-              color: colorScheme.onSurface,
-            ),
-          ),
+    return Material(
+      color: colorScheme.surfaceContainerHigh,
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: SizedBox(
+          width: 58,
+          height: 58,
+          child: Icon(icon, size: 28, color: colorScheme.onSurface),
         ),
       ),
     );
   }
 
+  // wide pill play, the one loud element in the transport row
   Widget _buildPlayButton(BuildContext context, AudioProvider audio) {
     final colorScheme = Theme.of(context).colorScheme;
     final isLoading = audio.isLoadingTrack;
     final isPlaying = audio.isPlaying;
 
-    final targetSize = 72.0;
-
-    return Container(
-      width: targetSize,
-      height: targetSize,
-      decoration: BoxDecoration(
-        color: colorScheme.primary,
-        shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-            color: colorScheme.primary.withOpacity(0.4),
-            blurRadius: 24,
-            spreadRadius: 2,
-            offset: const Offset(0, 8),
-          ),
-          BoxShadow(
-            color: colorScheme.primary.withOpacity(0.2),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        shape: const CircleBorder(),
-        child: InkWell(
-          customBorder: const CircleBorder(),
-          onTap: isLoading ? null : audio.togglePlayPause,
+    return Material(
+      color: colorScheme.primaryContainer,
+      borderRadius: BorderRadius.circular(22),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(22),
+        onTap: isLoading ? null : audio.togglePlayPause,
+        child: SizedBox(
+          width: 118,
+          height: 64,
           child: Center(
             child: isLoading
-                ? SizedBox(
-                    width: 28,
-                    height: 28,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2.4,
-                      valueColor:
-                          AlwaysStoppedAnimation<Color>(colorScheme.onPrimary),
-                    ),
-                  )
+                ? KashouLoader(
+                    size: 26, color: colorScheme.onPrimaryContainer)
                 : Icon(
                     isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                    size: 36,
-                    color: colorScheme.onPrimary,
+                    size: 34,
+                    color: colorScheme.onPrimaryContainer,
                   ),
           ),
         ),

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class SettingsProvider extends ChangeNotifier {
-  String _fontFamily = 'DM Sans';
+  String _fontFamily = 'Google Sans Flex';
   bool _enableGapless = true;
   bool _enableCrossfade = false;
   double _crossfadeDuration = 3.0;
@@ -40,7 +40,7 @@ class SettingsProvider extends ChangeNotifier {
   Future<void> _loadSettings() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      _fontFamily = prefs.getString('font_family') ?? 'System';
+      _fontFamily = prefs.getString('font_family') ?? 'Google Sans Flex';
       _enableGapless = prefs.getBool('enable_gapless') ?? true;
       _enableCrossfade = prefs.getBool('enable_crossfade') ?? false;
       _crossfadeDuration = prefs.getDouble('crossfade_duration') ?? 3.0;

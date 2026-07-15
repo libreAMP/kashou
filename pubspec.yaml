@@ -27,7 +27,7 @@ dependencies:
   provider: ^6.1.1
   get_it: ^8.2.0
   
-  google_fonts: ^6.1.0
+  google_fonts: ^8.2.0
   dynamic_color: ^1.7.0
   flutter_colorpicker: ^1.0.3
   cached_network_image: ^3.3.0
@@ -42,6 +42,7 @@ dependencies:
   innertube_dart:
     path: packages/innertube_dart
   share_plus: ^7.2.2
+  url_launcher: ^6.3.0
   
   flutter_chrome_cast: ^1.2.5
   
@@ -73,9 +74,13 @@ flutter_launcher_icons:
 
 flutter_native_splash:
   color: "#fcf5fb"
-  image: assets/images/splash.png
+  image: assets/images/splash_native.png
+  color_dark: "#111014"
+  image_dark: assets/images/splash_native_dark.png
   android: true
   ios: false
   android_12:
-    image: assets/images/splash.png
+    image: assets/images/splash_native.png
     color: "#fcf5fb"
+    image_dark: assets/images/splash_native_dark.png
+    color_dark: "#111014"

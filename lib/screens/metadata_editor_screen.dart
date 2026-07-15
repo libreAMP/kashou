@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:audiotags/audiotags.dart';
 import 'package:flutter/material.dart';
+import '../widgets/loading_indicator.dart';
 import 'package:provider/provider.dart';
 
 import '../models/track.dart';
@@ -201,15 +202,9 @@ class _MetadataEditorScreenState extends State<MetadataEditorScreen> {
               TextButton(
                 onPressed: _isSaving ? null : _saveMetadata,
                 child: _isSaving
-                    ? SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation(
-                            Theme.of(context).colorScheme.primary,
-                          ),
-                        ),
+                    ? KashouLoader(
+                        size: 18,
+                        color: Theme.of(context).colorScheme.primary,
                       )
                     : Text(
                         'SAVE',

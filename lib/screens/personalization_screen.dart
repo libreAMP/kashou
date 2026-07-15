@@ -101,8 +101,8 @@ class PersonalizationScreen extends StatelessWidget {
               builder: (context, theme, child) {
                 return SwitchListTile(
                   contentPadding: EdgeInsets.zero,
-                  title: const Text('Material You'),
-                  subtitle: const Text('Use wallpaper colors'),
+                  title: const Text('Dynamic theming'),
+                  subtitle: const Text('Colors from your system theme'),
                   value: theme.useMaterialYou,
                   onChanged: theme.setUseMaterialYou,
                 );
@@ -185,6 +185,7 @@ class PersonalizationScreen extends StatelessWidget {
   Widget _buildFontSection(BuildContext context) {
     final popularFonts = [
       'System',
+      'Google Sans Flex',
       'DM Sans',
       'Manrope',
       'Inter',

@@ -9,6 +9,7 @@ import '../providers/audio_provider.dart';
 import '../providers/settings_provider.dart';
 import '../services/ytdl_service.dart';
 import '../models/youtube_streaming_data.dart';
+import '../widgets/loading_indicator.dart';
 
 class YoutubeHistoryScreen extends StatefulWidget {
   const YoutubeHistoryScreen({super.key});
@@ -307,15 +308,7 @@ class _YoutubeHistoryScreenState extends State<YoutubeHistoryScreen> {
                 ),
                 const SizedBox(width: 12),
                 isLoading
-                    ? SizedBox(
-                        width: 28,
-                        height: 28,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2.4,
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                              colorScheme.primary),
-                        ),
-                      )
+                    ? KashouLoader(size: 26, color: colorScheme.primary)
                     : IconButton(
                         icon: Icon(Icons.play_arrow_rounded,
                             color: colorScheme.primary),

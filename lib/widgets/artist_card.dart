@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../models/artist.dart';
 import '../providers/audio_provider.dart';
 import '../models/track.dart';
+import '../theme/shapes.dart';
 
 class ArtistCard extends StatelessWidget {
   final Artist artist;
@@ -11,56 +12,78 @@ class ArtistCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
+    final scheme = Theme.of(context).colorScheme;
+    return Material(
+      color: scheme.surfaceContainerHigh,
+      borderRadius: BorderRadius.circular(12),
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: () {
-          _showArtistDetails(context);
-        },
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Row(
-            children: [
-              CircleAvatar(
-                radius: 32,
-                backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-                child: Text(
-                  artist.name[0].toUpperCase(),
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                        color: Theme.of(context).colorScheme.onPrimaryContainer,
+        onTap: () => _showArtistDetails(context),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Container(
+                width: double.infinity,
+                color: scheme.primaryContainer,
+                alignment: Alignment.center,
+                child: Material(
+                  color: scheme.primary.withValues(alpha: 0.25),
+                  shape: const WavyCircleBorder(),
+                  child: SizedBox(
+                    width: 88,
+                    height: 88,
+                    child: Center(
+                      child: Text(
+                        artist.name[0].toUpperCase(),
+                        style: Theme.of(context)
+                            .textTheme
+                            .headlineMedium
+                            ?.copyWith(
+                              color: scheme.onPrimaryContainer,
+                              fontWeight: FontWeight.w800,
+                            ),
                       ),
+                    ),
+                  ),
                 ),
               ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      artist.name,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${artist.albumCount} albums • ${artist.trackCount} songs',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color:
-                                Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
-                    ),
-                  ],
-                ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    artist.name,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodyMedium
+                        ?.copyWith(fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${artist.albumCount} albums',
+                    maxLines: 1,
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodySmall
+                        ?.copyWith(color: scheme.onSurfaceVariant),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${artist.trackCount} songs',
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodySmall
+                        ?.copyWith(color: scheme.onSurfaceVariant),
+                  ),
+                ],
               ),
-              Icon(
-                Icons.chevron_right,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
