@@ -1,18 +1,24 @@
-import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'package:shimmer/shimmer.dart';
-import 'package:http/http.dart' as http;
-import 'dart:typed_data';
 import 'dart:async';
-import 'online_search_screen.dart';
-import 'section_page.dart';
-import 'youtube_history_screen.dart';
-import '../providers/audio_provider.dart';
-import '../providers/settings_provider.dart';
-import '../providers/recommendation_provider.dart';
-import '../services/ytdl_service.dart';
+import 'dart:typed_data';
+
+import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:provider/provider.dart';
+
 import '../models/track.dart';
 import '../models/youtube_streaming_data.dart';
+import '../providers/audio_provider.dart';
+import '../providers/recommendation_provider.dart';
+import '../providers/settings_provider.dart';
+import '../services/ytdl_service.dart';
+import '../services/ytmusic_service.dart';
+import '../theme/radii.dart';
+import '../widgets/art_card.dart';
+import '../widgets/square_art.dart';
+import '../widgets/loading_indicator.dart';
+import 'mood_category_screen.dart';
+import 'section_page.dart';
+import 'youtube_history_screen.dart';
 
 class StreamScreen extends StatefulWidget {
   const StreamScreen({super.key});
@@ -23,20 +29,26 @@ class StreamScreen extends StatefulWidget {
 
 class _StreamScreenState extends State<StreamScreen>
     with AutomaticKeepAliveClientMixin {
-  late YtdlWrapperService _service;
-  List<Map<String, dynamic>> _featured = [];
-  List<Map<String, dynamic>> _quickPicks = [];
-  Map<String, List<Map<String, dynamic>>> _languagePlaylists = {};
-  List<Map<String, dynamic>> _trendingSongs = [];
-  List<Map<String, dynamic>> _searchResults = [];
+  final YtdlWrapperService _service = const YtdlWrapperService();
+  final YtMusicService _ytm = const YtMusicService();
+
+  List<Map<String, dynamic>> _homeShelves = const [];
+  List<Map<String, dynamic>> _moodSections = const [];
+  List<Map<String, dynamic>> _searchResults = const [];
+  List<Map<String, dynamic>> _searchPlaylists = const [];
+
   bool _isLoading = true;
   bool _isSearching = false;
+  bool _exploreOpen = false;
   String _currentQuery = '';
   String? _error;
+
   final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocus = FocusNode();
   Timer? _searchDebounceTimer;
-  bool _isInitialized = false;
-  String? _lastTrackId; // Track the last track to avoid duplicate updates
+
+  String? _lastTrackId;
+  VoidCallback? _audioListener;
 
   @override
   bool get wantKeepAlive => true;
@@ -44,148 +56,78 @@ class _StreamScreenState extends State<StreamScreen>
   @override
   void initState() {
     super.initState();
-    _initializeService();
-    if (_currentQuery.isNotEmpty) {
-      _searchController.text = _currentQuery;
-    }
+    // scrolling closes the keyboard, keep explore open anyway
+    _searchFocus.addListener(() {
+      if (_searchFocus.hasFocus && !_exploreOpen) {
+        setState(() => _exploreOpen = true);
+      }
+    });
+    _loadDiscover();
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final audioProvider = Provider.of<AudioProvider>(context, listen: false);
-      final recommendationProvider =
-          Provider.of<RecommendationProvider>(context, listen: false);
+      final rec = Provider.of<RecommendationProvider>(context, listen: false);
 
-      recommendationProvider.loadInitialRecommendations();
+      rec.loadInitialRecommendations();
 
-      // Wait a bit for stream history to load from SharedPreferences
+      // give stream history a moment to come back from shared prefs
       await Future.delayed(const Duration(milliseconds: 500));
+      if (!mounted) return;
 
       if (audioProvider.streamHistory.isNotEmpty) {
-        recommendationProvider.fetchPersonalizedFromHistory(
-          audioProvider.streamHistory,
-        );
+        rec.fetchPersonalizedFromHistory(audioProvider.streamHistory);
       }
-
       if (audioProvider.currentTrack != null) {
-        recommendationProvider.updateRecommendations(
-          audioProvider.currentTrack,
-          audioProvider: audioProvider,
-        );
+        rec.updateRecommendations(audioProvider.currentTrack,
+            audioProvider: audioProvider);
       }
 
-      audioProvider.addListener(() {
-        final currentTrack = audioProvider.currentTrack;
-
-        if (currentTrack != null && currentTrack.id != _lastTrackId) {
-          _lastTrackId = currentTrack.id;
-
-          recommendationProvider.updateRecommendations(
-            currentTrack,
-            audioProvider: audioProvider,
-          );
-
+      _audioListener = () {
+        final current = audioProvider.currentTrack;
+        if (current != null && current.id != _lastTrackId) {
+          _lastTrackId = current.id;
+          rec.updateRecommendations(current, audioProvider: audioProvider);
           if (audioProvider.streamHistory.isNotEmpty) {
-            recommendationProvider.fetchPersonalizedFromHistory(
-              audioProvider.streamHistory,
-            );
+            rec.fetchPersonalizedFromHistory(audioProvider.streamHistory);
           }
         }
-      });
+      };
+      audioProvider.addListener(_audioListener!);
     });
-  }
-
-  void _initializeService() {
-    if (_isInitialized) return;
-
-    _service = const YtdlWrapperService();
-    _isInitialized = true;
-    _loadFeatured();
-  }
-
-  @override
-  void didUpdateWidget(StreamScreen oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (_currentQuery.isNotEmpty && _searchController.text != _currentQuery) {
-      _searchController.text = _currentQuery;
-    }
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (!_isInitialized) {
-      _initializeService();
-    } else {
-      // Service has no dynamic configuration; nothing to update here.
-    }
-    if (_currentQuery.isNotEmpty && _searchController.text != _currentQuery) {
-      _searchController.text = _currentQuery;
-    }
   }
 
   @override
   void dispose() {
+    if (_audioListener != null) {
+      Provider.of<AudioProvider>(context, listen: false)
+          .removeListener(_audioListener!);
+    }
     _searchDebounceTimer?.cancel();
     _searchController.dispose();
+    _searchFocus.dispose();
     super.dispose();
   }
 
-  Future<void> _loadFeatured() async {
-    if (_featured.isNotEmpty) return;
-    await _loadDiscoverSections(forceRefresh: true);
-  }
-
-  Future<void> _loadDiscoverSections({bool forceRefresh = false}) async {
-    if (!forceRefresh && _featured.isNotEmpty) return;
-
+  Future<void> _loadDiscover() async {
     setState(() {
       _isLoading = true;
       _error = null;
     });
-
     try {
-      final languages = [
-        'Hindi',
-        'English',
-        'Punjabi',
-        'Tamil',
-        'Telugu',
-        'Kannada',
-        'Malayalam',
-        'Bengali'
-      ];
-
-      final quickPicksFuture = _service.search('popular songs', limit: 20);
-      final trendingFuture = _service.search('trending songs', limit: 20);
-      final featuredFuture = _service.search('latest music songs', limit: 20);
-
-      final languageFutures = languages
-          .map((lang) => _service.search('$lang music playlist', limit: 15))
-          .toList();
-
       final results = await Future.wait([
-        quickPicksFuture,
-        trendingFuture,
-        featuredFuture,
-        ...languageFutures,
+        _ytm.getHomeShelves(),
+        _ytm.getMoodsAndGenres(),
       ]);
-
       if (!mounted) return;
-
       setState(() {
-        _quickPicks = results[0];
-        _trendingSongs = results[1];
-        _featured = results[2];
-
-        for (int i = 0; i < languages.length; i++) {
-          _languagePlaylists[languages[i]] = results[3 + i];
-        }
-
+        _homeShelves = results[0];
+        _moodSections = results[1];
         _isLoading = false;
       });
-    } catch (e) {
+    } catch (_) {
       if (!mounted) return;
       setState(() {
-        _error = 'Failed to load discovery content. Check your connection.';
+        _error = 'Could not load discovery. Check your connection.';
         _isLoading = false;
       });
     }
@@ -193,9 +135,8 @@ class _StreamScreenState extends State<StreamScreen>
 
   void _onSearchChanged(String value) {
     _searchDebounceTimer?.cancel();
-    _searchDebounceTimer = Timer(const Duration(milliseconds: 500), () {
-      _search(value.trim());
-    });
+    _searchDebounceTimer =
+        Timer(const Duration(milliseconds: 450), () => _search(value.trim()));
   }
 
   Future<void> _search(String query) async {
@@ -203,36 +144,60 @@ class _StreamScreenState extends State<StreamScreen>
       if (mounted) {
         setState(() {
           _currentQuery = '';
-          _searchResults = [];
+          _searchResults = const [];
+          _searchPlaylists = const [];
           _isSearching = false;
-          _error = null;
         });
       }
       return;
     }
-    if (mounted) {
-      setState(() {
-        _currentQuery = query;
-        _isSearching = true;
-        _error = null;
-      });
-    }
+    setState(() {
+      _currentQuery = query;
+      _isSearching = true;
+    });
     try {
-      final results = await _service.search(query, limit: 15);
+      final results = await Future.wait([
+        _service.search(query, limit: 20, musicOnly: true),
+        _ytm.searchPlaylists(query),
+      ]);
       if (mounted) {
         setState(() {
-          _searchResults = results;
+          _searchResults = results[0];
+          _searchPlaylists = results[1];
           _isSearching = false;
         });
       }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _error = 'Search failed. Try again.';
-          _isSearching = false;
-        });
-      }
+    } catch (_) {
+      if (mounted) setState(() => _isSearching = false);
     }
+  }
+
+  void _openPlaylist(Map<String, dynamic> playlist) {
+    final id = playlist['playlistId'] as String?;
+    if (id == null) return;
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => SectionPage(
+        title: playlist['title'] as String? ?? 'Playlist',
+        cover: playlist['thumbnail'] as String?,
+        itemsFuture: _ytm.getPlaylistSongs(id),
+        isListView: true,
+      ),
+    ));
+  }
+
+  void _openMood(Map<String, dynamic> mood) {
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => MoodCategoryScreen(
+        title: mood['title'] as String? ?? '',
+        params: mood['params'] as String,
+      ),
+    ));
+  }
+
+  void _snack(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _playVideo(Map<String, dynamic> video) async {
@@ -241,17 +206,17 @@ class _StreamScreenState extends State<StreamScreen>
     final videoUrl = video['url'] ?? 'https://www.youtube.com/watch?v=$videoId';
     final durationSeconds = _asInt(video['duration']) ?? 0;
 
-    final placeholderTrack = Track(
+    final placeholder = Track(
       id: videoId,
       title: video['title'] as String? ?? 'Unknown',
       artist: video['channel'] as String? ?? 'Unknown',
-      album: video['title'] as String? ?? 'YouTube',
+      album: 'YouTube',
       path: videoUrl,
       duration: Duration(seconds: durationSeconds),
       sourceUrl: videoUrl,
     );
 
-    await audioProvider.prepareTrackLoad(placeholderTrack);
+    await audioProvider.prepareTrackLoad(placeholder);
 
     YouTubeStreamingData? streamingData;
     try {
@@ -262,220 +227,42 @@ class _StreamScreenState extends State<StreamScreen>
 
     if (streamingData == null || !streamingData.playable) {
       audioProvider.cancelPendingTrack();
-      _showSnackBar('Unable to load audio stream.');
+      _snack('Unable to load audio stream.');
       return;
     }
 
     final selectedFormat =
         streamingData.bestStream ?? streamingData.fallbackStream;
     if (selectedFormat == null) {
-      print('[stream_screen] No audio format found!');
-      print(
-          '[stream_screen] Primary streams: ${streamingData.primaryStreams.length}');
-      print(
-          '[stream_screen] Fallback streams: ${streamingData.fallbackStreams.length}');
       audioProvider.cancelPendingTrack();
-      _showSnackBar('Audio stream unavailable.');
+      _snack('Audio stream unavailable.');
       return;
     }
 
-    print(
-        '[stream_screen] Selected format: itag=${selectedFormat.itag}, bitrate=${selectedFormat.bitrateKbps}kbps, type=${selectedFormat.type}');
-    print(
-        '[stream_screen] Audio URL: ${selectedFormat.url.substring(0, selectedFormat.url.length > 150 ? 150 : selectedFormat.url.length)}...');
-
     Uint8List? albumArt;
-    final thumbUrl =
-        streamingData.thumbnailUrl ?? video['thumbnail'] as String?;
+    final thumbUrl = streamingData.thumbnailUrl ?? video['thumbnail'] as String?;
     if (thumbUrl != null && thumbUrl.isNotEmpty) {
       try {
-        final thumbnailResponse = await http.get(Uri.parse(thumbUrl));
-        if (thumbnailResponse.statusCode == 200) {
-          albumArt = thumbnailResponse.bodyBytes;
-        }
+        final res = await http.get(Uri.parse(thumbUrl));
+        if (res.statusCode == 200) albumArt = res.bodyBytes;
       } catch (_) {}
     }
 
-    final finalTrack = placeholderTrack.copyWith(
+    final finalTrack = placeholder.copyWith(
       title: streamingData.title.isNotEmpty
           ? streamingData.title
-          : placeholderTrack.title,
+          : placeholder.title,
       artist: streamingData.channelName.isNotEmpty
           ? streamingData.channelName
-          : placeholderTrack.artist,
+          : placeholder.artist,
       album: 'YouTube',
       path: selectedFormat.url,
       duration: streamingData.duration ?? Duration(seconds: durationSeconds),
-      albumArt: albumArt ?? placeholderTrack.albumArt,
-      sourceUrl: placeholderTrack.sourceUrl,
+      albumArt: albumArt ?? placeholder.albumArt,
+      sourceUrl: placeholder.sourceUrl,
     );
 
-    print(
-        '[stream_screen] Final track path: ${finalTrack.path.substring(0, finalTrack.path.length > 100 ? 100 : finalTrack.path.length)}...');
-    print('[stream_screen] Calling audioProvider.playTrack()');
     await audioProvider.playTrack(finalTrack);
-    print('[stream_screen] audioProvider.playTrack() completed');
-  }
-
-  void _showSnackBar(String message) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
-  }
-
-  Widget _buildEmptySectionCard(String message, {double height = 120}) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    return Container(
-      height: height,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: colorScheme.shadow.withOpacity(0.02),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: colorScheme.surfaceContainerHighest.withOpacity(0.5),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(
-              Icons.music_note_rounded,
-              size: 24,
-              color: colorScheme.onSurfaceVariant.withOpacity(0.5),
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Text(
-              message,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: colorScheme.onSurfaceVariant.withOpacity(0.7),
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildVideoTile(Map<String, dynamic> video) {
-    final thumbnail = video['thumbnail'] as String?;
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(14),
-        color: colorScheme.surfaceContainerLow,
-        boxShadow: [
-          BoxShadow(
-            color: colorScheme.shadow.withOpacity(0.03),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () => _playVideo(video),
-          borderRadius: BorderRadius.circular(14),
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: Container(
-                    width: 72,
-                    height: 72,
-                    color: colorScheme.surfaceContainerHighest,
-                    child: Image.network(
-                      thumbnail ??
-                          'https://img.youtube.com/vi/${video['id']}/maxresdefault.jpg',
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) => Container(
-                        alignment: Alignment.center,
-                        color: colorScheme.surfaceContainerHighest,
-                        child: Icon(
-                          Icons.music_note_rounded,
-                          size: 32,
-                          color: colorScheme.onSurfaceVariant.withOpacity(0.4),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        video['title'] ?? 'Unknown',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: colorScheme.onSurface,
-                              fontWeight: FontWeight.w600,
-                              height: 1.3,
-                            ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        video['channel'] ?? 'Unknown',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color:
-                                  colorScheme.onSurfaceVariant.withOpacity(0.7),
-                              fontSize: 13,
-                            ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: colorScheme.primaryContainer,
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: colorScheme.primary.withOpacity(0.15),
-                        blurRadius: 6,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Icon(
-                    Icons.play_arrow_rounded,
-                    color: colorScheme.onPrimaryContainer,
-                    size: 24,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
   }
 
   int? _asInt(dynamic value) {
@@ -485,1098 +272,401 @@ class _StreamScreenState extends State<StreamScreen>
     return null;
   }
 
-  String _formatDuration(int seconds) {
-    if (seconds <= 0) return '--:--';
-    final minutes = seconds ~/ 60;
-    final remainingSeconds = seconds % 60;
-    return '$minutes:${remainingSeconds.toString().padLeft(2, '0')}';
-  }
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    final scheme = Theme.of(context).colorScheme;
 
-  String _formatViews(int? views) {
-    if (views == null || views < 0) return 'N/A views';
-    if (views >= 1000000)
-      return '${(views / 1000000).toStringAsFixed(1)}M views';
-    if (views >= 1000) return '${(views / 1000).toStringAsFixed(1)}K views';
-    return '$views views';
-  }
-
-  void _openSearchScreen(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => const OnlineSearchScreen(),
-      ),
-    );
-  }
-
-  void _openSectionPage(
-      String title, List<Map<String, dynamic>> items, bool isListView) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => SectionPage(
-          title: title,
-          items: items,
-          isListView: isListView,
+    return Scaffold(
+      backgroundColor: scheme.surface,
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          children: [
+            _buildSearchBar(context),
+            Expanded(child: _buildBody(context)),
+          ],
         ),
       ),
     );
   }
 
-  void _showSettingsDialog() {
-    final settings = Provider.of<SettingsProvider>(context, listen: false);
-    final controller = TextEditingController(text: settings.ytdlBaseUrl);
+  Widget _buildSearchBar(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final searching = _exploreOpen || _currentQuery.isNotEmpty;
 
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('YTDL Wrapper Base URL'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: controller,
-                decoration: const InputDecoration(
-                  hintText: 'https://ytdl-wrapper.onrender.com',
-                  border: OutlineInputBorder(),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 8, 12, 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: SizedBox(
+              height: 48,
+              child: TextField(
+                controller: _searchController,
+                focusNode: _searchFocus,
+                onChanged: _onSearchChanged,
+                textInputAction: TextInputAction.search,
+                onSubmitted: _search,
+                style: Theme.of(context).textTheme.bodyLarge,
+                decoration: InputDecoration(
+                  hintText: 'Search songs, artists',
+                  prefixIcon: const Icon(Icons.search_rounded),
+                  suffixIcon: searching
+                      ? IconButton(
+                          icon: const Icon(Icons.close_rounded),
+                          onPressed: () {
+                            _searchController.clear();
+                            _searchFocus.unfocus();
+                            setState(() => _exploreOpen = false);
+                            _search('');
+                          },
+                        )
+                      : null,
+                  filled: true,
+                  fillColor: scheme.surfaceContainerHigh,
+                  contentPadding: EdgeInsets.zero,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(rMd),
+                    borderSide: BorderSide.none,
+                  ),
                 ),
-                autofocus: true,
               ),
-              const SizedBox(height: 8),
-              const Text(
-                'Update the YTDL wrapper base URL if you host your own instance.',
-                style: TextStyle(fontSize: 12, color: Colors.grey),
-              ),
-            ],
+            ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () async {
-                final newUrl = controller.text.trim();
-                if (newUrl.isNotEmpty) {
-                  await settings.setYtdlBaseUrl(newUrl);
-                  setState(() {
-                    _service = const YtdlWrapperService();
-                  });
-                  _loadFeatured();
+          if (!searching) ...[
+            const SizedBox(width: 4),
+            Consumer<SettingsProvider>(
+              builder: (context, settings, _) {
+                if (!settings.enableYouTubeIntegration) {
+                  return const SizedBox.shrink();
                 }
-                Navigator.pop(context);
+                return IconButton(
+                  icon: const Icon(Icons.history_rounded),
+                  tooltip: 'History',
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const YoutubeHistoryScreen()),
+                  ),
+                );
               },
-              child: const Text('Save'),
             ),
+            IconButton(
+              icon: const Icon(Icons.settings_outlined),
+              tooltip: 'Settings',
+              onPressed: () => Navigator.pushNamed(context, '/settings'),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBody(BuildContext context) {
+    if (_currentQuery.isNotEmpty) return _buildSearchResults(context);
+    if (_exploreOpen) return _buildExplore(context);
+    return _buildDiscover(context);
+  }
+
+  Widget _buildSearchResults(BuildContext context) {
+    if (_isSearching) {
+      return const Center(child: KashouLoader());
+    }
+    if (_searchResults.isEmpty && _searchPlaylists.isEmpty) {
+      return _emptyState(Icons.search_off_rounded, 'No results',
+          'Try a different search');
+    }
+    final bottom = _bottomInset(context);
+    return ListView(
+      padding: EdgeInsets.fromLTRB(0, 8, 0, bottom),
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+      children: [
+        if (_searchPlaylists.isNotEmpty) ...[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+            child: _sectionTitle('Playlists'),
+          ),
+          SizedBox(
+            height: 214,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              itemCount: _searchPlaylists.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 16),
+              itemBuilder: (_, i) => ArtCard(
+                thumbnail: _searchPlaylists[i]['thumbnail'] as String?,
+                title: _searchPlaylists[i]['title'] as String? ?? '',
+                subtitle: _searchPlaylists[i]['subtitle'] as String?,
+                onTap: () => _openPlaylist(_searchPlaylists[i]),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          if (_searchResults.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
+              child: _sectionTitle('Songs'),
+            ),
+        ],
+        for (final video in _searchResults)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: _buildSongRow(video),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildExplore(BuildContext context) {
+    if (_moodSections.isEmpty) {
+      return const Center(child: KashouLoader());
+    }
+    final bottom = _bottomInset(context);
+    return ListView(
+      padding: EdgeInsets.fromLTRB(20, 8, 20, bottom),
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+      children: [
+        for (final section in _moodSections) ...[
+          _sectionTitle(section['section'] as String? ?? 'Explore'),
+          const SizedBox(height: 12),
+          _buildMoodGrid((section['items'] as List).cast<Map<String, dynamic>>()),
+          const SizedBox(height: 24),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildMoodGrid(List<Map<String, dynamic>> moods) {
+    final scheme = Theme.of(context).colorScheme;
+    final width = MediaQuery.of(context).size.width - 40;
+    final cardWidth = (width - 12) / 2;
+    return Wrap(
+      spacing: 12,
+      runSpacing: 12,
+      children: [
+        for (final mood in moods)
+          SizedBox(
+            width: cardWidth,
+            child: Material(
+              color: scheme.surfaceContainerHigh,
+              borderRadius: BorderRadius.circular(rMd),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(rMd),
+                onTap: () => _openMood(mood),
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+                  child: Text(
+                    mood['title'] as String? ?? '',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodyLarge
+                        ?.copyWith(fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildDiscover(BuildContext context) {
+    if (_isLoading) return const Center(child: KashouLoader());
+    if (_error != null) {
+      return _emptyState(Icons.wifi_off_rounded, 'Offline', _error!,
+          onRetry: _loadDiscover);
+    }
+
+    final bottom = _bottomInset(context);
+    return RefreshIndicator(
+      onRefresh: _loadDiscover,
+      child: ListView(
+        padding: EdgeInsets.fromLTRB(0, 4, 0, bottom),
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+            child: Text(
+              'Discover',
+              style: Theme.of(context)
+                  .textTheme
+                  .headlineMedium
+                  ?.copyWith(fontWeight: FontWeight.w800, letterSpacing: -0.5),
+            ),
+          ),
+          for (final shelf in _homeShelves) _buildPlaylistShelf(shelf),
+          _buildRadioSection(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPlaylistShelf(Map<String, dynamic> shelf) {
+    final items = (shelf['items'] as List).cast<Map<String, dynamic>>();
+    if (items.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+          child: _sectionTitle(shelf['title'] as String? ?? ''),
+        ),
+        SizedBox(
+          height: 214,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            itemCount: items.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 16),
+            itemBuilder: (_, i) => ArtCard(
+              thumbnail: items[i]['thumbnail'] as String?,
+              title: items[i]['title'] as String? ?? '',
+              subtitle: items[i]['subtitle'] as String?,
+              onTap: () => _openPlaylist(items[i]),
+            ),
+          ),
+        ),
+        const SizedBox(height: 24),
+      ],
+    );
+  }
+
+  Widget _buildRadioSection() {
+    return Consumer<RecommendationProvider>(
+      builder: (context, rec, _) {
+        final related = rec.relatedVideos;
+        if (related.isEmpty) return const SizedBox.shrink();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+              child: _sectionTitle('More like what you played'),
+            ),
+            SizedBox(
+              height: 214,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                itemCount: related.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 16),
+                itemBuilder: (_, i) => ArtCard(
+                  thumbnail: related[i]['thumbnail'] as String? ??
+                      'https://i.ytimg.com/vi/${related[i]['id']}/mqdefault.jpg',
+                  title: related[i]['title'] as String? ?? '',
+                  subtitle: related[i]['channel'] as String?,
+                  onTap: () => _playVideo(related[i]),
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
           ],
         );
       },
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    super.build(context);
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Scaffold(
-      resizeToAvoidBottomInset: false,
-      body: NestedScrollView(
-        headerSliverBuilder: (context, innerBoxIsScrolled) {
-          return [
-            SliverAppBar(
-              floating: true,
-              snap: true,
-              elevation: 0,
-              backgroundColor: colorScheme.surface,
-              foregroundColor: colorScheme.onSurface,
-              title: _buildSearchField(context),
-              actions: [
-                Consumer<SettingsProvider>(
-                  builder: (context, settings, _) {
-                    if (!settings.enableYouTubeIntegration)
-                      return const SizedBox.shrink();
-                    return IconButton(
-                      icon: const Icon(Icons.history),
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const YoutubeHistoryScreen(),
-                          ),
-                        );
-                      },
-                      tooltip: 'YouTube History',
-                    );
-                  },
-                ),
-                IconButton(
-                  icon: const Icon(Icons.settings_outlined),
-                  onPressed: () => Navigator.pushNamed(context, '/settings'),
-                  tooltip: 'Settings',
-                ),
-              ],
-            ),
-          ];
-        },
-        body: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: _buildContent(),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildContent() {
-    if (_isLoading) {
-      return _buildShimmerLoading();
-    }
-
-    if (_error != null) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.error_outline,
-                size: 48, color: Theme.of(context).colorScheme.error),
-            const SizedBox(height: 16),
-            Text(_error!,
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyMedium),
-            const SizedBox(height: 16),
-            FilledButton(
-              onPressed: _loadFeatured,
-              child: const Text('Retry'),
-            ),
-          ],
-        ),
-      );
-    }
-
-    if (_currentQuery.isNotEmpty && _isSearching) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    final showingSearch = _currentQuery.isNotEmpty;
-    if (showingSearch && _searchResults.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surfaceContainerLow,
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  Icons.search_off_rounded,
-                  size: 64,
-                  color: Theme.of(context)
-                      .colorScheme
-                      .onSurfaceVariant
-                      .withOpacity(0.4),
-                ),
-              ),
-              const SizedBox(height: 24),
-              Text(
-                'No results found',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: Theme.of(context).colorScheme.onSurface,
-                    ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Try searching with different keywords',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context)
-                          .colorScheme
-                          .onSurfaceVariant
-                          .withOpacity(0.7),
-                    ),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return RefreshIndicator(
-      onRefresh: showingSearch
-          ? () async => _search(_currentQuery)
-          : () => _loadDiscoverSections(forceRefresh: true),
-      child: Consumer<AudioProvider>(
-        builder: (context, audioProvider, child) {
-          final hasMiniPlayer = audioProvider.currentTrack != null;
-          final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
-          final showMiniPlayer = hasMiniPlayer && keyboardHeight == 0;
-          final safeArea = MediaQuery.of(context).padding.bottom;
-          final bottomPadding =
-              showMiniPlayer ? safeArea + 96.0 : safeArea + 24;
-
-          if (showingSearch) {
-            return ListView.separated(
-              padding: EdgeInsets.only(bottom: bottomPadding, top: 16),
-              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-              itemCount: _searchResults.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 12),
-              itemBuilder: (context, index) =>
-                  _buildVideoTile(_searchResults[index]),
-            );
-          }
-
-          return ListView(
-            padding: EdgeInsets.only(bottom: bottomPadding, top: 16),
-            children: [
-              _buildHeroHeader(context),
-              const SizedBox(height: 24),
-
-              Consumer<RecommendationProvider>(
-                builder: (context, recommendationProvider, child) {
-                  final relatedVideos = recommendationProvider.relatedVideos;
-                  final recommendations =
-                      recommendationProvider.recommendations;
-                  final isLoading = recommendationProvider.isLoading;
-
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (relatedVideos.isNotEmpty) ...[
-                        _buildSectionHeader('Now Playing Radio',
-                            items: relatedVideos, isListView: false),
-                        const SizedBox(height: 12),
-                        _buildHorizontalCarousel(relatedVideos),
-                        const SizedBox(height: 28),
-                      ],
-
-                      // Personalized recommendations (grid layout)
-                      if (recommendations.isNotEmpty) ...[
-                        _buildSectionHeader('Personalized for You',
-                            items: recommendations, isListView: false),
-                        const SizedBox(height: 12),
-                        _buildGridCarousel(recommendations),
-                        const SizedBox(height: 28),
-                      ],
-
-                      if (isLoading &&
-                          relatedVideos.isEmpty &&
-                          recommendations.isEmpty) ...[
-                        const SizedBox(
-                          height: 200,
-                          child: Center(child: CircularProgressIndicator()),
-                        ),
-                        const SizedBox(height: 28),
-                      ],
-                    ],
-                  );
-                },
-              ),
-
-              _buildSectionHeader('Quick picks',
-                  items: _quickPicks, isListView: false),
-              const SizedBox(height: 12),
-              _buildHorizontalCarousel(_quickPicks),
-              const SizedBox(height: 28),
-
-              // Trending section
-              _buildSectionHeader('Trending now',
-                  items: _trendingSongs.take(6).toList(), isListView: true),
-              const SizedBox(height: 12),
-              _buildTileList(_trendingSongs.take(6).toList()),
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildShimmerLoading() {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
-    return Shimmer.fromColors(
-      baseColor: colorScheme.surfaceContainerHighest.withOpacity(0.4),
-      highlightColor: colorScheme.surfaceContainerHighest.withOpacity(0.7),
-      child: ListView(
-        padding: const EdgeInsets.only(bottom: 120, top: 16),
-        children: [
-          Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(20),
-              color: colorScheme.surface,
-            ),
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
-            child: Row(
-              children: [
-                Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    color: colorScheme.surfaceContainerHighest,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        height: 18,
-                        width: 140,
-                        decoration: BoxDecoration(
-                          color: colorScheme.surfaceContainerHighest,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Container(
-                        height: 14,
-                        width: 200,
-                        decoration: BoxDecoration(
-                          color: colorScheme.surfaceContainerHighest,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 24),
-
-          Container(
-            height: 28,
-            width: 160,
-            margin: const EdgeInsets.only(bottom: 8),
-            decoration: BoxDecoration(
-              color: colorScheme.surface,
-              borderRadius: BorderRadius.circular(8),
-            ),
-          ),
-
-          // Horizontal carousel cards with modern design
-          SizedBox(
-            height: 240,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: 6,
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              separatorBuilder: (_, __) => const SizedBox(width: 18),
-              itemBuilder: (context, index) {
-                return Container(
-                  width: 150,
-                  decoration: BoxDecoration(
-                    color: colorScheme.surface,
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: colorScheme.shadow.withOpacity(0.08),
-                        blurRadius: 14,
-                        offset: const Offset(0, 6),
-                      ),
-                    ],
-                  ),
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        height: 126,
-                        decoration: BoxDecoration(
-                          color: colorScheme.surfaceContainerHighest,
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      Container(
-                        height: 14,
-                        width: double.infinity,
-                        decoration: BoxDecoration(
-                          color: colorScheme.surfaceContainerHighest,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Container(
-                        height: 14,
-                        width: 100,
-                        decoration: BoxDecoration(
-                          color: colorScheme.surfaceContainerHighest,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Container(
-                        height: 12,
-                        width: 80,
-                        decoration: BoxDecoration(
-                          color: colorScheme.surfaceContainerHighest,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
-          ),
-          const SizedBox(height: 20),
-
-          // More sections
-          ...List.generate(
-            3,
-            (sectionIndex) => Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  height: 28,
-                  width: 140,
-                  margin: const EdgeInsets.only(bottom: 8),
-                  decoration: BoxDecoration(
-                    color: colorScheme.surface,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-
-                // Carousel
-                SizedBox(
-                  height: 240,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: 4,
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    separatorBuilder: (_, __) => const SizedBox(width: 18),
-                    itemBuilder: (context, index) {
-                      return Container(
-                        width: 150,
-                        decoration: BoxDecoration(
-                          color: colorScheme.surface,
-                          borderRadius: BorderRadius.circular(20),
-                          boxShadow: [
-                            BoxShadow(
-                              color: colorScheme.shadow.withOpacity(0.08),
-                              blurRadius: 14,
-                              offset: const Offset(0, 6),
-                            ),
-                          ],
-                        ),
-                        padding: const EdgeInsets.all(12),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Container(
-                              height: 126,
-                              decoration: BoxDecoration(
-                                color: colorScheme.surfaceContainerHighest,
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            Container(
-                              height: 14,
-                              width: double.infinity,
-                              decoration: BoxDecoration(
-                                color: colorScheme.surfaceContainerHighest,
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            Container(
-                              height: 14,
-                              width: 100,
-                              decoration: BoxDecoration(
-                                color: colorScheme.surfaceContainerHighest,
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            Container(
-                              height: 12,
-                              width: 80,
-                              decoration: BoxDecoration(
-                                color: colorScheme.surfaceContainerHighest,
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
-                ),
-                const SizedBox(height: 20),
-              ],
-            ),
-          ),
-
-          // Trending section header
-          Container(
-            height: 28,
-            width: 120,
-            margin: const EdgeInsets.only(bottom: 12),
-            decoration: BoxDecoration(
-              color: colorScheme.surface,
-              borderRadius: BorderRadius.circular(8),
-            ),
-          ),
-
-          // Trending tiles
-          ...List.generate(
-            5,
-            (index) => Container(
-              margin: const EdgeInsets.only(bottom: 12),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: colorScheme.surface,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: colorScheme.shadow.withOpacity(0.06),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 68,
-                    height: 68,
-                    decoration: BoxDecoration(
-                      color: colorScheme.surfaceContainerHighest,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  // Text content
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          height: 15,
-                          width: double.infinity,
-                          decoration: BoxDecoration(
-                            color: colorScheme.surfaceContainerHighest,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Container(
-                          height: 13,
-                          width: 120,
-                          decoration: BoxDecoration(
-                            color: colorScheme.surfaceContainerHighest,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  // Play button
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: colorScheme.surfaceContainerHighest,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  List<Widget> _buildLanguagePlaylistsSections() {
-    final widgets = <Widget>[];
-
-    _languagePlaylists.forEach((language, playlist) {
-      if (playlist.isEmpty) return;
-
-      widgets.addAll([
-        _buildSectionHeader('$language songs',
-            items: playlist, isListView: false),
-        const SizedBox(height: 8),
-        _buildHorizontalCarousel(playlist),
-        const SizedBox(height: 20),
-      ]);
-    });
-
-    return widgets;
-  }
-
-  Widget _buildHorizontalCarousel(List<Map<String, dynamic>> items) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final itemCount = items.length > 15 ? 15 : items.length;
-
-    if (itemCount == 0) {
-      return _buildEmptySectionCard('Nothing to show right now');
-    }
-
-    return SizedBox(
-      height: 240,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final maxWidth = constraints.maxWidth;
-          final cardWidth = (maxWidth * 0.42).clamp(132.0, 168.0);
-          final imageSize = cardWidth - 24;
-
-          return ListView.separated(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            itemCount: itemCount,
-            separatorBuilder: (_, __) => const SizedBox(width: 18),
-            itemBuilder: (context, index) {
-              final item = items[index];
-              final thumbnail = item['thumbnail'] as String?;
-              final title = item['title'] as String? ?? 'Unknown';
-              final channel = item['channel'] as String? ?? 'Unknown';
-
-              return SizedBox(
-                width: cardWidth,
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    onTap: () => _playVideo(item),
-                    splashColor:
-                        colorScheme.primaryContainer.withValues(alpha: 0.12),
-                    highlightColor:
-                        colorScheme.primaryContainer.withValues(alpha: 0.06),
-                    borderRadius: BorderRadius.circular(12),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(12),
-                        color: colorScheme.surfaceContainerLow,
-                        boxShadow: [
-                          BoxShadow(
-                            color: colorScheme.shadow.withOpacity(0.04),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Album art with overlay gradient
-                          Stack(
-                            children: [
-                              ClipRRect(
-                                borderRadius: const BorderRadius.vertical(
-                                  top: Radius.circular(12),
-                                ),
-                                child: SizedBox(
-                                  width: cardWidth,
-                                  height: imageSize,
-                                  child: Image.network(
-                                    thumbnail ??
-                                        'https://img.youtube.com/vi/${item['id']}/maxresdefault.jpg',
-                                    fit: BoxFit.cover,
-                                    errorBuilder:
-                                        (context, error, stackTrace) =>
-                                            Container(
-                                      alignment: Alignment.center,
-                                      color:
-                                          colorScheme.surfaceContainerHighest,
-                                      child: Icon(
-                                        Icons.music_note_rounded,
-                                        size: 48,
-                                        color: colorScheme.onSurfaceVariant
-                                            .withOpacity(0.3),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              // Subtle shadow overlay at bottom for text readability
-                              Positioned(
-                                bottom: 0,
-                                left: 0,
-                                right: 0,
-                                child: Container(
-                                  height: 40,
-                                  decoration: BoxDecoration(
-                                    gradient: LinearGradient(
-                                      begin: Alignment.topCenter,
-                                      end: Alignment.bottomCenter,
-                                      colors: [
-                                        Colors.transparent,
-                                        Colors.black.withOpacity(0.02),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          // Text content
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(12, 12, 12, 14),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  title,
-                                  style: theme.textTheme.bodyMedium?.copyWith(
-                                    fontWeight: FontWeight.w600,
-                                    color: colorScheme.onSurface,
-                                    height: 1.3,
-                                  ),
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  channel,
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    color: colorScheme.onSurfaceVariant
-                                        .withOpacity(0.7),
-                                    fontSize: 12,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            },
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildTileList(List<Map<String, dynamic>> items) {
-    if (items.isEmpty) {
-      return _buildEmptySectionCard('Nothing trending right now');
-    }
-    return Column(children: items.map(_buildVideoTile).toList(growable: false));
-  }
-
-  Widget _buildHeroHeader(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        gradient: LinearGradient(
-          colors: [
-            colorScheme.primary.withValues(alpha: 0.12),
-            colorScheme.primaryContainer.withValues(alpha: 0.24),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        border: Border.all(color: colorScheme.primary.withValues(alpha: 0.18)),
-      ),
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: colorScheme.primary,
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              Icons.explore,
-              color: colorScheme.onPrimary,
-              size: 22,
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Discover something new',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: colorScheme.onSurface,
-                      ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Fresh tracks & playlists for you',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: colorScheme.onSurfaceVariant.withOpacity(0.8),
-                      ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildHeroChip(BuildContext context, IconData icon, String label) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: colorScheme.surface.withValues(alpha: 0.7),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: colorScheme.primary.withValues(alpha: 0.18)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 18, color: colorScheme.primary),
-          const SizedBox(width: 8),
-          Text(
-            label,
-            style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  color: colorScheme.onSurface,
-                  fontWeight: FontWeight.w600,
-                ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSearchField(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
-    return Container(
-      height: 44,
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: colorScheme.outline.withOpacity(0.08)),
-      ),
-      child: TextField(
-        controller: _searchController,
-        onChanged: _onSearchChanged,
-        textAlignVertical: TextAlignVertical.center,
-        decoration: InputDecoration(
-          isDense: true,
-          prefixIcon: Icon(Icons.search, color: colorScheme.onSurfaceVariant),
-          prefixIconConstraints:
-              const BoxConstraints(minWidth: 44, minHeight: 44),
-          suffixIcon: (_isSearching || _currentQuery.isNotEmpty)
-              ? IconButton(
-                  tooltip: 'Clear',
-                  icon: Icon(Icons.close, color: colorScheme.onSurfaceVariant),
-                  onPressed: () {
-                    _searchController.clear();
-                    _searchDebounceTimer?.cancel();
-                    _search('');
-                  },
-                )
-              : null,
-          hintText: 'Search YouTube…',
-          hintStyle: theme.textTheme.bodyMedium?.copyWith(
-            color: colorScheme.onSurfaceVariant.withOpacity(0.8),
-          ),
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSectionHeader(
-    String title, {
-    required List<Map<String, dynamic>> items,
-    required bool isListView,
-  }) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: colorScheme.primary.withValues(alpha: 0.18),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                isListView ? Icons.bar_chart : Icons.queue_music,
-                color: colorScheme.primary,
-                size: 20,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Text(
-              title,
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: colorScheme.onSurface,
-                  ),
-            ),
-          ],
-        ),
-        if (items.isNotEmpty)
-          TextButton(
-            onPressed: () => _openSectionPage(title, items, isListView),
-            style: TextButton.styleFrom(foregroundColor: colorScheme.primary),
-            child: const Text('See all'),
-          ),
-      ],
-    );
-  }
-
-  Widget _buildGridCarousel(List<Map<String, dynamic>> items) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final itemCount = items.length > 15 ? 15 : items.length;
-
-    if (itemCount == 0) {
-      return _buildEmptySectionCard('Nothing to show right now', height: 400);
-    }
-
-    // Group items into columns of 3
-    final columns = <List<Map<String, dynamic>>>[];
-    for (var i = 0; i < itemCount; i += 3) {
-      final end = (i + 3) > itemCount ? itemCount : i + 3;
-      columns.add(items.sublist(i, end));
-    }
-
-    return SizedBox(
-      height: 240, // Height for 3 items vertically
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        itemCount: columns.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 12),
-        itemBuilder: (context, columnIndex) {
-          final columnItems = columns[columnIndex];
-
-          return SizedBox(
-            width: 300, // Width of each column
-            child: Column(
-              children: columnItems.asMap().entries.map((entry) {
-                final item = entry.value;
-                final isLast = entry.key == columnItems.length - 1;
-
-                return Padding(
-                  padding: EdgeInsets.only(bottom: isLast ? 0 : 8),
-                  child: SizedBox(
-                    height: 72,
-                    child: _buildGridItem(item, colorScheme, theme),
-                  ),
-                );
-              }).toList(),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildGridItem(
-    Map<String, dynamic> item,
-    ColorScheme colorScheme,
-    ThemeData theme,
-  ) {
-    final thumbnail = item['thumbnail'] as String?;
-    final title = item['title'] as String? ?? 'Unknown';
-    final channel = item['channel'] as String? ?? 'Unknown';
-
+  Widget _buildSongRow(Map<String, dynamic> video) {
+    final scheme = Theme.of(context).colorScheme;
+    final thumb = video['thumbnail'] as String? ??
+        'https://i.ytimg.com/vi/${video['id']}/mqdefault.jpg';
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: () => _playVideo(item),
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            color: colorScheme.surfaceContainerLow,
-            boxShadow: [
-              BoxShadow(
-                color: colorScheme.shadow.withOpacity(0.03),
-                blurRadius: 6,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
+        onTap: () => _playVideo(video),
+        borderRadius: BorderRadius.circular(rMd),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
           child: Row(
             children: [
-              ClipRRect(
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(12),
-                  bottomLeft: Radius.circular(12),
-                ),
-                child: Container(
-                  width: 68,
-                  height: 72,
-                  color: colorScheme.surfaceContainerHighest,
-                  child: Image.network(
-                    thumbnail ??
-                        'https://img.youtube.com/vi/${item['id']}/default.jpg',
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) => Container(
-                      color: colorScheme.surfaceContainerHighest,
-                      child: Icon(
-                        Icons.music_note_rounded,
-                        color: colorScheme.onSurfaceVariant.withOpacity(0.4),
-                        size: 28,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
+              SquareArt(url: thumb, size: 56, radius: rSm),
+              const SizedBox(width: 14),
               Expanded(
-                child: Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        title,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 13,
-                          height: 1.3,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        channel,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: colorScheme.onSurfaceVariant.withOpacity(0.7),
-                          fontSize: 11,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      video['title'] as String? ?? 'Unknown',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            height: 1.25,
+                          ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      video['channel'] as String? ?? '',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodySmall
+                          ?.copyWith(color: scheme.onSurfaceVariant),
+                    ),
+                  ],
                 ),
               ),
+              const SizedBox(width: 8),
+              Icon(Icons.play_arrow_rounded, color: scheme.onSurfaceVariant),
             ],
           ),
         ),
       ),
     );
+  }
+
+  Widget _sectionTitle(String title) {
+    return Text(
+      title,
+      style: Theme.of(context)
+          .textTheme
+          .titleMedium
+          ?.copyWith(fontWeight: FontWeight.w700),
+    );
+  }
+
+  Widget _emptyState(IconData icon, String title, String subtitle,
+      {VoidCallback? onRetry}) {
+    final scheme = Theme.of(context).colorScheme;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 56, color: scheme.onSurfaceVariant),
+            const SizedBox(height: 16),
+            Text(title,
+                style: Theme.of(context)
+                    .textTheme
+                    .titleMedium
+                    ?.copyWith(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 6),
+            Text(subtitle,
+                textAlign: TextAlign.center,
+                style: Theme.of(context)
+                    .textTheme
+                    .bodyMedium
+                    ?.copyWith(color: scheme.onSurfaceVariant)),
+            if (onRetry != null) ...[
+              const SizedBox(height: 20),
+              FilledButton(onPressed: onRetry, child: const Text('Retry')),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  double _bottomInset(BuildContext context) {
+    final audio = Provider.of<AudioProvider>(context, listen: false);
+    final safe = MediaQuery.of(context).padding.bottom;
+    final mini = audio.currentTrack != null ? 96.0 : 24.0;
+    return safe + mini;
   }
 }
