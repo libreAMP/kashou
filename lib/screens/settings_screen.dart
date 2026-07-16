@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:file_picker/file_picker.dart';
@@ -240,17 +241,19 @@ class SettingsScreen extends StatelessWidget {
                     title: const Text('Open Source'),
                     subtitle: const Text('GPL v3 License'),
                     trailing: const Icon(Icons.open_in_new),
-                    onTap: () {
-                      // Open GitHub repo
-                    },
+                    onTap: () => launchUrl(
+                      Uri.parse('https://github.com/libreAMP/kashou'),
+                      mode: LaunchMode.externalApplication,
+                    ),
                   ),
                   ListTile(
                     leading: const Icon(Icons.favorite_outline),
                     title: const Text('Support Development'),
                     trailing: const Icon(Icons.chevron_right),
-                    onTap: () {
-                      // Show support options
-                    },
+                    onTap: () => launchUrl(
+                      Uri.parse('https://github.com/libreAMP/kashou'),
+                      mode: LaunchMode.externalApplication,
+                    ),
                   ),
                 ],
               ),

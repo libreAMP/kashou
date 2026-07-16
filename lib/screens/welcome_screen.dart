@@ -292,7 +292,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('star on github',
+                          Text('Star on GitHub',
                               style: TextStyle(
                                   fontWeight: FontWeight.w600, fontSize: 16)),
                           SizedBox(height: 2),
@@ -329,19 +329,44 @@ class _PermissionsPageState extends State<_PermissionsPage> {
     _refresh();
   }
 
+  // Permission.audio only exists on android 13+, older devices use storage
+  Future<Permission> _mediaPermission() async {
+    if ((await Permission.audio.status).isPermanentlyDenied ||
+        (await Permission.audio.status).isRestricted) {
+      return Permission.storage;
+    }
+    return Permission.audio;
+  }
+
   Future<void> _refresh() async {
     for (final p in [
       Permission.notification,
       Permission.audio,
+      Permission.storage,
       Permission.bluetoothConnect
     ]) {
       final status = await p.status;
-      if (mounted && status.isGranted) setState(() => _granted[p] = true);
+      if (!mounted) return;
+      if (status.isGranted) {
+        setState(() =>
+            _granted[p == Permission.storage ? Permission.audio : p] = true);
+      }
     }
   }
 
   Future<void> _request(Permission p) async {
-    final status = await p.request();
+    var target = p;
+    if (p == Permission.audio) target = await _mediaPermission();
+    var status = await target.request();
+    if (status.isDenied && target == Permission.audio) {
+      // some roms report audio as plain denied yet never show a dialog
+      target = Permission.storage;
+      status = await target.request();
+    }
+    if (status.isPermanentlyDenied) {
+      await openAppSettings();
+      status = await target.status;
+    }
     if (mounted) setState(() => _granted[p] = status.isGranted);
   }
 

@@ -121,6 +121,14 @@ class _StreamScreenState extends State<StreamScreen>
         _ytm.getNewReleaseAlbums(),
       ]);
       if (!mounted) return;
+      // the service swallows failures into empty lists
+      if (results[0].isEmpty && results[1].isEmpty) {
+        setState(() {
+          _error = 'No internet connection.';
+          _isLoading = false;
+        });
+        return;
+      }
       setState(() {
         _homeShelves = [
           ...results[0],
@@ -582,7 +590,8 @@ class _StreamScreenState extends State<StreamScreen>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (rec.recommendations.isNotEmpty)
-                  _buildRecCarousel('For you', rec.recommendations),
+                  _buildQuickPicks(
+                      {'title': 'Quick picks', 'items': rec.recommendations}),
                 if (rec.relatedVideos.isNotEmpty)
                   _buildRecCarousel(
                       'More like what you played', rec.relatedVideos),
@@ -598,6 +607,7 @@ class _StreamScreenState extends State<StreamScreen>
   Widget _buildPlaylistShelf(Map<String, dynamic> shelf) {
     final items = (shelf['items'] as List).cast<Map<String, dynamic>>();
     if (items.isEmpty) return const SizedBox.shrink();
+    if (shelf['kind'] == 'songs') return _buildQuickPicks(shelf);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -618,6 +628,39 @@ class _StreamScreenState extends State<StreamScreen>
               subtitle: items[i]['subtitle'] as String?,
               onTap: () => _openPlaylist(items[i]),
             ),
+          ),
+        ),
+        const SizedBox(height: 24),
+      ],
+    );
+  }
+
+  // four song rows per page
+  Widget _buildQuickPicks(Map<String, dynamic> shelf) {
+    final items = (shelf['items'] as List).cast<Map<String, dynamic>>();
+    final pageWidth = MediaQuery.of(context).size.width - 56;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+          child: _sectionTitle(
+              (shelf['title'] as String?)?.isNotEmpty == true
+                  ? shelf['title'] as String
+                  : 'Quick picks'),
+        ),
+        SizedBox(
+          height: 4 * 72,
+          child: GridView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 4,
+              mainAxisExtent: pageWidth,
+              mainAxisSpacing: 16,
+            ),
+            itemCount: items.length,
+            itemBuilder: (_, i) => _buildSongRow(items[i]),
           ),
         ),
         const SizedBox(height: 24),

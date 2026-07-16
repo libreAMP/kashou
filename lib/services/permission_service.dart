@@ -9,16 +9,21 @@ class PermissionService {
   static Future<bool> requestPermissions() async {
     try {
       List<Permission> permissions = [];
-      
+
       if (Platform.isAndroid) {
         permissions.add(Permission.audio);
       }
-      
+
       permissions.add(Permission.notification);
       permissions.add(Permission.bluetoothConnect);
 
       // Request permissions but don't fail if denied
       await permissions.request();
+
+      // pre android 13 the media permission is plain storage
+      if (Platform.isAndroid && !await Permission.audio.isGranted) {
+        await Permission.storage.request();
+      }
 
       // Always return true to allow app to proceed
       return true;
@@ -29,11 +34,15 @@ class PermissionService {
   }
 
   static Future<bool> checkStoragePermission() async {
-    if (await Permission.audio.isGranted) {
+    if (await Permission.audio.isGranted ||
+        await Permission.storage.isGranted) {
       return true;
     }
 
-    final status = await Permission.audio.request();
+    var status = await Permission.audio.request();
+    if (!status.isGranted) {
+      status = await Permission.storage.request();
+    }
     return status.isGranted;
   }
 

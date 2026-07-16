@@ -39,7 +39,7 @@ class YtMusicService {
           'browseId': browseId,
           if (params != null) 'params': params,
         }),
-      );
+      ).timeout(const Duration(seconds: 12));
       if (res.statusCode != 200) return null;
       return jsonDecode(res.body) as Map<String, dynamic>;
     } catch (_) {
@@ -63,6 +63,18 @@ class YtMusicService {
       final items = _playlistItems(shelf['contents']);
       if (items.isNotEmpty) {
         shelves.add({'title': title ?? 'For you', 'items': items});
+        continue;
+      }
+      // some shelves are song rows, not cards
+      final songs = <Map<String, dynamic>>[];
+      final rows = <dynamic>[];
+      _collect(shelf['contents'], 'musicResponsiveListItemRenderer', rows);
+      for (final r in rows) {
+        final song = _songFromRow(r);
+        if (song != null) songs.add(song);
+      }
+      if (songs.isNotEmpty) {
+        shelves.add({'title': title ?? '', 'kind': 'songs', 'items': songs});
       }
     }
     _put('home', shelves);
@@ -162,7 +174,7 @@ class YtMusicService {
           'query': query,
           'params': 'EgWKAQIIAWoKEAkQBRAKEAMQBA%3D%3D',
         }),
-      );
+      ).timeout(const Duration(seconds: 12));
       if (res.statusCode != 200) return const [];
 
       final rows = <dynamic>[];
@@ -208,7 +220,7 @@ class YtMusicService {
           'playlistId': 'RDAMVM$videoId',
           'isAudioOnly': true,
         }),
-      );
+      ).timeout(const Duration(seconds: 12));
       if (res.statusCode != 200) return const [];
 
       final panel = <dynamic>[];
@@ -285,7 +297,7 @@ class YtMusicService {
           'query': query,
           'params': 'EgeKAQQoAEABagoQAxAEEAoQCRAF',
         }),
-      );
+      ).timeout(const Duration(seconds: 12));
       if (res.statusCode != 200) return const [];
 
       final rows = <dynamic>[];
@@ -414,7 +426,7 @@ class YtMusicService {
           'query': query,
           'params': 'EgWKAQIYAWoKEAkQChAFEAMQBA%3D%3D',
         }),
-      );
+      ).timeout(const Duration(seconds: 12));
       if (res.statusCode != 200) return const [];
 
       final rows = <dynamic>[];
