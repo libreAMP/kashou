@@ -164,7 +164,7 @@ class _StreamScreenState extends State<StreamScreen>
     });
     try {
       final results = await Future.wait([
-        _service.search(query, limit: 20, musicOnly: true),
+        _ytm.searchSongs(query),
         _ytm.searchPlaylists(query),
         _ytm.searchAlbums(query),
       ]);
@@ -283,13 +283,15 @@ class _StreamScreenState extends State<StreamScreen>
     return null;
   }
 
-  // mqdefault is clean 16:9, hqdefault has baked black bars
+  // prefer the square music art, fall back to a clean 16:9 frame
   String? _videoThumb(Map<String, dynamic> v) {
+    final thumb = v['thumbnail'] as String?;
+    if (thumb != null && thumb.isNotEmpty) return thumb;
     final id = v['id']?.toString();
     if (id != null && id.isNotEmpty) {
       return 'https://i.ytimg.com/vi/$id/mqdefault.jpg';
     }
-    return v['thumbnail'] as String?;
+    return null;
   }
 
   void _closeSearch() {

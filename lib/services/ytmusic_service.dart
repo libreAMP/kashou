@@ -134,6 +134,129 @@ class YtMusicService {
     return shelves;
   }
 
+  // music search, songs filter
+  Future<List<Map<String, dynamic>>> searchSongs(String query,
+      {int limit = 20}) async {
+    final key = 'ssong_${query.trim().toLowerCase()}';
+    final hit = _get(key);
+    if (hit != null) return hit;
+
+    try {
+      final res = await http.post(
+        Uri.parse(
+            'https://music.youtube.com/youtubei/v1/search?prettyPrint=false'),
+        headers: const {
+          'Content-Type': 'application/json',
+          'User-Agent': 'Mozilla/5.0',
+        },
+        body: jsonEncode({
+          'context': {
+            'client': {
+              'clientName': 'WEB_REMIX',
+              'clientVersion': _clientVersion,
+              'hl': PlatformDispatcher.instance.locale.languageCode,
+              if (PlatformDispatcher.instance.locale.countryCode != null)
+                'gl': PlatformDispatcher.instance.locale.countryCode,
+            }
+          },
+          'query': query,
+          'params': 'EgWKAQIIAWoKEAkQBRAKEAMQBA%3D%3D',
+        }),
+      );
+      if (res.statusCode != 200) return const [];
+
+      final rows = <dynamic>[];
+      _collect(jsonDecode(res.body), 'musicResponsiveListItemRenderer', rows);
+      final out = <Map<String, dynamic>>[];
+      for (final r in rows) {
+        final song = _songFromRow(r);
+        if (song != null) out.add(song);
+        if (out.length >= limit) break;
+      }
+      _put(key, out);
+      return out;
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  // a played song seeds a radio of genuinely related tracks
+  Future<List<Map<String, dynamic>>> getSongRadio(String videoId,
+      {int limit = 25}) async {
+    final key = 'radio_$videoId';
+    final hit = _get(key);
+    if (hit != null) return hit;
+
+    try {
+      final res = await http.post(
+        Uri.parse('https://music.youtube.com/youtubei/v1/next?prettyPrint=false'),
+        headers: const {
+          'Content-Type': 'application/json',
+          'User-Agent': 'Mozilla/5.0',
+        },
+        body: jsonEncode({
+          'context': {
+            'client': {
+              'clientName': 'WEB_REMIX',
+              'clientVersion': _clientVersion,
+              'hl': PlatformDispatcher.instance.locale.languageCode,
+              if (PlatformDispatcher.instance.locale.countryCode != null)
+                'gl': PlatformDispatcher.instance.locale.countryCode,
+            }
+          },
+          'videoId': videoId,
+          'playlistId': 'RDAMVM$videoId',
+          'isAudioOnly': true,
+        }),
+      );
+      if (res.statusCode != 200) return const [];
+
+      final panel = <dynamic>[];
+      _collect(jsonDecode(res.body), 'playlistPanelVideoRenderer', panel);
+      final out = <Map<String, dynamic>>[];
+      for (final p in panel) {
+        final id = p['videoId'];
+        if (id is! String || id == videoId) continue;
+        final title = _text(p['title']);
+        if (title == null) continue;
+        final by = _text(p['longBylineText']);
+        out.add({
+          'id': id,
+          'title': title,
+          'url': 'https://www.youtube.com/watch?v=$id',
+          'channel': by?.split(' • ').first ?? '',
+          'thumbnail': _lastThumb(p['thumbnail']?['thumbnails']),
+        });
+        if (out.length >= limit) break;
+      }
+      _put(key, out);
+      return out;
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  Map<String, dynamic>? _songFromRow(Map r) {
+    final videoId = _videoId(r);
+    if (videoId == null) return null;
+    final cols = r['flexColumns'] as List?;
+    if (cols == null || cols.isEmpty) return null;
+    final title =
+        _text(cols[0]['musicResponsiveListItemFlexColumnRenderer']?['text']);
+    if (title == null) return null;
+    final artist = cols.length > 1
+        ? _text(cols[1]['musicResponsiveListItemFlexColumnRenderer']?['text'])
+        : null;
+    return {
+      'id': videoId,
+      'title': title,
+      'url': 'https://www.youtube.com/watch?v=$videoId',
+      'channel': artist?.split(' • ').first ?? '',
+      'thumbnail': _lastThumb(
+          r['thumbnail']?['musicThumbnailRenderer']?['thumbnail']?['thumbnails']),
+    };
+  }
+
   // community playlists filter
   Future<List<Map<String, dynamic>>> searchPlaylists(String query,
       {int limit = 12}) async {

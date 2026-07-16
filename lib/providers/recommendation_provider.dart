@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 import '../models/track.dart';
-import '../services/ytdl_service.dart';
+import '../services/ytmusic_service.dart';
 import 'audio_provider.dart';
 
 class RecommendationProvider extends ChangeNotifier {
-  final YoutubeExplode _yt = YoutubeExplode();
-  final YtdlWrapperService _ytdl = const YtdlWrapperService();
+  final YtMusicService _ytm = const YtMusicService();
 
   // off by default, the fan-out (searches + 10 fetches per play) trips youtube's bot detection
   bool _autoQueueRecommendations = true;
@@ -34,8 +32,7 @@ class RecommendationProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final trendingResults = await _ytdl.search('popular songs', limit: 15, musicOnly: true);
-      _recommendations = trendingResults;
+      _recommendations = await _ytm.searchSongs('top songs today', limit: 15);
       debugPrint(
           '[Recommendations] Loaded ${_recommendations.length} initial recommendations');
     } catch (e) {
@@ -87,24 +84,13 @@ class RecommendationProvider extends ChangeNotifier {
 
   Future<void> _fetchRelatedVideos(String videoId) async {
     try {
-      final video = await _yt.videos.get(videoId);
-
-      final List<Map<String, dynamic>> mixedResults = [];
-
-      final artistQuery = '${video.author} music';
-      final artistResults = await _ytdl.search(artistQuery, limit: 10, musicOnly: true);
-      mixedResults.addAll(artistResults);
-
-      final seen = <String>{};
-      _relatedVideos = mixedResults
-          .where((v) => v['id'] != videoId && seen.add(v['id'] ?? ''))
-          .take(10)
-          .toList();
-
+      final radio = await _ytm.getSongRadio(videoId);
+      _relatedVideos =
+          radio.where((v) => v['id'] != videoId).take(15).toList();
       debugPrint(
-          '[Recommendations] Found ${_relatedVideos.length} related videos');
+          '[Recommendations] Found ${_relatedVideos.length} related tracks');
     } catch (e) {
-      debugPrint('Error fetching related videos: $e');
+      debugPrint('Error fetching related tracks: $e');
       _relatedVideos = [];
     }
   }
@@ -114,22 +100,8 @@ class RecommendationProvider extends ChangeNotifier {
       _recommendations = [];
       return;
     }
-
     try {
-      final List<Map<String, dynamic>> mixedResults = [];
-
-      final artistQuery = '$artist official audio';
-      final artistResults = await _ytdl.search(artistQuery, limit: 6, musicOnly: true);
-      mixedResults.addAll(artistResults);
-
-      final similarQuery = 'artists like $artist';
-      final similarResults = await _ytdl.search(similarQuery, limit: 5, musicOnly: true);
-      mixedResults.addAll(similarResults);
-
-      final seen = <String>{};
-      _recommendations =
-          mixedResults.where((v) => seen.add(v['id'] ?? '')).take(15).toList();
-
+      _recommendations = await _ytm.searchSongs(artist, limit: 15);
       debugPrint(
           '[Recommendations] Found ${_recommendations.length} recommendations');
     } catch (e) {
@@ -149,48 +121,43 @@ class RecommendationProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // Take last 8 songs from history
-      final lastEight = recentHistory.take(8).toList();
-
-      final artists = <String>{};
-
-      for (final entry in lastEight) {
-        final artist = entry['artist'] as String?;
-
-        if (artist != null && artist != 'Unknown' && artist.isNotEmpty) {
-          artists.add(artist);
-        }
-      }
-
-      final List<Map<String, dynamic>> personalizedResults = [];
-
-      for (final artist in artists.take(3)) {
-        try {
-          final results = await _ytdl.search('$artist music', limit: 3, musicOnly: true);
-          personalizedResults.addAll(results);
-        } catch (e) {
-          debugPrint('Error searching for $artist: $e');
-        }
-      }
-
-      if (artists.length >= 2) {
-        final mixQuery = '${artists.take(3).join(' ')} music mix';
-        try {
-          final results = await _ytdl.search(mixQuery, limit: 5, musicOnly: true);
-          personalizedResults.addAll(results);
-        } catch (e) {
-          debugPrint('Error searching mix: $e');
-        }
-      }
-
+      final personalized = <Map<String, dynamic>>[];
       final seen = <String>{};
-      _recommendations = personalizedResults
-          .where((v) => seen.add(v['id'] ?? ''))
-          .take(15)
-          .toList();
+
+      // seed radios off the last couple of things played, thats the real signal
+      final seeds = recentHistory
+          .map((e) => _historyVideoId(e))
+          .whereType<String>()
+          .toSet()
+          .take(2);
+
+      for (final seed in seeds) {
+        final radio = await _ytm.getSongRadio(seed, limit: 12);
+        for (final t in radio) {
+          if (seen.add(t['id'] as String? ?? '')) personalized.add(t);
+        }
+      }
+
+      // no ids to seed from, fall back to the top artists
+      if (personalized.isEmpty) {
+        final artists = recentHistory
+            .map((e) => e['artist'] as String?)
+            .where((a) => a != null && a != 'Unknown' && a.isNotEmpty)
+            .cast<String>()
+            .toSet()
+            .take(2);
+        for (final artist in artists) {
+          for (final t in await _ytm.searchSongs(artist, limit: 8)) {
+            if (seen.add(t['id'] as String? ?? '')) personalized.add(t);
+          }
+        }
+      }
+
+      personalized.shuffle();
+      _recommendations = personalized.take(15).toList();
 
       debugPrint(
-          '[Recommendations] Generated ${_recommendations.length} personalized from ${lastEight.length} history tracks');
+          '[Recommendations] Generated ${_recommendations.length} personalized from history');
     } catch (e) {
       debugPrint('Error fetching personalized recommendations: $e');
       _recommendations = [];
@@ -202,12 +169,10 @@ class RecommendationProvider extends ChangeNotifier {
 
   Future<void> _fetchLocalTrackRecommendations(Track track) async {
     try {
-      final searchQuery = track.genre != null && track.genre!.isNotEmpty
-          ? '${track.artist} ${track.genre} music'
-          : '${track.artist} ${track.title}';
-
-      final results = await _ytdl.search(searchQuery, limit: 15, musicOnly: true);
-      _recommendations = results;
+      final query = track.artist != 'Unknown' && track.artist.isNotEmpty
+          ? '${track.artist} ${track.title}'
+          : track.title;
+      _recommendations = await _ytm.searchSongs(query, limit: 15);
 
       debugPrint(
           '[Recommendations] Found ${_recommendations.length} recommendations for local track');
@@ -321,9 +286,16 @@ class RecommendationProvider extends ChangeNotifier {
     return null;
   }
 
-  @override
-  void dispose() {
-    _yt.close();
-    super.dispose();
+  String? _historyVideoId(Map<String, dynamic> entry) {
+    final id = entry['id'] as String?;
+    if (id != null && id.length == 11) return id;
+    final url = entry['sourceUrl'] as String? ?? entry['url'] as String?;
+    if (url == null) return null;
+    final uri = Uri.tryParse(url);
+    if (uri == null) return null;
+    if (uri.host.contains('youtu.be')) {
+      return uri.pathSegments.isNotEmpty ? uri.pathSegments.first : null;
+    }
+    return uri.queryParameters['v'];
   }
 }
