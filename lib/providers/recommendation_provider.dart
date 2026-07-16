@@ -13,7 +13,6 @@ class RecommendationProvider extends ChangeNotifier {
   List<Map<String, dynamic>> _relatedVideos = [];
   bool _isLoading = false;
   String? _lastVideoId;
-  String? _lastArtist;
 
   List<Map<String, dynamic>> get recommendations => _recommendations;
   List<Map<String, dynamic>> get relatedVideos => _relatedVideos;
@@ -59,11 +58,6 @@ class RecommendationProvider extends ChangeNotifier {
 
         await _fetchRelatedVideos(videoId);
 
-        if (currentTrack.artist != _lastArtist) {
-          _lastArtist = currentTrack.artist;
-          await _fetchArtistRecommendations(currentTrack.artist);
-        }
-
         if (_autoQueueRecommendations && audioProvider != null) {
           await _queueRecommendations(audioProvider);
         }
@@ -92,21 +86,6 @@ class RecommendationProvider extends ChangeNotifier {
     } catch (e) {
       debugPrint('Error fetching related tracks: $e');
       _relatedVideos = [];
-    }
-  }
-
-  Future<void> _fetchArtistRecommendations(String artist) async {
-    if (artist == 'Unknown' || artist.isEmpty) {
-      _recommendations = [];
-      return;
-    }
-    try {
-      _recommendations = await _ytm.searchSongs(artist, limit: 15);
-      debugPrint(
-          '[Recommendations] Found ${_recommendations.length} recommendations');
-    } catch (e) {
-      debugPrint('Error fetching artist recommendations: $e');
-      _recommendations = [];
     }
   }
 
@@ -186,7 +165,6 @@ class RecommendationProvider extends ChangeNotifier {
     _recommendations = [];
     _relatedVideos = [];
     _lastVideoId = null;
-    _lastArtist = null;
     notifyListeners();
   }
 

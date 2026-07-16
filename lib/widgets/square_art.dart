@@ -1,6 +1,8 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
+import '../theme/radii.dart';
+
 // no size means fill the parent width
 class SquareArt extends StatelessWidget {
   final String? url;
@@ -12,7 +14,7 @@ class SquareArt extends StatelessWidget {
     super.key,
     required this.url,
     this.size,
-    this.radius = 12,
+    this.radius = rMd,
     this.fallbackIcon = Icons.music_note_rounded,
   });
 

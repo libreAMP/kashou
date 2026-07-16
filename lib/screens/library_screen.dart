@@ -47,7 +47,7 @@ class _LibraryScreenState extends State<LibraryScreen>
         animation: _tabController.animation!,
         builder: (context, _) {
           final scheme = Theme.of(context).colorScheme;
-          final sel = _tabController.index;
+          final sel = _tabController.animation!.value.round();
           return SizedBox(
             height: 56,
             child: ListView.separated(
@@ -108,13 +108,15 @@ class _LibraryScreenState extends State<LibraryScreen>
                 headerSliverBuilder: (context, innerBoxIsScrolled) {
                   return [
                     SliverAppBar.medium(
-                      title: Row(
-                        children: [
-                          Icon(Icons.library_music,
-                              color: Theme.of(context).colorScheme.primary),
-                          const SizedBox(width: 12),
-                          const Text('Library'),
-                        ],
+                      title: Text(
+                        'Library',
+                        style: Theme.of(context)
+                            .textTheme
+                            .headlineMedium
+                            ?.copyWith(
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -0.5,
+                            ),
                       ),
                       actions: [
                         IconButton(

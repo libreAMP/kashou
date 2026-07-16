@@ -317,28 +317,25 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         data: NavigationBarThemeData(
           height: 72,
           indicatorColor: Colors.transparent,
-          iconTheme: MaterialStateProperty.resolveWith<IconThemeData>((states) {
+          iconTheme: WidgetStateProperty.resolveWith<IconThemeData>((states) {
             final onSurface = colorScheme.onSurfaceVariant;
             final onSelected = colorScheme.onSecondaryContainer;
             return IconThemeData(
-              color: states.contains(MaterialState.selected)
+              color: states.contains(WidgetState.selected)
                   ? onSelected
                   : onSurface,
-              size: states.contains(MaterialState.selected) ? 26 : 24,
+              size: states.contains(WidgetState.selected) ? 26 : 24,
             );
           }),
-          labelTextStyle:
-              MaterialStateProperty.resolveWith<TextStyle>((states) {
+          labelTextStyle: WidgetStateProperty.resolveWith<TextStyle>((states) {
             final base = theme.textTheme.labelMedium;
             if (base == null) return const TextStyle();
-            return states.contains(MaterialState.selected)
+            return states.contains(WidgetState.selected)
                 ? base.copyWith(
                     color: colorScheme.onSecondaryContainer,
                     fontWeight: FontWeight.w600,
                   )
-                : base.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                  );
+                : base.copyWith(color: colorScheme.onSurfaceVariant);
           }),
         ),
         child: Consumer2<AudioProvider, SettingsProvider>(
@@ -374,15 +371,12 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
               ],
             );
 
-            // dont float above the keyboard
             if (keyboardHeight > 0) {
               return const SizedBox.shrink();
             }
-
             if (!hasPlayer || isModalOpen) {
               return navigationBar;
             }
-
             return Column(
               mainAxisSize: MainAxisSize.min,
               children: [
