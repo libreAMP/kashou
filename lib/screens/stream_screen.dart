@@ -36,6 +36,7 @@ class _StreamScreenState extends State<StreamScreen>
   List<Map<String, dynamic>> _moodSections = const [];
   List<Map<String, dynamic>> _searchResults = const [];
   List<Map<String, dynamic>> _searchPlaylists = const [];
+  List<Map<String, dynamic>> _searchAlbums = const [];
 
   bool _isLoading = true;
   bool _isSearching = false;
@@ -117,10 +118,15 @@ class _StreamScreenState extends State<StreamScreen>
       final results = await Future.wait([
         _ytm.getHomeShelves(),
         _ytm.getMoodsAndGenres(),
+        _ytm.getNewReleaseAlbums(),
       ]);
       if (!mounted) return;
       setState(() {
-        _homeShelves = results[0];
+        _homeShelves = [
+          ...results[0],
+          if (results[2].isNotEmpty)
+            {'title': 'New albums', 'items': results[2]},
+        ];
         _moodSections = results[1];
         _isLoading = false;
       });
@@ -146,6 +152,7 @@ class _StreamScreenState extends State<StreamScreen>
           _currentQuery = '';
           _searchResults = const [];
           _searchPlaylists = const [];
+          _searchAlbums = const [];
           _isSearching = false;
         });
       }
@@ -159,11 +166,13 @@ class _StreamScreenState extends State<StreamScreen>
       final results = await Future.wait([
         _service.search(query, limit: 20, musicOnly: true),
         _ytm.searchPlaylists(query),
+        _ytm.searchAlbums(query),
       ]);
       if (mounted) {
         setState(() {
           _searchResults = results[0];
           _searchPlaylists = results[1];
+          _searchAlbums = results[2];
           _isSearching = false;
         });
       }
@@ -175,11 +184,13 @@ class _StreamScreenState extends State<StreamScreen>
   void _openPlaylist(Map<String, dynamic> playlist) {
     final id = playlist['playlistId'] as String?;
     if (id == null) return;
+    final isAlbum = playlist['type'] == 'album';
     Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => SectionPage(
-        title: playlist['title'] as String? ?? 'Playlist',
+        title: playlist['title'] as String? ?? (isAlbum ? 'Album' : 'Playlist'),
         cover: playlist['thumbnail'] as String?,
-        itemsFuture: _ytm.getPlaylistSongs(id),
+        itemsFuture:
+            isAlbum ? _ytm.getAlbumSongs(id) : _ytm.getPlaylistSongs(id),
         isListView: true,
       ),
     ));
@@ -272,20 +283,35 @@ class _StreamScreenState extends State<StreamScreen>
     return null;
   }
 
+  void _closeSearch() {
+    _searchController.clear();
+    _searchFocus.unfocus();
+    setState(() => _exploreOpen = false);
+    _search('');
+  }
+
   @override
   Widget build(BuildContext context) {
     super.build(context);
     final scheme = Theme.of(context).colorScheme;
+    final searchActive = _exploreOpen || _currentQuery.isNotEmpty;
 
-    return Scaffold(
-      backgroundColor: scheme.surface,
-      body: SafeArea(
-        bottom: false,
-        child: Column(
-          children: [
-            _buildSearchBar(context),
-            Expanded(child: _buildBody(context)),
-          ],
+    // back steps out of search instead of closing the app
+    return PopScope(
+      canPop: !searchActive,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _closeSearch();
+      },
+      child: Scaffold(
+        backgroundColor: scheme.surface,
+        body: SafeArea(
+          bottom: false,
+          child: Column(
+            children: [
+              _buildSearchBar(context),
+              Expanded(child: _buildBody(context)),
+            ],
+          ),
         ),
       ),
     );
@@ -315,12 +341,7 @@ class _StreamScreenState extends State<StreamScreen>
                   suffixIcon: searching
                       ? IconButton(
                           icon: const Icon(Icons.close_rounded),
-                          onPressed: () {
-                            _searchController.clear();
-                            _searchFocus.unfocus();
-                            setState(() => _exploreOpen = false);
-                            _search('');
-                          },
+                          onPressed: _closeSearch,
                         )
                       : null,
                   filled: true,
@@ -373,7 +394,9 @@ class _StreamScreenState extends State<StreamScreen>
     if (_isSearching) {
       return const Center(child: KashouLoader());
     }
-    if (_searchResults.isEmpty && _searchPlaylists.isEmpty) {
+    if (_searchResults.isEmpty &&
+        _searchPlaylists.isEmpty &&
+        _searchAlbums.isEmpty) {
       return _emptyState(Icons.search_off_rounded, 'No results',
           'Try a different search');
     }
@@ -403,12 +426,35 @@ class _StreamScreenState extends State<StreamScreen>
             ),
           ),
           const SizedBox(height: 16),
-          if (_searchResults.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
-              child: _sectionTitle('Songs'),
-            ),
         ],
+        if (_searchAlbums.isNotEmpty) ...[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+            child: _sectionTitle('Albums'),
+          ),
+          SizedBox(
+            height: 214,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              itemCount: _searchAlbums.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 16),
+              itemBuilder: (_, i) => ArtCard(
+                thumbnail: _searchAlbums[i]['thumbnail'] as String?,
+                title: _searchAlbums[i]['title'] as String? ?? '',
+                subtitle: _searchAlbums[i]['subtitle'] as String?,
+                onTap: () => _openPlaylist(_searchAlbums[i]),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
+        if (_searchResults.isNotEmpty &&
+            (_searchPlaylists.isNotEmpty || _searchAlbums.isNotEmpty))
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
+            child: _sectionTitle('Songs'),
+          ),
         for (final video in _searchResults)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),

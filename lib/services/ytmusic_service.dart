@@ -248,9 +248,13 @@ class YtMusicService {
       if (r == null) continue;
       final nav = r['navigationEndpoint']?['browseEndpoint'];
       final browseId = nav?['browseId'] as String?;
-      if (browseId == null || !browseId.startsWith('VL')) continue;
+      if (browseId == null) continue;
+      // albums browse as MPRE, playlists as VL
+      final isAlbum = browseId.startsWith('MPRE');
+      if (!isAlbum && !browseId.startsWith('VL')) continue;
       out.add({
         'playlistId': browseId,
+        'type': isAlbum ? 'album' : 'playlist',
         'title': _text(r['title']) ?? '',
         'subtitle': _text(r['subtitle']) ?? '',
         'thumbnail': _lastThumb(r['thumbnailRenderer']?['musicThumbnailRenderer']
@@ -258,6 +262,108 @@ class YtMusicService {
       });
     }
     return out;
+  }
+
+  Future<List<Map<String, dynamic>>> searchAlbums(String query,
+      {int limit = 12}) async {
+    final key = 'sal_${query.trim().toLowerCase()}';
+    final hit = _get(key);
+    if (hit != null) return hit;
+
+    try {
+      final res = await http.post(
+        Uri.parse(
+            'https://music.youtube.com/youtubei/v1/search?prettyPrint=false'),
+        headers: const {
+          'Content-Type': 'application/json',
+          'User-Agent': 'Mozilla/5.0',
+        },
+        body: jsonEncode({
+          'context': {
+            'client': {
+              'clientName': 'WEB_REMIX',
+              'clientVersion': _clientVersion,
+              'hl': PlatformDispatcher.instance.locale.languageCode,
+              if (PlatformDispatcher.instance.locale.countryCode != null)
+                'gl': PlatformDispatcher.instance.locale.countryCode,
+            }
+          },
+          'query': query,
+          'params': 'EgWKAQIYAWoKEAkQChAFEAMQBA%3D%3D',
+        }),
+      );
+      if (res.statusCode != 200) return const [];
+
+      final rows = <dynamic>[];
+      _collect(jsonDecode(res.body), 'musicResponsiveListItemRenderer', rows);
+
+      final out = <Map<String, dynamic>>[];
+      for (final r in rows) {
+        final browseId = r['navigationEndpoint']?['browseEndpoint']?['browseId'];
+        if (browseId is! String || !browseId.startsWith('MPRE')) continue;
+        final cols = r['flexColumns'] as List?;
+        final title = cols != null && cols.isNotEmpty
+            ? _text(cols[0]['musicResponsiveListItemFlexColumnRenderer']
+                ?['text'])
+            : null;
+        if (title == null) continue;
+        final subtitle = cols != null && cols.length > 1
+            ? _text(cols[1]['musicResponsiveListItemFlexColumnRenderer']
+                ?['text'])
+            : null;
+        out.add({
+          'playlistId': browseId,
+          'type': 'album',
+          'title': title,
+          'subtitle': subtitle ?? '',
+          'thumbnail': _lastThumb(r['thumbnail']?['musicThumbnailRenderer']
+              ?['thumbnail']?['thumbnails']),
+        });
+        if (out.length >= limit) break;
+      }
+      _put(key, out);
+      return out;
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getNewReleaseAlbums() async {
+    final hit = _get('newalb');
+    if (hit != null) return hit;
+
+    final json = await _browse('FEmusic_new_releases_albums');
+    if (json == null) return const [];
+
+    final grids = <dynamic>[];
+    _collect(json, 'gridRenderer', grids);
+    final out = <Map<String, dynamic>>[];
+    for (final grid in grids) {
+      out.addAll(_playlistItems(grid['items']));
+    }
+    _put('newalb', out);
+    return out;
+  }
+
+  // an albums songs live behind its canonical playlist
+  Future<List<Map<String, dynamic>>> getAlbumSongs(String browseId) async {
+    final key = 'alb_$browseId';
+    final hit = _get(key);
+    if (hit != null) return hit;
+
+    final json = await _browse(browseId);
+    if (json == null) return const [];
+
+    final canonical = json['microformat']?['microformatDataRenderer']
+        ?['urlCanonical'] as String?;
+    final listId = canonical?.split('list=').last;
+    if (listId == null || listId.isEmpty || listId == canonical) {
+      return const [];
+    }
+
+    final songs = await getPlaylistSongs(listId);
+    _put(key, songs);
+    return songs;
   }
 
   String? _videoId(Map r) {
