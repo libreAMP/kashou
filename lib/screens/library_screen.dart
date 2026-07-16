@@ -32,6 +32,70 @@ class _LibraryScreenState extends State<LibraryScreen>
     super.dispose();
   }
 
+  PreferredSizeWidget _buildChipTabs() {
+    const labels = ['Liked', 'Songs', 'Albums', 'Artists', 'Playlists'];
+    const icons = [
+      Icons.favorite_rounded,
+      Icons.music_note_rounded,
+      Icons.album_rounded,
+      Icons.person_rounded,
+      Icons.playlist_play_rounded,
+    ];
+    return PreferredSize(
+      preferredSize: const Size.fromHeight(56),
+      child: AnimatedBuilder(
+        animation: _tabController.animation!,
+        builder: (context, _) {
+          final scheme = Theme.of(context).colorScheme;
+          final sel = _tabController.index;
+          return SizedBox(
+            height: 56,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+              itemCount: labels.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              itemBuilder: (context, i) {
+                final active = i == sel;
+                return Material(
+                  color:
+                      active ? scheme.primary : scheme.surfaceContainerHigh,
+                  borderRadius: BorderRadius.circular(24),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(24),
+                    onTap: () => _tabController.animateTo(i),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Row(
+                        children: [
+                          Icon(icons[i],
+                              size: 18,
+                              color: active
+                                  ? scheme.onPrimary
+                                  : scheme.onSurfaceVariant),
+                          const SizedBox(width: 8),
+                          Text(
+                            labels[i],
+                            style: TextStyle(
+                              color: active
+                                  ? scheme.onPrimary
+                                  : scheme.onSurface,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -70,19 +134,7 @@ class _LibraryScreenState extends State<LibraryScreen>
                           },
                         ),
                       ],
-                      bottom: TabBar(
-                        controller: _tabController,
-                        isScrollable: true,
-                        tabs: const [
-                          Tab(icon: Icon(Icons.favorite), text: 'Liked'),
-                          Tab(icon: Icon(Icons.music_note), text: 'Songs'),
-                          Tab(icon: Icon(Icons.album), text: 'Albums'),
-                          Tab(icon: Icon(Icons.person), text: 'Artists'),
-                          Tab(
-                              icon: Icon(Icons.playlist_play),
-                              text: 'Playlists'),
-                        ],
-                      ),
+                      bottom: _buildChipTabs(),
                     ),
                     SliverToBoxAdapter(
                       child: Consumer<LibraryProvider>(
@@ -109,89 +161,25 @@ class _LibraryScreenState extends State<LibraryScreen>
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
                                       children: [
-                                        Row(
-                                          children: [
-                                            Container(
-                                              padding: const EdgeInsets.all(12),
-                                              decoration: BoxDecoration(
+                                        Text(
+                                          '$songCount songs, $albumCount albums, $artistCount artists, $playlistCount playlists',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodySmall
+                                              ?.copyWith(
                                                 color: Theme.of(context)
                                                     .colorScheme
-                                                    .primaryContainer,
-                                                shape: BoxShape.circle,
+                                                    .onSurfaceVariant,
                                               ),
-                                              child: Icon(
-                                                Icons.bar_chart,
-                                                color: Theme.of(context)
-                                                    .colorScheme
-                                                    .onPrimaryContainer,
-                                              ),
-                                            ),
-                                            const SizedBox(width: 16),
-                                            Expanded(
-                                              child: Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                children: [
-                                                  Text(
-                                                    '$songCount songs • $albumCount albums • $artistCount artists',
-                                                    style: Theme.of(context)
-                                                        .textTheme
-                                                        .bodyMedium
-                                                        ?.copyWith(
-                                                          color: Theme.of(
-                                                                  context)
-                                                              .colorScheme
-                                                              .onSurfaceVariant,
-                                                        ),
-                                                  ),
-                                                  Text(
-                                                    '$playlistCount playlists',
-                                                    style: Theme.of(context)
-                                                        .textTheme
-                                                        .bodySmall
-                                                        ?.copyWith(
-                                                          color: Theme.of(
-                                                                  context)
-                                                              .colorScheme
-                                                              .onSurfaceVariant,
-                                                        ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                          ],
                                         ),
                                         const SizedBox(height: 16),
                                         Material(
-                                          color: Colors.transparent,
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .surfaceContainerHigh,
                                           borderRadius:
-                                              BorderRadius.circular(24),
+                                              BorderRadius.circular(16),
                                           child: Container(
-                                            decoration: BoxDecoration(
-                                              gradient: LinearGradient(
-                                                colors: [
-                                                  Theme.of(context)
-                                                      .colorScheme
-                                                      .primary
-                                                      .withValues(alpha: 0.15),
-                                                  Theme.of(context)
-                                                      .colorScheme
-                                                      .primary
-                                                      .withValues(alpha: 0.08),
-                                                ],
-                                                begin: Alignment.topLeft,
-                                                end: Alignment.bottomRight,
-                                              ),
-                                              borderRadius:
-                                                  BorderRadius.circular(24),
-                                              border: Border.all(
-                                                color: Theme.of(context)
-                                                    .colorScheme
-                                                    .primary
-                                                    .withValues(alpha: 0.12),
-                                                width: 1,
-                                              ),
-                                            ),
                                             child: SearchBar(
                                               controller: _searchController,
                                               leading: const Padding(

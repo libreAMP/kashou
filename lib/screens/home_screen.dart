@@ -84,7 +84,6 @@ class HomeScreen extends StatelessWidget {
       children: [
         _buildSectionHeader(
           context,
-          icon: Icons.bolt,
           title: 'Quick Actions',
         ),
         const SizedBox(height: 12),
@@ -161,42 +160,20 @@ class HomeScreen extends StatelessWidget {
         splashColor: colorScheme.primary.withValues(alpha: 0.1),
         highlightColor: colorScheme.primary.withValues(alpha: 0.05),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                colorScheme.primary.withValues(alpha: 0.16),
-                colorScheme.primaryContainer.withValues(alpha: 0.35),
-              ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-              color: colorScheme.primary.withValues(alpha: 0.24),
-              width: 1,
-            ),
+            color: colorScheme.primaryContainer,
+            borderRadius: BorderRadius.circular(20),
           ),
           child: Row(
             children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: colorScheme.primary,
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  icon,
-                  size: 20,
-                  color: colorScheme.onPrimary,
-                ),
-              ),
+              Icon(icon, size: 22, color: colorScheme.onPrimaryContainer),
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
                   label,
                   style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        color: colorScheme.onSurface,
+                        color: colorScheme.onPrimaryContainer,
                         fontWeight: FontWeight.w600,
                       ),
                   maxLines: 1,
@@ -224,7 +201,6 @@ class HomeScreen extends StatelessWidget {
           children: [
             _buildSectionHeader(
               context,
-              icon: Icons.history,
               title: 'Recently played',
               actionLabel: 'See all',
               onActionTap: () {},
@@ -263,7 +239,6 @@ class HomeScreen extends StatelessWidget {
           children: [
             _buildSectionHeader(
               context,
-              icon: Icons.new_releases,
               title: 'Recently added',
               actionLabel: 'See all',
               onActionTap: () {},
@@ -308,7 +283,6 @@ class HomeScreen extends StatelessWidget {
           children: [
             _buildSectionHeader(
               context,
-              icon: Icons.favorite,
               title: 'Your favorite songs',
               actionLabel: 'See all',
               onActionTap: () {},
@@ -343,7 +317,6 @@ class HomeScreen extends StatelessWidget {
           children: [
             _buildSectionHeader(
               context,
-              icon: Icons.album,
               title: 'Top albums',
               actionLabel: 'See all',
               onActionTap: () {},
@@ -395,13 +368,6 @@ class HomeScreen extends StatelessWidget {
                 height: 110,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: colorScheme.shadow.withValues(alpha: 0.1),
-                      blurRadius: 8,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(12),
@@ -474,66 +440,29 @@ class HomeScreen extends StatelessWidget {
     final albumCount = library.albums.length;
     final artistCount = library.artists.length;
 
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        gradient: LinearGradient(
-          colors: [
-            colorScheme.primary.withValues(alpha: 0.15),
-            colorScheme.primaryContainer.withValues(alpha: 0.35),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Local',
+          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.5,
+              ),
         ),
-        border: Border.all(
-          color: colorScheme.primary.withValues(alpha: 0.25),
+        const SizedBox(height: 4),
+        Text(
+          '$trackCount tracks, $albumCount albums, $artistCount artists',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
         ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: colorScheme.primary,
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              Icons.headset,
-              color: colorScheme.onPrimary,
-              size: 22,
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Local Player',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: colorScheme.onSurface,
-                      ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '$trackCount tracks • $albumCount albums • $artistCount artists',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+      ],
     );
   }
 
   Widget _buildSectionHeader(
     BuildContext context, {
-    required IconData icon,
     required String title,
     String? actionLabel,
     VoidCallback? onActionTap,
@@ -543,25 +472,12 @@ class HomeScreen extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: colorScheme.primary.withValues(alpha: 0.18),
-                shape: BoxShape.circle,
+        Text(
+          title,
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+                color: colorScheme.onSurface,
               ),
-              child: Icon(icon, color: colorScheme.primary, size: 20),
-            ),
-            const SizedBox(width: 12),
-            Text(
-              title,
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: colorScheme.onSurface,
-                  ),
-            ),
-          ],
         ),
         if (actionLabel != null)
           TextButton(

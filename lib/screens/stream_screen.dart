@@ -283,6 +283,15 @@ class _StreamScreenState extends State<StreamScreen>
     return null;
   }
 
+  // mqdefault is clean 16:9, hqdefault has baked black bars
+  String? _videoThumb(Map<String, dynamic> v) {
+    final id = v['id']?.toString();
+    if (id != null && id.isNotEmpty) {
+      return 'https://i.ytimg.com/vi/$id/mqdefault.jpg';
+    }
+    return v['thumbnail'] as String?;
+  }
+
   void _closeSearch() {
     _searchController.clear();
     _searchFocus.unfocus();
@@ -309,7 +318,30 @@ class _StreamScreenState extends State<StreamScreen>
           child: Column(
             children: [
               _buildSearchBar(context),
-              Expanded(child: _buildBody(context)),
+              Expanded(
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 320),
+                  switchInCurve: Curves.easeOutCubic,
+                  switchOutCurve: Curves.easeIn,
+                  transitionBuilder: (child, anim) => FadeTransition(
+                    opacity: anim,
+                    child: SlideTransition(
+                      position: Tween(
+                              begin: const Offset(0, 0.04), end: Offset.zero)
+                          .animate(anim),
+                      child: child,
+                    ),
+                  ),
+                  child: KeyedSubtree(
+                    key: ValueKey(_currentQuery.isNotEmpty
+                        ? 'results'
+                        : _exploreOpen
+                            ? 'explore'
+                            : 'discover'),
+                    child: _buildBody(context),
+                  ),
+                ),
+              ),
             ],
           ),
         ),
@@ -607,8 +639,7 @@ class _StreamScreenState extends State<StreamScreen>
             itemCount: items.length,
             separatorBuilder: (_, __) => const SizedBox(width: 16),
             itemBuilder: (_, i) => ArtCard(
-              thumbnail: items[i]['thumbnail'] as String? ??
-                  'https://i.ytimg.com/vi/${items[i]['id']}/mqdefault.jpg',
+              thumbnail: _videoThumb(items[i]),
               title: items[i]['title'] as String? ?? '',
               subtitle: items[i]['channel'] as String?,
               onTap: () => _playVideo(items[i]),
@@ -622,8 +653,7 @@ class _StreamScreenState extends State<StreamScreen>
 
   Widget _buildSongRow(Map<String, dynamic> video) {
     final scheme = Theme.of(context).colorScheme;
-    final thumb = video['thumbnail'] as String? ??
-        'https://i.ytimg.com/vi/${video['id']}/mqdefault.jpg';
+    final thumb = _videoThumb(video);
     return Material(
       color: Colors.transparent,
       child: InkWell(

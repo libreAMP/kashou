@@ -17,20 +17,34 @@ class _SplashScreenState extends State<SplashScreen>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _fadeAnimation;
+  late Animation<double> _badgePop;
+  late Animation<double> _badgeSpin;
+  late Animation<double> _kaUntwist;
+  late Animation<double> _wordFade;
 
   @override
   void initState() {
     super.initState();
 
     _controller = AnimationController(
-      duration: const Duration(milliseconds: 1500),
+      duration: const Duration(milliseconds: 1600),
       vsync: this,
     );
 
-    _fadeAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeIn));
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+        CurvedAnimation(
+            parent: _controller, curve: const Interval(0.0, 0.35)));
+    _badgePop = Tween<double>(begin: 0.6, end: 1.0).animate(CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.0, 0.72, curve: Curves.elasticOut)));
+    _badgeSpin = Tween<double>(begin: -0.14, end: 0.0).animate(CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.0, 0.7, curve: Curves.easeOutCubic)));
+    _kaUntwist = Tween<double>(begin: 0.16, end: 0.0).animate(CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.28, 1.0, curve: Curves.easeOutBack)));
+    _wordFade = Tween<double>(begin: 0.0, end: 1.0).animate(CurvedAnimation(
+        parent: _controller, curve: const Interval(0.55, 0.9)));
 
     _controller.forward();
     _initialize();
@@ -104,53 +118,54 @@ class _SplashScreenState extends State<SplashScreen>
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              SizedBox(
-                width: 168,
-                height: 168,
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    RotationTransition(
-                      turns: Tween(begin: -0.06, end: 0.0).animate(
-                          CurvedAnimation(
-                              parent: _controller,
-                              curve: Curves.easeOutCubic)),
-                      child: Material(
-                        color: scheme.primaryContainer,
-                        shape: const WavyCircleBorder(),
-                        child: const SizedBox.expand(),
+              ScaleTransition(
+                scale: _badgePop,
+                child: SizedBox(
+                  width: 168,
+                  height: 168,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      RotationTransition(
+                        turns: _badgeSpin,
+                        child: Material(
+                          color: scheme.primaryContainer,
+                          shape: const WavyCircleBorder(),
+                          child: const SizedBox.expand(),
+                        ),
                       ),
-                    ),
-                    // ka untwists from a tilt to upright
-                    RotationTransition(
-                      turns: Tween(begin: 0.11, end: 0.0).animate(
-                          CurvedAnimation(
-                              parent: _controller, curve: Curves.easeOutBack)),
-                      child: Padding(
-                        padding: const EdgeInsets.all(38),
-                        child: Image.asset(
-                          dark
-                              ? 'assets/images/ka_mark_light_ink.png'
-                              : 'assets/images/ka_mark_dark_ink.png',
-                          errorBuilder: (context, error, stackTrace) => Icon(
-                            Icons.music_note_rounded,
-                            size: 64,
-                            color: scheme.onPrimaryContainer,
+                      // ka untwists from a tilt to upright, a beat after the badge
+                      RotationTransition(
+                        turns: _kaUntwist,
+                        child: Padding(
+                          padding: const EdgeInsets.all(38),
+                          child: Image.asset(
+                            dark
+                                ? 'assets/images/ka_mark_light_ink.png'
+                                : 'assets/images/ka_mark_dark_ink.png',
+                            errorBuilder: (context, error, stackTrace) => Icon(
+                              Icons.music_note_rounded,
+                              size: 64,
+                              color: scheme.onPrimaryContainer,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
               const SizedBox(height: 28),
-              Text(
-                'kashou',
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.8,
-                      color: scheme.onSurface,
-                    ),
+              FadeTransition(
+                opacity: _wordFade,
+                child: Text(
+                  'kashou',
+                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.8,
+                        color: scheme.onSurface,
+                      ),
+                ),
               ),
             ],
           ),
