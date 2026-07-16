@@ -42,17 +42,17 @@ class _LibraryScreenState extends State<LibraryScreen>
       Icons.playlist_play_rounded,
     ];
     return PreferredSize(
-      preferredSize: const Size.fromHeight(56),
+      preferredSize: const Size.fromHeight(64),
       child: AnimatedBuilder(
         animation: _tabController.animation!,
         builder: (context, _) {
           final scheme = Theme.of(context).colorScheme;
           final sel = _tabController.animation!.value.round();
           return SizedBox(
-            height: 56,
+            height: 64,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
               itemCount: labels.length,
               separatorBuilder: (_, __) => const SizedBox(width: 8),
               itemBuilder: (context, i) {

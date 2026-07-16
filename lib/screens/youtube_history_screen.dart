@@ -9,6 +9,7 @@ import '../providers/audio_provider.dart';
 import '../providers/settings_provider.dart';
 import '../services/ytdl_service.dart';
 import '../models/youtube_streaming_data.dart';
+import '../theme/radii.dart';
 import '../widgets/loading_indicator.dart';
 
 class YoutubeHistoryScreen extends StatefulWidget {
@@ -20,8 +21,6 @@ class YoutubeHistoryScreen extends StatefulWidget {
 
 class _YoutubeHistoryScreenState extends State<YoutubeHistoryScreen> {
   String? _loadingEntryId;
-
-  bool get _isLoading => _loadingEntryId != null;
 
   Future<void> _playEntry(StreamHistoryEntry entry) async {
     final settings = context.read<SettingsProvider>();
@@ -165,7 +164,7 @@ class _YoutubeHistoryScreenState extends State<YoutubeHistoryScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('YouTube History'),
+        title: const Text('History'),
         actions: [
           Consumer<AudioProvider>(
             builder: (context, audioProvider, _) {
@@ -194,14 +193,14 @@ class _YoutubeHistoryScreenState extends State<YoutubeHistoryScreen> {
                       color: colorScheme.onSurfaceVariant.withOpacity(0.5)),
                   const SizedBox(height: 16),
                   Text(
-                    'No YouTube history yet',
+                    'No history yet',
                     style: theme.textTheme.titleMedium?.copyWith(
                       color: colorScheme.onSurfaceVariant,
                     ),
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Start streaming from YouTube to see your history here.',
+                    'What you play from Stream shows up here.',
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: colorScheme.onSurfaceVariant.withOpacity(0.7),
                     ),
@@ -212,13 +211,12 @@ class _YoutubeHistoryScreenState extends State<YoutubeHistoryScreen> {
             );
           }
 
-          return ListView.separated(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+          return ListView.builder(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
             itemBuilder: (context, index) {
               final entry = entries[index];
               return _buildHistoryTile(context, entry, colorScheme);
             },
-            separatorBuilder: (_, __) => const SizedBox(height: 12),
             itemCount: entries.length,
           );
         },
@@ -240,7 +238,7 @@ class _YoutubeHistoryScreenState extends State<YoutubeHistoryScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 20),
         decoration: BoxDecoration(
           color: colorScheme.errorContainer,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(rMd),
         ),
         child: Icon(Icons.delete_outline, color: colorScheme.onErrorContainer),
       ),
@@ -251,28 +249,15 @@ class _YoutubeHistoryScreenState extends State<YoutubeHistoryScreen> {
       },
       child: Material(
         color: Colors.transparent,
-        borderRadius: BorderRadius.circular(16),
         child: InkWell(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(rMd),
           onTap: isLoading ? null : () => _playEntry(entry),
-          child: Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  colorScheme.surfaceContainerHighest,
-                  colorScheme.surfaceContainer,
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: colorScheme.outline.withOpacity(0.08)),
-            ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
             child: Row(
               children: [
                 _buildAlbumArt(track.albumArt, colorScheme),
-                const SizedBox(width: 16),
+                const SizedBox(width: 14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -282,38 +267,27 @@ class _YoutubeHistoryScreenState extends State<YoutubeHistoryScreen> {
                         track.title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.titleMedium?.copyWith(
+                        style: theme.textTheme.bodyMedium?.copyWith(
                           fontWeight: FontWeight.w600,
-                          color: colorScheme.onSurface,
                         ),
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 2),
                       Text(
-                        track.artist,
+                        '${track.artist} · ${_formatTimestamp(entry.timestamp)}',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        _formatTimestamp(entry.timestamp),
                         style: theme.textTheme.bodySmall?.copyWith(
-                          color: colorScheme.onSurfaceVariant.withOpacity(0.7),
+                          color: colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 8),
                 isLoading
                     ? KashouLoader(size: 26, color: colorScheme.primary)
-                    : IconButton(
-                        icon: Icon(Icons.play_arrow_rounded,
-                            color: colorScheme.primary),
-                        onPressed: () => _playEntry(entry),
-                      ),
+                    : Icon(Icons.play_arrow_rounded,
+                        color: colorScheme.onSurfaceVariant),
               ],
             ),
           ),
@@ -324,15 +298,16 @@ class _YoutubeHistoryScreenState extends State<YoutubeHistoryScreen> {
 
   Widget _buildAlbumArt(Uint8List? art, ColorScheme colorScheme) {
     return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(rSm),
       child: Container(
-        width: 64,
-        height: 64,
+        width: 56,
+        height: 56,
         color: colorScheme.surfaceContainerHighest,
         child: art != null
             ? Image.memory(
                 art,
                 fit: BoxFit.cover,
+                gaplessPlayback: true,
                 errorBuilder: (_, __, ___) =>
                     Icon(Icons.music_note, color: colorScheme.onSurfaceVariant),
               )
