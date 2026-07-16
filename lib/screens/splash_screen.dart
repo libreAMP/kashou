@@ -104,7 +104,6 @@ class _SplashScreenState extends State<SplashScreen>
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // badge spins, the ka stays upright
               SizedBox(
                 width: 168,
                 height: 168,
@@ -112,7 +111,7 @@ class _SplashScreenState extends State<SplashScreen>
                   alignment: Alignment.center,
                   children: [
                     RotationTransition(
-                      turns: Tween(begin: -0.08, end: 0.0).animate(
+                      turns: Tween(begin: -0.06, end: 0.0).animate(
                           CurvedAnimation(
                               parent: _controller,
                               curve: Curves.easeOutCubic)),
@@ -122,16 +121,22 @@ class _SplashScreenState extends State<SplashScreen>
                         child: const SizedBox.expand(),
                       ),
                     ),
-                    Padding(
-                      padding: const EdgeInsets.all(38),
-                      child: Image.asset(
-                        dark
-                            ? 'assets/images/ka_mark_light_ink.png'
-                            : 'assets/images/ka_mark_dark_ink.png',
-                        errorBuilder: (context, error, stackTrace) => Icon(
-                          Icons.music_note_rounded,
-                          size: 64,
-                          color: scheme.onPrimaryContainer,
+                    // ka untwists from a tilt to upright
+                    RotationTransition(
+                      turns: Tween(begin: 0.11, end: 0.0).animate(
+                          CurvedAnimation(
+                              parent: _controller, curve: Curves.easeOutBack)),
+                      child: Padding(
+                        padding: const EdgeInsets.all(38),
+                        child: Image.asset(
+                          dark
+                              ? 'assets/images/ka_mark_light_ink.png'
+                              : 'assets/images/ka_mark_dark_ink.png',
+                          errorBuilder: (context, error, stackTrace) => Icon(
+                            Icons.music_note_rounded,
+                            size: 64,
+                            color: scheme.onPrimaryContainer,
+                          ),
                         ),
                       ),
                     ),

@@ -543,8 +543,19 @@ class _StreamScreenState extends State<StreamScreen>
                   ?.copyWith(fontWeight: FontWeight.w800, letterSpacing: -0.5),
             ),
           ),
+          Consumer<RecommendationProvider>(
+            builder: (context, rec, _) => Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (rec.recommendations.isNotEmpty)
+                  _buildRecCarousel('For you', rec.recommendations),
+                if (rec.relatedVideos.isNotEmpty)
+                  _buildRecCarousel(
+                      'More like what you played', rec.relatedVideos),
+              ],
+            ),
+          ),
           for (final shelf in _homeShelves) _buildPlaylistShelf(shelf),
-          _buildRadioSection(),
         ],
       ),
     );
@@ -580,38 +591,32 @@ class _StreamScreenState extends State<StreamScreen>
     );
   }
 
-  Widget _buildRadioSection() {
-    return Consumer<RecommendationProvider>(
-      builder: (context, rec, _) {
-        final related = rec.relatedVideos;
-        if (related.isEmpty) return const SizedBox.shrink();
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
-              child: _sectionTitle('More like what you played'),
+  Widget _buildRecCarousel(String title, List<Map<String, dynamic>> items) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+          child: _sectionTitle(title),
+        ),
+        SizedBox(
+          height: 214,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            itemCount: items.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 16),
+            itemBuilder: (_, i) => ArtCard(
+              thumbnail: items[i]['thumbnail'] as String? ??
+                  'https://i.ytimg.com/vi/${items[i]['id']}/mqdefault.jpg',
+              title: items[i]['title'] as String? ?? '',
+              subtitle: items[i]['channel'] as String?,
+              onTap: () => _playVideo(items[i]),
             ),
-            SizedBox(
-              height: 214,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                itemCount: related.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 16),
-                itemBuilder: (_, i) => ArtCard(
-                  thumbnail: related[i]['thumbnail'] as String? ??
-                      'https://i.ytimg.com/vi/${related[i]['id']}/mqdefault.jpg',
-                  title: related[i]['title'] as String? ?? '',
-                  subtitle: related[i]['channel'] as String?,
-                  onTap: () => _playVideo(related[i]),
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-          ],
-        );
-      },
+          ),
+        ),
+        const SizedBox(height: 24),
+      ],
     );
   }
 
