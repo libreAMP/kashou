@@ -1,8 +1,6 @@
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 
 import '../models/track.dart';
@@ -260,22 +258,17 @@ class _StreamScreenState extends State<StreamScreen>
       return;
     }
 
-    Uint8List? albumArt;
-    final thumbUrl = streamingData.thumbnailUrl ?? video['thumbnail'] as String?;
-    if (thumbUrl != null && thumbUrl.isNotEmpty) {
-      try {
-        final res = await http.get(Uri.parse(thumbUrl));
-        if (res.statusCode == 200) albumArt = res.bodyBytes;
-      } catch (_) {}
-    }
+    final albumArt = await _service.fetchVideoArt(videoId,
+        preferred: streamingData.thumbnailUrl ?? video['thumbnail'] as String?);
 
+    // the row already showed the right names, streaming data only fills gaps
+    final knownArtist =
+        placeholder.artist.isNotEmpty && placeholder.artist != 'Unknown';
     final finalTrack = placeholder.copyWith(
-      title: streamingData.title.isNotEmpty
-          ? streamingData.title
-          : placeholder.title,
-      artist: streamingData.channelName.isNotEmpty
-          ? streamingData.channelName
-          : placeholder.artist,
+      title: placeholder.title != 'Unknown' || streamingData.title.isEmpty
+          ? placeholder.title
+          : streamingData.title,
+      artist: knownArtist ? placeholder.artist : streamingData.channelName,
       album: 'YouTube',
       path: selectedFormat.url,
       duration: streamingData.duration ?? Duration(seconds: durationSeconds),

@@ -1,16 +1,17 @@
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 
 import '../models/stream_history_entry.dart';
+import '../models/track.dart';
 import '../providers/audio_provider.dart';
 import '../providers/settings_provider.dart';
 import '../services/ytdl_service.dart';
 import '../models/youtube_streaming_data.dart';
 import '../theme/radii.dart';
 import '../widgets/loading_indicator.dart';
+import '../widgets/square_art.dart';
 
 class YoutubeHistoryScreen extends StatefulWidget {
   const YoutubeHistoryScreen({super.key});
@@ -80,25 +81,17 @@ class _YoutubeHistoryScreenState extends State<YoutubeHistoryScreen> {
     }
 
     Uint8List? art = entry.track.albumArt;
-    final thumbUrl = streamingData.thumbnailUrl;
-    if (art == null && thumbUrl != null && thumbUrl.isNotEmpty) {
-      try {
-        final response = await http.get(Uri.parse(thumbUrl));
-        if (response.statusCode == 200) {
-          art = response.bodyBytes;
-        }
-      } catch (_) {
-        // Ignore errors fetching artwork; fallback to stored art.
-      }
-    }
+    art ??= await ytdl.fetchVideoArt(streamingData.videoId,
+        preferred: streamingData.thumbnailUrl);
 
+    // the entry already knows its names, streaming data only fills gaps
+    final knownArtist =
+        placeholder.artist.isNotEmpty && placeholder.artist != 'Unknown';
     final updatedTrack = placeholder.copyWith(
-      title: streamingData.title.isNotEmpty
-          ? streamingData.title
-          : placeholder.title,
-      artist: streamingData.channelName.isNotEmpty
-          ? streamingData.channelName
-          : placeholder.artist,
+      title: placeholder.title != 'Unknown' || streamingData.title.isEmpty
+          ? placeholder.title
+          : streamingData.title,
+      artist: knownArtist ? placeholder.artist : streamingData.channelName,
       album: 'YouTube',
       path: selectedFormat.url,
       duration: streamingData.duration ?? placeholder.duration,
@@ -256,7 +249,7 @@ class _YoutubeHistoryScreenState extends State<YoutubeHistoryScreen> {
             padding: const EdgeInsets.symmetric(vertical: 8),
             child: Row(
               children: [
-                _buildAlbumArt(track.albumArt, colorScheme),
+                _buildAlbumArt(track, colorScheme),
                 const SizedBox(width: 14),
                 Expanded(
                   child: Column(
@@ -296,24 +289,41 @@ class _YoutubeHistoryScreenState extends State<YoutubeHistoryScreen> {
     );
   }
 
-  Widget _buildAlbumArt(Uint8List? art, ColorScheme colorScheme) {
+  Widget _buildAlbumArt(Track track, ColorScheme colorScheme) {
+    final art = track.albumArt;
+    if (art == null) {
+      // no stored bytes, the video thumb still exists online
+      final id = _videoIdOf(track);
+      return SquareArt(
+        url: id != null ? 'https://i.ytimg.com/vi/$id/hqdefault.jpg' : null,
+        size: 56,
+        radius: rSm,
+      );
+    }
     return ClipRRect(
       borderRadius: BorderRadius.circular(rSm),
       child: Container(
         width: 56,
         height: 56,
         color: colorScheme.surfaceContainerHighest,
-        child: art != null
-            ? Image.memory(
-                art,
-                fit: BoxFit.cover,
-                gaplessPlayback: true,
-                errorBuilder: (_, __, ___) =>
-                    Icon(Icons.music_note, color: colorScheme.onSurfaceVariant),
-              )
-            : Icon(Icons.music_note, color: colorScheme.onSurfaceVariant),
+        child: Image.memory(
+          art,
+          fit: BoxFit.cover,
+          gaplessPlayback: true,
+          errorBuilder: (_, __, ___) =>
+              Icon(Icons.music_note, color: colorScheme.onSurfaceVariant),
+        ),
       ),
     );
+  }
+
+  String? _videoIdOf(Track track) {
+    final uri = Uri.tryParse(track.sourceUrl ?? track.path);
+    if (uri == null) return null;
+    if (uri.host.contains('youtu.be')) {
+      return uri.pathSegments.isNotEmpty ? uri.pathSegments.first : null;
+    }
+    return uri.queryParameters['v'];
   }
 
   String _formatTimestamp(DateTime timestamp) {

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
@@ -506,7 +507,26 @@ class AudioProvider extends ChangeNotifier {
       if (data == null || !data.playable) return null;
       final format = data.bestStream ?? data.fallbackStream;
       if (format == null) return null;
-      return track.copyWith(path: format.url);
+
+      // only fill in what the track is missing, never overwrite known metadata
+      final noArtist = track.artist.isEmpty || track.artist == 'Unknown';
+      final channel =
+          data.channelName.replaceAll(RegExp(r'\s*-\s*Topic$'), '').trim();
+
+      Uint8List? art = track.albumArt;
+      art ??= await const YtdlWrapperService()
+          .fetchVideoArt(data.videoId, preferred: data.thumbnailUrl);
+
+      return track.copyWith(
+        path: format.url,
+        title: track.title == 'Unknown' && data.title.isNotEmpty
+            ? data.title
+            : track.title,
+        artist: noArtist && channel.isNotEmpty ? channel : track.artist,
+        duration:
+            track.duration == Duration.zero ? data.duration : track.duration,
+        albumArt: art,
+      );
     } catch (e) {
       debugPrint('[Audio] watch url resolve failed: $e');
       return null;

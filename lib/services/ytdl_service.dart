@@ -1,5 +1,8 @@
 import 'dart:async';
 import 'dart:collection';
+import 'dart:typed_data';
+
+import 'package:http/http.dart' as http;
 
 import 'package:collection/collection.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
@@ -22,6 +25,21 @@ class YtdlWrapperService {
   // filter out stuff too short or too long to really be a song
   static const _minMusicSeconds = 45;
   static const _maxMusicSeconds = 15 * 60;
+
+  // maxres art 404s for plenty of videos, walk down to a size that exists
+  Future<Uint8List?> fetchVideoArt(String videoId, {String? preferred}) async {
+    final urls = {
+      if (preferred != null && preferred.isNotEmpty) preferred,
+      'https://i.ytimg.com/vi/$videoId/hqdefault.jpg',
+    };
+    for (final url in urls) {
+      try {
+        final res = await http.get(Uri.parse(url));
+        if (res.statusCode == 200) return res.bodyBytes;
+      } catch (_) {}
+    }
+    return null;
+  }
 
   Future<List<Map<String, dynamic>>> search(
     String query, {
@@ -277,7 +295,8 @@ class YtdlWrapperService {
       videoId: videoId,
       sourceUrl: sourceUrl,
       title: videoMetadata?.title ?? title,
-      channelName: videoMetadata?.author ?? 'Unknown',
+      // empty, not 'Unknown', so callers keep the artist they already know
+      channelName: videoMetadata?.author ?? '',
       channelUrl: videoMetadata != null
           ? 'https://www.youtube.com/channel/${videoMetadata.channelId.value}'
           : 'https://youtube.com',

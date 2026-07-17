@@ -38,6 +38,10 @@ class SquareArt extends StatelessWidget {
               imageUrl: url!,
               fit: BoxFit.cover,
               fadeInDuration: const Duration(milliseconds: 200),
+              // rebuilds kept flashing the placeholder over cached art
+              fadeOutDuration: Duration.zero,
+              placeholderFadeInDuration: Duration.zero,
+              useOldImageOnUrlChange: true,
               placeholder: (_, __) => placeholder(),
               errorWidget: (_, __, ___) => fallback(),
             ),
