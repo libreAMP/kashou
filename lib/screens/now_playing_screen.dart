@@ -546,8 +546,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                         child: Column(
                           children: [
                             Padding(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 16, vertical: 8),
+                              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
                               child: _buildTopBar(context, track),
                             ),
                             Expanded(
@@ -632,18 +631,6 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                 style: theme.textTheme.titleMedium
                     ?.copyWith(fontWeight: FontWeight.w600),
               ),
-              const SizedBox(height: 2),
-              // SizedBox(
-              //   width: double.infinity,
-              //   child: Text(
-              //     track.title,
-              //     textAlign: TextAlign.center,
-              //     style: theme.textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant),
-              //     maxLines: 1,
-              //     overflow: TextOverflow.ellipsis,
-              //     softWrap: false,
-              //   ),
-              // ),
             ],
           ),
         ),
@@ -671,20 +658,12 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
 
     Widget buildFallback() {
       return Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              colorScheme.primaryContainer,
-              colorScheme.tertiaryContainer,
-            ],
-          ),
-        ),
+        color: colorScheme.surfaceContainerHigh,
+        alignment: Alignment.center,
         child: Icon(
           Icons.music_note_rounded,
-          size: 140,
-          color: colorScheme.onPrimaryContainer.withOpacity(0.4),
+          size: 96,
+          color: colorScheme.onSurfaceVariant,
         ),
       );
     }
@@ -692,17 +671,27 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     final String? youtubeThumbnailUrl = _buildYoutubeThumbnailUrl(track);
 
     final Widget image;
-    if (youtubeThumbnailUrl != null) {
-      image = Image.network(
-        youtubeThumbnailUrl,
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => buildFallback(),
-      );
-    } else if (track.albumArt != null) {
+    if (track.albumArt != null) {
       image = Image.memory(
         track.albumArt!,
         fit: BoxFit.cover,
+        gaplessPlayback: true,
         errorBuilder: (_, __, ___) => buildFallback(),
+      );
+    } else if (youtubeThumbnailUrl != null) {
+      image = Image.network(
+        youtubeThumbnailUrl,
+        fit: BoxFit.cover,
+        frameBuilder: (context, child, frame, wasSync) =>
+            frame != null || wasSync ? child : buildFallback(),
+        // maxres is missing for a lot of videos
+        errorBuilder: (_, __, ___) => Image.network(
+          youtubeThumbnailUrl.replaceFirst('maxresdefault', 'hqdefault'),
+          fit: BoxFit.cover,
+          frameBuilder: (context, child, frame, wasSync) =>
+              frame != null || wasSync ? child : buildFallback(),
+          errorBuilder: (_, __, ___) => buildFallback(),
+        ),
       );
     } else {
       image = buildFallback();
@@ -764,7 +753,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       ),
     );
 
-    if (youtubeThumbnailUrl != null) {
+    // stored art first, the network image flashes the gradient while it loads
+    if (track.albumArt == null && youtubeThumbnailUrl != null) {
       return Stack(
         fit: StackFit.expand,
         children: [

@@ -18,67 +18,107 @@ class HomeScreen extends StatelessWidget {
 
     return Scaffold(
       resizeToAvoidBottomInset: false,
-      appBar: AppBar(
-        backgroundColor: colorScheme.surface,
-        scrolledUnderElevation: 0,
-        foregroundColor: colorScheme.onSurface,
-        elevation: 0,
-        title: Text(
-          '',
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w700,
+      backgroundColor: colorScheme.surface,
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          children: [
+            _buildSearchBar(context),
+            Expanded(
+              child: Consumer2<AudioProvider, LibraryProvider>(
+                builder: (context, audioProvider, library, child) {
+                  final hasMiniPlayer = audioProvider.currentTrack != null;
+                  final keyboardHeight =
+                      MediaQuery.of(context).viewInsets.bottom;
+                  final showMiniPlayer = hasMiniPlayer && keyboardHeight == 0;
+                  final safeArea = MediaQuery.of(context).padding.bottom;
+
+                  return RefreshIndicator(
+                    onRefresh: () => library.scanLibrary(force: true),
+                    child: ListView(
+                      padding: EdgeInsets.fromLTRB(20, 12, 20,
+                          showMiniPlayer ? safeArea + 96 : safeArea + 24),
+                      children: [
+                        _buildHeroHeader(context, library),
+                        const SizedBox(height: 24),
+                        _buildQuickActions(context),
+                        _buildRecentlyPlayed(context),
+                        _buildRecentlyAdded(context),
+                        _buildFavoriteSongs(context),
+                        _buildTopAlbums(context),
+                      ],
+                    ),
+                  );
+                },
               ),
+            ),
+          ],
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.search),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const SearchScreen(),
+      ),
+    );
+  }
+
+  Widget _buildSearchBar(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 8, 12, 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: Material(
+              color: scheme.surfaceContainerHigh,
+              borderRadius: BorderRadius.circular(16),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(16),
+                onTap: () => Navigator.push(
+                  context,
+                  PageRouteBuilder(
+                    transitionDuration: const Duration(milliseconds: 280),
+                    reverseTransitionDuration: const Duration(milliseconds: 220),
+                    pageBuilder: (_, animation, __) => const SearchScreen(),
+                    transitionsBuilder: (_, animation, __, child) {
+                      final move = Tween(
+                        begin: const Offset(0, 0.03),
+                        end: Offset.zero,
+                      ).animate(CurvedAnimation(
+                        parent: animation,
+                        curve: Curves.easeOutCubic,
+                      ));
+                      return FadeTransition(
+                        opacity: animation,
+                        child: SlideTransition(position: move, child: child),
+                      );
+                    },
+                  ),
                 ),
-              );
-            },
-            tooltip: 'Search music',
+                child: SizedBox(
+                  height: 48,
+                  child: Row(
+                    children: [
+                      const SizedBox(width: 14),
+                      Icon(Icons.search_rounded,
+                          color: scheme.onSurfaceVariant),
+                      const SizedBox(width: 12),
+                      Text(
+                        'Search your music',
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodyLarge
+                            ?.copyWith(color: scheme.onSurfaceVariant),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           ),
+          const SizedBox(width: 4),
           IconButton(
             icon: const Icon(Icons.settings_outlined),
-            onPressed: () {
-              Navigator.pushNamed(context, '/settings');
-            },
             tooltip: 'Settings',
+            onPressed: () => Navigator.pushNamed(context, '/settings'),
           ),
         ],
-      ),
-      body: Consumer2<AudioProvider, LibraryProvider>(
-        builder: (context, audioProvider, library, child) {
-          final hasMiniPlayer = audioProvider.currentTrack != null;
-          final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
-          final showMiniPlayer = hasMiniPlayer && keyboardHeight == 0;
-          final safeArea = MediaQuery.of(context).padding.bottom;
-
-          return RefreshIndicator(
-            onRefresh: () => library.scanLibrary(force: true),
-            child: ListView(
-              padding: EdgeInsets.fromLTRB(
-                  20, 12, 20, showMiniPlayer ? safeArea + 96 : safeArea + 24),
-              children: [
-                _buildHeroHeader(context, library),
-                const SizedBox(height: 24),
-                _buildQuickActions(context),
-                const SizedBox(height: 28),
-                _buildRecentlyPlayed(context),
-                const SizedBox(height: 28),
-                _buildRecentlyAdded(context),
-                const SizedBox(height: 28),
-                _buildFavoriteSongs(context),
-                const SizedBox(height: 28),
-                _buildTopAlbums(context),
-              ],
-            ),
-          );
-        },
       ),
     );
   }
@@ -204,6 +244,7 @@ class HomeScreen extends StatelessWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            const SizedBox(height: 24),
             _buildSectionHeader(
               context,
               title: 'Recently played',
@@ -245,6 +286,7 @@ class HomeScreen extends StatelessWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            const SizedBox(height: 24),
             _buildSectionHeader(
               context,
               title: 'Recently added',
@@ -292,6 +334,7 @@ class HomeScreen extends StatelessWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            const SizedBox(height: 24),
             _buildSectionHeader(
               context,
               title: 'Your favorite songs',
@@ -329,6 +372,7 @@ class HomeScreen extends StatelessWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            const SizedBox(height: 24),
             _buildSectionHeader(
               context,
               title: 'Top albums',
