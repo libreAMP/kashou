@@ -6,6 +6,7 @@ import '../widgets/track_list_item.dart';
 import '../widgets/album_card.dart';
 import 'track_list_page.dart';
 import '../models/track.dart';
+import '../theme/radii.dart';
 import 'search_screen.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -214,13 +215,13 @@ class HomeScreen extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             SizedBox(
-              height: 165,
+              height: 160,
               child: ListView.builder(
                 scrollDirection: Axis.horizontal,
                 itemCount: recentTracks.length,
                 itemBuilder: (context, index) {
                   return Padding(
-                    padding: const EdgeInsets.only(right: 12, bottom: 8),
+                    padding: const EdgeInsets.only(right: 12),
                     child: _buildTrackCard(context, recentTracks[index]),
                   );
                 },
@@ -255,13 +256,13 @@ class HomeScreen extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             SizedBox(
-              height: 165,
+              height: 160,
               child: ListView.builder(
                 scrollDirection: Axis.horizontal,
                 itemCount: recentTracks.length,
                 itemBuilder: (context, index) {
                   return Padding(
-                    padding: const EdgeInsets.only(right: 12, bottom: 8),
+                    padding: const EdgeInsets.only(right: 12),
                     child: _buildTrackCard(context, recentTracks[index]),
                   );
                 },
@@ -332,19 +333,20 @@ class HomeScreen extends StatelessWidget {
               context,
               title: 'Top albums',
             ),
-            GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                childAspectRatio: 0.75,
-                crossAxisSpacing: 16,
-                mainAxisSpacing: 16,
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 160,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: albums.length,
+                itemBuilder: (context, index) {
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 12),
+                    child: SizedBox(
+                        width: 118, child: AlbumCard(album: albums[index])),
+                  );
+                },
               ),
-              itemCount: albums.length,
-              itemBuilder: (context, index) {
-                return AlbumCard(album: albums[index]);
-              },
             ),
           ],
         );
@@ -354,92 +356,56 @@ class HomeScreen extends StatelessWidget {
 
   Widget _buildTrackCard(BuildContext context, track) {
     final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+    final scheme = theme.colorScheme;
 
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () {
-          final audio = Provider.of<AudioProvider>(context, listen: false);
-          audio.playTrack(track);
-        },
-        splashColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-        highlightColor:
-            colorScheme.surfaceContainerHighest.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          width: 125,
-          padding: EdgeInsets.zero,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              // Centered square image
-              Container(
-                width: 110,
-                height: 110,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: track.albumArt != null
-                      ? Image.memory(
-                          track.albumArt!,
-                          fit: BoxFit.cover,
-                          alignment: Alignment.center,
-                          errorBuilder: (context, error, stackTrace) =>
-                              Container(
-                            alignment: Alignment.center,
-                            color: colorScheme.surfaceContainerHighest,
-                            child: Icon(
-                              Icons.music_note,
-                              color: colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                        )
-                      : Container(
-                          alignment: Alignment.center,
-                          color: colorScheme.surfaceContainerHighest,
-                          child: Icon(
-                            Icons.music_note,
-                            color: colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                ),
+    Widget fallback() => Container(
+          color: scheme.surfaceContainerHighest,
+          alignment: Alignment.center,
+          child: Icon(Icons.music_note, color: scheme.onSurfaceVariant),
+        );
+
+    return InkWell(
+      onTap: () {
+        final audio = Provider.of<AudioProvider>(context, listen: false);
+        audio.playTrack(track);
+      },
+      borderRadius: BorderRadius.circular(rMd),
+      child: SizedBox(
+        width: 118,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(rMd),
+              child: AspectRatio(
+                aspectRatio: 1,
+                child: track.albumArt != null
+                    ? Image.memory(
+                        track.albumArt!,
+                        fit: BoxFit.cover,
+                        gaplessPlayback: true,
+                        errorBuilder: (_, __, ___) => fallback(),
+                      )
+                    : fallback(),
               ),
-              const SizedBox(height: 8),
-              // Title and subtitle
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: Column(
-                  children: [
-                    Text(
-                      track.title,
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        color: colorScheme.onSurface,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 12,
-                      ),
-                      maxLines: 1,
-                      textAlign: TextAlign.left,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      track.artist,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: colorScheme.onSurfaceVariant.withOpacity(0.8),
-                        fontSize: 11,
-                      ),
-                      maxLines: 1,
-                      textAlign: TextAlign.left,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              track.title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              track.artist,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: scheme.onSurfaceVariant),
+            ),
+          ],
         ),
       ),
     );

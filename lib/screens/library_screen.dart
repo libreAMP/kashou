@@ -18,6 +18,8 @@ class _LibraryScreenState extends State<LibraryScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final TextEditingController _searchController = TextEditingController();
+  final _chipKeys = List.generate(5, (_) => GlobalKey());
+  int _lastChip = 0;
 
   @override
   void initState() {
@@ -30,6 +32,19 @@ class _LibraryScreenState extends State<LibraryScreen>
     _tabController.dispose();
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _revealChip(int i) {
+    if (i == _lastChip) return;
+    _lastChip = i;
+    final ctx = _chipKeys[i].currentContext;
+    if (ctx == null) return;
+    Scrollable.ensureVisible(
+      ctx,
+      alignment: 0.5,
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOutCubic,
+    );
   }
 
   PreferredSizeWidget _buildChipTabs() {
@@ -48,47 +63,54 @@ class _LibraryScreenState extends State<LibraryScreen>
         builder: (context, _) {
           final scheme = Theme.of(context).colorScheme;
           final sel = _tabController.animation!.value.round();
+          WidgetsBinding.instance
+              .addPostFrameCallback((_) => _revealChip(sel));
           return SizedBox(
             height: 64,
-            child: ListView.separated(
+            child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-              itemCount: labels.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 8),
-              itemBuilder: (context, i) {
-                final active = i == sel;
-                return Material(
-                  color:
-                      active ? scheme.primary : scheme.surfaceContainerHigh,
-                  borderRadius: BorderRadius.circular(24),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(24),
-                    onTap: () => _tabController.animateTo(i),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Row(
-                        children: [
-                          Icon(icons[i],
-                              size: 18,
-                              color: active
-                                  ? scheme.onPrimary
-                                  : scheme.onSurfaceVariant),
-                          const SizedBox(width: 8),
-                          Text(
-                            labels[i],
-                            style: TextStyle(
-                              color: active
-                                  ? scheme.onPrimary
-                                  : scheme.onSurface,
-                              fontWeight: FontWeight.w600,
-                            ),
+              child: Row(
+                // without this the chips shrink to text height
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (var i = 0; i < labels.length; i++) ...[
+                    if (i > 0) const SizedBox(width: 8),
+                    Material(
+                      key: _chipKeys[i],
+                      color:
+                          i == sel ? scheme.primary : scheme.surfaceContainerHigh,
+                      borderRadius: BorderRadius.circular(24),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(24),
+                        onTap: () => _tabController.animateTo(i),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: Row(
+                            children: [
+                              Icon(icons[i],
+                                  size: 18,
+                                  color: i == sel
+                                      ? scheme.onPrimary
+                                      : scheme.onSurfaceVariant),
+                              const SizedBox(width: 8),
+                              Text(
+                                labels[i],
+                                style: TextStyle(
+                                  color: i == sel
+                                      ? scheme.onPrimary
+                                      : scheme.onSurface,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
                           ),
-                        ],
+                        ),
                       ),
                     ),
-                  ),
-                );
-              },
+                  ],
+                ],
+              ),
             ),
           );
         },
@@ -525,9 +547,9 @@ class _LibraryScreenState extends State<LibraryScreen>
     return GridView.builder(
       padding: EdgeInsets.fromLTRB(16, 16, 16, bottomPadding),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        childAspectRatio: 0.75,
-        crossAxisSpacing: 16,
+        crossAxisCount: 3,
+        childAspectRatio: 0.72,
+        crossAxisSpacing: 12,
         mainAxisSpacing: 16,
       ),
       itemCount: albums.length,
@@ -569,9 +591,9 @@ class _LibraryScreenState extends State<LibraryScreen>
     return GridView.builder(
       padding: EdgeInsets.fromLTRB(16, 16, 16, bottomPadding),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        childAspectRatio: 0.75,
-        crossAxisSpacing: 16,
+        crossAxisCount: 3,
+        childAspectRatio: 0.72,
+        crossAxisSpacing: 12,
         mainAxisSpacing: 16,
       ),
       itemCount: artists.length,
