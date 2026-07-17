@@ -231,12 +231,14 @@ class YtMusicService {
         if (id is! String || id == videoId) continue;
         final title = _text(p['title']);
         if (title == null) continue;
-        final by = _text(p['longBylineText']);
+        final by = _text(p['longBylineText']) ?? _text(p['shortBylineText']);
         out.add({
           'id': id,
           'title': title,
           'url': 'https://www.youtube.com/watch?v=$id',
           'channel': by?.split(' • ').first ?? '',
+          'artistId': _artistIdFromRuns(p['longBylineText']) ??
+              _artistIdFromRuns(p['shortBylineText']),
           'thumbnail': _lastThumb(p['thumbnail']?['thumbnails']),
         });
         if (out.length >= limit) break;
@@ -264,9 +266,139 @@ class YtMusicService {
       'title': title,
       'url': 'https://www.youtube.com/watch?v=$videoId',
       'channel': artist?.split(' • ').first ?? '',
+      if (cols.length > 1) 'artistId': _artistIdFrom(cols[1]),
       'thumbnail': _lastThumb(
           r['thumbnail']?['musicThumbnailRenderer']?['thumbnail']?['thumbnails']),
     };
+  }
+
+  // artist search filter, top hit is good enough for a name lookup
+  Future<String?> findArtistId(String name) async {
+    // topic channels are just the artist with a suffix
+    name = name.replaceAll(RegExp(r'\s*-\s*Topic$'), '').trim();
+    if (name.isEmpty || name == 'Unknown') return null;
+    final key = 'sart_${name.toLowerCase()}';
+    final hit = _cache[key];
+    if (hit != null && DateTime.now().difference(hit.at) < _ttl) {
+      return hit.value.isEmpty ? null : hit.value.first['browseId'] as String?;
+    }
+
+    try {
+      final res = await http.post(
+        Uri.parse(
+            'https://music.youtube.com/youtubei/v1/search?prettyPrint=false'),
+        headers: const {
+          'Content-Type': 'application/json',
+          'User-Agent': 'Mozilla/5.0',
+        },
+        body: jsonEncode({
+          'context': {
+            'client': {
+              'clientName': 'WEB_REMIX',
+              'clientVersion': _clientVersion,
+              'hl': PlatformDispatcher.instance.locale.languageCode,
+              if (PlatformDispatcher.instance.locale.countryCode != null)
+                'gl': PlatformDispatcher.instance.locale.countryCode,
+            }
+          },
+          'query': name,
+          'params': 'EgWKAQIgAWoKEAkQChAFEAMQBA%3D%3D',
+        }),
+      ).timeout(const Duration(seconds: 12));
+      if (res.statusCode != 200) return null;
+
+      final rows = <dynamic>[];
+      _collect(jsonDecode(res.body), 'musicResponsiveListItemRenderer', rows);
+      for (final r in rows) {
+        final bid = r['navigationEndpoint']?['browseEndpoint']?['browseId'];
+        if (bid is String && bid.startsWith('UC')) {
+          _cache[key] = _Cached([{'browseId': bid}]);
+          return bid;
+        }
+      }
+      _cache[key] = _Cached(const []);
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // the artist run in a flex column links to their channel browse
+  String? _artistIdFrom(dynamic col) =>
+      _artistIdFromRuns(col['musicResponsiveListItemFlexColumnRenderer']?['text']);
+
+  String? _artistIdFromRuns(dynamic node) {
+    final runs = node?['runs'];
+    if (runs is! List) return null;
+    for (final run in runs) {
+      final bid = run['navigationEndpoint']?['browseEndpoint']?['browseId'];
+      if (bid is String && bid.startsWith('UC')) return bid;
+    }
+    return null;
+  }
+
+  Future<Map<String, dynamic>?> getArtist(String browseId) async {
+    final key = 'artist_$browseId';
+    final hit = _cache[key];
+    if (hit != null && DateTime.now().difference(hit.at) < _ttl) {
+      return hit.value.isEmpty ? null : hit.value.first;
+    }
+
+    final json = await _browse(browseId);
+    if (json == null) return null;
+
+    final header = json['header'];
+    final name = _text(header?['musicImmersiveHeaderRenderer']?['title']) ??
+        _text(header?['musicVisualHeaderRenderer']?['title']);
+    final thumb = _deepThumbs(header);
+
+    final sections = <dynamic>[];
+    _collect(json, 'sectionListRenderer', sections);
+    final contents = sections.isNotEmpty ? sections.first['contents'] : null;
+
+    final songs = <Map<String, dynamic>>[];
+    final shelves = <Map<String, dynamic>>[];
+    if (contents is List) {
+      for (final c in contents) {
+        final shelf = c['musicShelfRenderer'];
+        if (shelf != null) {
+          final rows = <dynamic>[];
+          _collect(shelf['contents'], 'musicResponsiveListItemRenderer', rows);
+          for (final r in rows) {
+            final s = _songFromRow(r);
+            if (s != null) songs.add(s);
+          }
+          continue;
+        }
+        final carousel = c['musicCarouselShelfRenderer'];
+        if (carousel != null) {
+          final title = _text(carousel['header']
+              ?['musicCarouselShelfBasicHeaderRenderer']?['title']);
+          final items = _playlistItems(carousel['contents']);
+          if (items.isNotEmpty) {
+            shelves.add({'title': title ?? '', 'items': items});
+          }
+        }
+      }
+    }
+
+    final artist = {
+      'name': name,
+      'thumbnail': thumb,
+      'songs': songs,
+      'shelves': shelves,
+    };
+    _cache[key] = _Cached([artist]);
+    return artist;
+  }
+
+  String? _deepThumbs(dynamic node) {
+    final t = <dynamic>[];
+    _collect(node, 'thumbnails', t);
+    for (final list in t) {
+      if (list is List && list.isNotEmpty) return list.last['url'] as String?;
+    }
+    return null;
   }
 
   // community playlists filter

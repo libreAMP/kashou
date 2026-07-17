@@ -15,6 +15,7 @@ class Track {
   final int? sampleRate;
   final String? codec;
   final String? sourceUrl;
+  final String? artistId;
 
   Track({
     required this.id,
@@ -31,6 +32,7 @@ class Track {
     this.sampleRate,
     this.codec,
     this.sourceUrl,
+    this.artistId,
   });
 
   Track copyWith({
@@ -48,6 +50,7 @@ class Track {
     int? sampleRate,
     String? codec,
     String? sourceUrl,
+    String? artistId,
   }) {
     return Track(
       id: id ?? this.id,
@@ -64,6 +67,7 @@ class Track {
       sampleRate: sampleRate ?? this.sampleRate,
       codec: codec ?? this.codec,
       sourceUrl: sourceUrl ?? this.sourceUrl,
+      artistId: artistId ?? this.artistId,
     );
   }
 
@@ -83,6 +87,7 @@ class Track {
       sampleRate: map['sampleRate'] as int?,
       codec: map['codec'] as String?,
       sourceUrl: map['sourceUrl'] as String?,
+      artistId: map['artistId'] as String?,
     );
   }
 
@@ -102,6 +107,7 @@ class Track {
       'sampleRate': sampleRate,
       'codec': codec,
       'sourceUrl': sourceUrl,
+      'artistId': artistId,
     };
   }
 }

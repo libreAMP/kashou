@@ -17,6 +17,8 @@ import '../widgets/loading_indicator.dart';
 import '../widgets/squiggly_slider.dart';
 import '../providers/settings_provider.dart';
 import '../services/ytdl_service.dart';
+import '../services/ytmusic_service.dart';
+import 'artist_screen.dart';
 
 class NowPlayingScreen extends StatefulWidget {
   const NowPlayingScreen({super.key});
@@ -28,6 +30,29 @@ class NowPlayingScreen extends StatefulWidget {
 class _NowPlayingScreenState extends State<NowPlayingScreen> {
   bool _isDownloading = false;
   double _downloadProgress = 0.0;
+  bool _findingArtist = false;
+
+  Future<void> _openArtist(Track track) async {
+    if (_findingArtist) return;
+    // reuse the id we already have, search is only the fallback
+    var browseId = track.artistId;
+    if (browseId == null) {
+      _findingArtist = true;
+      browseId = await const YtMusicService().findArtistId(track.artist);
+      _findingArtist = false;
+    }
+    if (!mounted) return;
+    final id = browseId;
+    if (id == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Artist not found on YouTube Music')),
+      );
+      return;
+    }
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => ArtistScreen(browseId: id, name: track.artist),
+    ));
+  }
 
   Future<void> _downloadTrack(BuildContext context, Track track) async {
     if (_isDownloading) return;
@@ -831,16 +856,26 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           overflow: TextOverflow.ellipsis,
         ),
         const SizedBox(height: 8),
-        Text(
-          track.artist,
-          textAlign: TextAlign.center,
-          style: theme.textTheme.titleMedium?.copyWith(
-            color: colorScheme.onSurfaceVariant.withOpacity(0.9),
-            fontWeight: FontWeight.w500,
-            fontSize: 16,
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(8),
+            onTap: () => _openArtist(track),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              child: Text(
+                track.artist,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  color: colorScheme.onSurfaceVariant.withOpacity(0.9),
+                  fontWeight: FontWeight.w500,
+                  fontSize: 16,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
           ),
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
         ),
         const SizedBox(height: 6),
         Column(

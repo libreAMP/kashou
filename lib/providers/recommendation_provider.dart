@@ -217,6 +217,7 @@ class RecommendationProvider extends ChangeNotifier {
         path: videoUrl,
         duration: Duration(seconds: durationSeconds),
         sourceUrl: videoUrl,
+        artistId: video['artistId'] as String?,
       );
 
       return track;

@@ -16,6 +16,7 @@ import '../theme/radii.dart';
 import '../widgets/art_card.dart';
 import '../widgets/square_art.dart';
 import '../widgets/loading_indicator.dart';
+import 'artist_screen.dart';
 import 'mood_category_screen.dart';
 import 'section_page.dart';
 import 'youtube_history_screen.dart';
@@ -233,6 +234,7 @@ class _StreamScreenState extends State<StreamScreen>
       path: videoUrl,
       duration: Duration(seconds: durationSeconds),
       sourceUrl: videoUrl,
+      artistId: video['artistId'] as String?,
     );
 
     await audioProvider.prepareTrackLoad(placeholder);
@@ -703,6 +705,7 @@ class _StreamScreenState extends State<StreamScreen>
       color: Colors.transparent,
       child: InkWell(
         onTap: () => _playVideo(video),
+        onLongPress: () => _showSongSheet(video),
         borderRadius: BorderRadius.circular(rMd),
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 8),
@@ -741,6 +744,51 @@ class _StreamScreenState extends State<StreamScreen>
               Icon(Icons.play_arrow_rounded, color: scheme.onSurfaceVariant),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  void _showSongSheet(Map<String, dynamic> video) {
+    final artistId = video['artistId'] as String?;
+    final channel = video['channel'] as String? ?? '';
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: SquareArt(url: _videoThumb(video), size: 44, radius: rSm),
+              title: Text(video['title'] as String? ?? '',
+                  maxLines: 1, overflow: TextOverflow.ellipsis),
+              subtitle: Text(channel,
+                  maxLines: 1, overflow: TextOverflow.ellipsis),
+            ),
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(Icons.play_arrow_rounded),
+              title: const Text('Play'),
+              onTap: () {
+                Navigator.of(sheetContext).pop();
+                _playVideo(video);
+              },
+            ),
+            if (artistId != null)
+              ListTile(
+                leading: const Icon(Icons.person_rounded),
+                title: Text('Go to $channel'),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) =>
+                        ArtistScreen(browseId: artistId, name: channel),
+                  ));
+                },
+              ),
+            const SizedBox(height: 8),
+          ],
         ),
       ),
     );
