@@ -127,7 +127,7 @@ class SettingsScreen extends StatelessWidget {
                   ListTile(
                     leading: const Icon(Icons.tune),
                     title: const Text('Buffer Size'),
-                    subtitle: const Text('Audio processing buffer'),
+                    subtitle: const Text('Applies on next launch'),
                     trailing: Consumer<SettingsProvider>(
                       builder: (context, settings, child) {
                         return DropdownButton<int>(
@@ -147,7 +147,7 @@ class SettingsScreen extends StatelessWidget {
                   ListTile(
                     leading: const Icon(Icons.high_quality),
                     title: const Text('Resampler Quality'),
-                    subtitle: const Text('Audio resampling quality'),
+                    subtitle: const Text('Float output on high, next launch'),
                     trailing: Consumer<SettingsProvider>(
                       builder: (context, settings, child) {
                         return DropdownButton<String>(
@@ -180,7 +180,8 @@ class SettingsScreen extends StatelessWidget {
                       return SwitchListTile(
                         secondary: const Icon(Icons.blur_on),
                         title: const Text('Dithering'),
-                        subtitle: const Text('Reduce quantization noise'),
+                        subtitle:
+                            const Text('Dither on the 16 bit path, next launch'),
                         value: settings.enableDither,
                         onChanged: settings.setEnableDither,
                       );

@@ -2,7 +2,26 @@ import 'dart:io';
 import 'package:audio_service/audio_service.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/track.dart';
+
+// the buffer size setting maps to player buffer durations, set at construction
+AudioLoadConfiguration _loadConfigFor(int bufferSize) {
+  final seconds = switch (bufferSize) {
+    1024 => 20,
+    4096 => 120,
+    _ => 50,
+  };
+  return AudioLoadConfiguration(
+    androidLoadControl: AndroidLoadControl(
+      minBufferDuration: Duration(seconds: seconds),
+      maxBufferDuration: Duration(seconds: seconds * 2),
+    ),
+    darwinLoadControl: DarwinLoadControl(
+      preferredForwardBufferDuration: Duration(seconds: seconds),
+    ),
+  );
+}
 
 class AudioPlayerService {
   static AudioPlayer? _audioPlayer;
@@ -14,11 +33,13 @@ class AudioPlayerService {
     if (_isInitialized || _isInitializing) return;
 
     _isInitializing = true;
-    _audioPlayer = AudioPlayer();
+    final prefs = await SharedPreferences.getInstance();
+    final bufferSize = prefs.getInt('buffer_size') ?? 2048;
+    _audioPlayer = AudioPlayer(audioLoadConfiguration: _loadConfigFor(bufferSize));
 
     try {
       _audioHandler = await AudioService.init(
-        builder: () => AudioPlayerHandler(),
+        builder: () => AudioPlayerHandler(bufferSize),
         config: const AudioServiceConfig(
           androidNotificationChannelId: 'com.libreamp.kashou.audio',
           androidNotificationChannelName: 'Kashou Audio Service',
@@ -47,11 +68,13 @@ class AudioPlayerService {
 
 class AudioPlayerHandler extends BaseAudioHandler
     with QueueHandler, SeekHandler {
-  final AudioPlayer _player = AudioPlayer();
+  final AudioPlayer _player;
   Function()? onSkipNext;
   Function()? onSkipPrevious;
 
-  AudioPlayerHandler() {
+  AudioPlayerHandler(int bufferSize)
+      : _player =
+            AudioPlayer(audioLoadConfiguration: _loadConfigFor(bufferSize)) {
     _player.playbackEventStream.map(_transformEvent).pipe(playbackState);
   }
 

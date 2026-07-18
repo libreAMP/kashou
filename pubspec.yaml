@@ -50,6 +50,13 @@ dependencies:
   collection: ^1.19.1
   flutter_inappwebview: ^6.1.5
 
+dependency_overrides:
+  just_audio:
+    git:
+      url: https://github.com/primalkz/just_audio.git
+      ref: hires
+      path: just_audio
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
