@@ -206,6 +206,18 @@ class SettingsScreen extends StatelessWidget {
                   Consumer<SettingsProvider>(
                     builder: (context, settings, child) {
                       return SwitchListTile(
+                        secondary: const Icon(Icons.history_rounded),
+                        title: const Text('Search history'),
+                        subtitle:
+                            const Text('Remember what you search on Stream'),
+                        value: settings.enableSearchHistory,
+                        onChanged: settings.setEnableSearchHistory,
+                      );
+                    },
+                  ),
+                  Consumer<SettingsProvider>(
+                    builder: (context, settings, child) {
+                      return SwitchListTile(
                         secondary: const Icon(Icons.cast),
                         title: const Text('Casting'),
                         subtitle: const Text('Chromecast support'),

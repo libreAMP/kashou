@@ -15,6 +15,8 @@ class SettingsProvider extends ChangeNotifier {
   bool _enableDither = false;
   String _ytdlBaseUrl = 'https://ytdl-wrapper.onrender.com';
   bool _minimalBottomBar = false;
+  bool _enableSearchHistory = true;
+  List<String> _searchHistory = [];
   bool _isLoaded = false;
 
   // Getters
@@ -31,6 +33,8 @@ class SettingsProvider extends ChangeNotifier {
   bool get enableDither => _enableDither;
   String get ytdlBaseUrl => _ytdlBaseUrl;
   bool get minimalBottomBar => _minimalBottomBar;
+  bool get enableSearchHistory => _enableSearchHistory;
+  List<String> get searchHistory => List.unmodifiable(_searchHistory);
   bool get isLoaded => _isLoaded;
 
   SettingsProvider() {
@@ -53,6 +57,8 @@ class SettingsProvider extends ChangeNotifier {
       _enableDither = prefs.getBool('enable_dither') ?? false;
       _ytdlBaseUrl = prefs.getString('ytdl_base_url') ?? 'https://ytdl-wrapper.onrender.com';
       _minimalBottomBar = prefs.getBool('minimal_bottom_bar') ?? false;
+      _enableSearchHistory = prefs.getBool('enable_search_history') ?? true;
+      _searchHistory = prefs.getStringList('search_history') ?? [];
       _isLoaded = true;
       notifyListeners();
     } catch (e) {
@@ -150,6 +156,37 @@ class SettingsProvider extends ChangeNotifier {
     _minimalBottomBar = value;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('minimal_bottom_bar', value);
+    notifyListeners();
+  }
+
+  // turning it off also forgets everything, thats what the toggle promises
+  Future<void> setEnableSearchHistory(bool value) async {
+    _enableSearchHistory = value;
+    if (!value) _searchHistory = [];
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('enable_search_history', value);
+    if (!value) await prefs.remove('search_history');
+    notifyListeners();
+  }
+
+  Future<void> addSearchTerm(String query) async {
+    if (!_enableSearchHistory) return;
+    final q = query.trim();
+    if (q.isEmpty) return;
+    _searchHistory.removeWhere((e) => e.toLowerCase() == q.toLowerCase());
+    _searchHistory.insert(0, q);
+    if (_searchHistory.length > 10) {
+      _searchHistory = _searchHistory.sublist(0, 10);
+    }
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList('search_history', _searchHistory);
+    notifyListeners();
+  }
+
+  Future<void> removeSearchTerm(String query) async {
+    _searchHistory.remove(query);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList('search_history', _searchHistory);
     notifyListeners();
   }
 }

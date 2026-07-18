@@ -191,6 +191,7 @@ class _StreamScreenState extends State<StreamScreen>
   void _openPlaylist(Map<String, dynamic> playlist) {
     final id = playlist['playlistId'] as String?;
     if (id == null) return;
+    _rememberSearch();
     final isAlbum = playlist['type'] == 'album';
     Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => SectionPage(
@@ -218,7 +219,14 @@ class _StreamScreenState extends State<StreamScreen>
         .showSnackBar(SnackBar(content: Text(message)));
   }
 
+  // a tap while a query is live means the search paid off, remember it
+  void _rememberSearch() {
+    if (_currentQuery.isEmpty) return;
+    context.read<SettingsProvider>().addSearchTerm(_currentQuery);
+  }
+
   Future<void> _playVideo(Map<String, dynamic> video) async {
+    _rememberSearch();
     final audioProvider = Provider.of<AudioProvider>(context, listen: false);
     final videoId = video['id']?.toString() ?? UniqueKey().toString();
     final videoUrl = video['url'] ?? 'https://www.youtube.com/watch?v=$videoId';
@@ -370,7 +378,10 @@ class _StreamScreenState extends State<StreamScreen>
                 focusNode: _searchFocus,
                 onChanged: _onSearchChanged,
                 textInputAction: TextInputAction.search,
-                onSubmitted: _search,
+                onSubmitted: (q) {
+                  context.read<SettingsProvider>().addSearchTerm(q);
+                  _search(q);
+                },
                 style: Theme.of(context).textTheme.bodyLarge,
                 decoration: InputDecoration(
                   hintText: 'Search songs, artists',
@@ -502,7 +513,10 @@ class _StreamScreenState extends State<StreamScreen>
   }
 
   Widget _buildExplore(BuildContext context) {
-    if (_moodSections.isEmpty) {
+    final settings = context.watch<SettingsProvider>();
+    final recent =
+        settings.enableSearchHistory ? settings.searchHistory : const <String>[];
+    if (_moodSections.isEmpty && recent.isEmpty) {
       return const Center(child: KashouLoader());
     }
     final bottom = _bottomInset(context);
@@ -510,6 +524,12 @@ class _StreamScreenState extends State<StreamScreen>
       padding: EdgeInsets.fromLTRB(20, 8, 20, bottom),
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       children: [
+        if (recent.isNotEmpty) ...[
+          _sectionTitle('Recent searches'),
+          const SizedBox(height: 4),
+          for (final q in recent) _buildRecentSearchRow(q),
+          const SizedBox(height: 20),
+        ],
         for (final section in _moodSections) ...[
           _sectionTitle(section['section'] as String? ?? 'Explore'),
           const SizedBox(height: 12),
@@ -517,6 +537,44 @@ class _StreamScreenState extends State<StreamScreen>
           const SizedBox(height: 24),
         ],
       ],
+    );
+  }
+
+  Widget _buildRecentSearchRow(String query) {
+    final scheme = Theme.of(context).colorScheme;
+    return InkWell(
+      borderRadius: BorderRadius.circular(rSm),
+      onTap: () {
+        _searchController.text = query;
+        _searchController.selection =
+            TextSelection.collapsed(offset: query.length);
+        _search(query);
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          children: [
+            Icon(Icons.history_rounded,
+                size: 20, color: scheme.onSurfaceVariant),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                query,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodyLarge,
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.close_rounded, size: 18),
+              color: scheme.onSurfaceVariant,
+              tooltip: 'Remove',
+              onPressed: () =>
+                  context.read<SettingsProvider>().removeSearchTerm(query),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
