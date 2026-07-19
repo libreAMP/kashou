@@ -279,6 +279,7 @@ class _StreamScreenState extends State<StreamScreen>
           ? placeholder.title
           : streamingData.title,
       artist: knownArtist ? placeholder.artist : streamingData.channelName,
+      loudnessDb: streamingData.loudnessDb,
       album: 'YouTube',
       path: selectedFormat.url,
       duration: streamingData.duration ?? Duration(seconds: durationSeconds),

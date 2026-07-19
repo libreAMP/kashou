@@ -6,7 +6,7 @@ class SettingsProvider extends ChangeNotifier {
   bool _enableGapless = true;
   bool _enableCrossfade = false;
   double _crossfadeDuration = 3.0;
-  bool _enableReplayGain = false;
+  bool _enableReplayGain = true;
   bool _enableYouTubeIntegration = false;
   bool _enableCasting = true;
   bool _enableAndroidAuto = true;
@@ -48,7 +48,7 @@ class SettingsProvider extends ChangeNotifier {
       _enableGapless = prefs.getBool('enable_gapless') ?? true;
       _enableCrossfade = prefs.getBool('enable_crossfade') ?? false;
       _crossfadeDuration = prefs.getDouble('crossfade_duration') ?? 3.0;
-      _enableReplayGain = prefs.getBool('enable_replay_gain') ?? false;
+      _enableReplayGain = prefs.getBool('enable_replay_gain') ?? true;
       _enableYouTubeIntegration = prefs.getBool('enable_youtube') ?? true;
       _enableCasting = prefs.getBool('enable_casting') ?? true;
       _enableAndroidAuto = prefs.getBool('enable_android_auto') ?? true;

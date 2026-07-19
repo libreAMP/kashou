@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -381,15 +382,11 @@ class AudioProvider extends ChangeNotifier {
     _playerSubs.add(audioPlayer.androidAudioSessionIdStream.listen((sessionId) {
       if (sessionId != null) {
         CustomEqualizer.init(sessionId);
+        CustomEqualizer.enableEffects(_equalizerEnabled);
         _loadEqualizerBands();
       }
     }));
 
-    _masterVolume = audioPlayer.volume;
-    _playerSubs.add(audioPlayer.volumeStream.listen((volume) {
-      _masterVolume = volume;
-      notifyListeners();
-    }));
   }
 
   Future<void> _configureAudioSession() async {
@@ -526,6 +523,7 @@ class AudioProvider extends ChangeNotifier {
         duration:
             track.duration == Duration.zero ? data.duration : track.duration,
         albumArt: art,
+        loudnessDb: data.loudnessDb,
       );
     } catch (e) {
       debugPrint('[Audio] watch url resolve failed: $e');
@@ -621,18 +619,13 @@ class AudioProvider extends ChangeNotifier {
       final enableReplayGain = _settingsProvider?.enableReplayGain ?? false;
 
       if (enableGapless && _queue.length > 1 && !_isRemotePath(track.path)) {
+        await _applyLoudness(track, enableReplayGain);
         await _setupGaplessPlayback();
       } else {
         _gaplessIndexSub?.cancel();
         _gaplessIndexSub = null;
         _playlist = null;
-        double volume = 1.0;
-        if (enableReplayGain) {
-          // TODO read the actual gain tag, flat cut for now
-          volume = 0.8;
-        }
-
-        await audioPlayer.setVolume(volume);
+        await _applyLoudness(track, enableReplayGain);
 
         if (enableCrossfade && wasPlaying && !_isRemotePath(track.path)) {
           await _crossfadeToTrack(track, crossfadeDuration);
@@ -677,6 +670,22 @@ class AudioProvider extends ChangeNotifier {
       }
       notifyListeners();
     }
+  }
+
+  // mirror the loudness correction yt applies on its own apps
+  Future<void> _applyLoudness(Track track, bool enabled) async {
+    var volume = _masterVolume;
+    var boost = 0.0;
+    final db = enabled ? track.loudnessDb : null;
+    if (db != null && db > 0) volume *= pow(10, -db / 20).toDouble();
+    if (db != null && db < 0) boost = min(-db, 10.0);
+    debugPrint('[Audio] loudness db=$db boost=$boost volume=$volume');
+    try {
+      await _audioHandler?.loudness.setTargetGain(boost);
+    } catch (e) {
+      debugPrint('[Audio] loudness gain failed: $e');
+    }
+    await audioPlayer.setVolume(volume.clamp(0.0, 1.0));
   }
 
   Future<void> _setupGaplessPlayback() async {

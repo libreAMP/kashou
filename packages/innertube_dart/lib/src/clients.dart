@@ -35,7 +35,7 @@ class InnerTubeClient {
 
 // TODO refresh client versions at runtime instead of pinning
 
-// android_vr still hands back unciphered audio without a potoken, so it's first
+// android_vr still hands back unciphered audio without a potoken
 const _androidVr = InnerTubeClient(
   name: 'ANDROID_VR',
   version: '1.60.19',
@@ -90,7 +90,7 @@ const _android = InnerTubeClient(
   },
 );
 
-// last ditch, sometimes works when the rest are gated
+// barely worth keeping except when nothing else gets through
 const _androidTestsuite = InnerTubeClient(
   name: 'ANDROID_TESTSUITE',
   version: '1.9',

@@ -16,6 +16,7 @@ class Track {
   final String? codec;
   final String? sourceUrl;
   final String? artistId;
+  final double? loudnessDb;
 
   Track({
     required this.id,
@@ -33,6 +34,7 @@ class Track {
     this.codec,
     this.sourceUrl,
     this.artistId,
+    this.loudnessDb,
   });
 
   Track copyWith({
@@ -51,6 +53,7 @@ class Track {
     String? codec,
     String? sourceUrl,
     String? artistId,
+    double? loudnessDb,
   }) {
     return Track(
       id: id ?? this.id,
@@ -68,6 +71,7 @@ class Track {
       codec: codec ?? this.codec,
       sourceUrl: sourceUrl ?? this.sourceUrl,
       artistId: artistId ?? this.artistId,
+      loudnessDb: loudnessDb ?? this.loudnessDb,
     );
   }
 
@@ -88,6 +92,7 @@ class Track {
       codec: map['codec'] as String?,
       sourceUrl: map['sourceUrl'] as String?,
       artistId: map['artistId'] as String?,
+      loudnessDb: (map['loudnessDb'] as num?)?.toDouble(),
     );
   }
 
@@ -108,6 +113,7 @@ class Track {
       'codec': codec,
       'sourceUrl': sourceUrl,
       'artistId': artistId,
+      'loudnessDb': loudnessDb,
     };
   }
 }

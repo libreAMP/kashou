@@ -29,7 +29,7 @@ class InnerTube {
   }) async {
     Object? lastError;
 
-    // with a potoken the web client reaches bot-gated videos, so try it first
+    // the web client gets first shot when a potoken is around
     final attempts = <InnerTubeClient>[
       if (poToken != null) webClient,
       ...clients,
@@ -182,6 +182,9 @@ class InnerTube {
       hasMultipleLanguages: languages.length > 1,
       availableLanguages: languages.toList(),
       expiresAt: _expiryOf(audioStreams, videoStreams),
+      loudnessDb: (response['playerConfig']?['audioConfig']?['loudnessDb']
+              as num?)
+          ?.toDouble(),
     );
   }
 

@@ -295,6 +295,7 @@ class YtdlWrapperService {
       videoId: videoId,
       sourceUrl: sourceUrl,
       title: videoMetadata?.title ?? title,
+      loudnessDb: streamInfo.loudnessDb as double?,
       // empty, not 'Unknown', so callers keep the artist they already know
       channelName: videoMetadata?.author ?? '',
       channelUrl: videoMetadata != null

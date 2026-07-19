@@ -57,6 +57,7 @@ class YouTubeStreamingData {
     required this.fallbackStreams,
     required this.fetchedAt,
     required this.cacheTtl,
+    this.loudnessDb,
   });
 
   final String videoId;
@@ -64,6 +65,7 @@ class YouTubeStreamingData {
   final String title;
   final String channelName;
   final String channelUrl;
+  final double? loudnessDb;
   final String? thumbnailUrl;
   final Duration? duration;
   final int? viewCount;

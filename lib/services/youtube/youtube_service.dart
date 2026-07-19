@@ -54,6 +54,7 @@ class YoutubeService {
         thumbnailUrl: null,
         author: null,
         viewCount: null,
+        loudnessDb: streamInfo.loudnessDb,
       );
 
       _cacheStreams(videoId, result);

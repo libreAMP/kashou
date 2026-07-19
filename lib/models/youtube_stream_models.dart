@@ -11,6 +11,7 @@ class YoutubeStreamInfo {
   final String? thumbnailUrl;
   final String? author;
   final int? viewCount;
+  final double? loudnessDb;
 
   YoutubeStreamInfo({
     required this.videoId,
@@ -23,6 +24,7 @@ class YoutubeStreamInfo {
     this.thumbnailUrl,
     this.author,
     this.viewCount,
+    this.loudnessDb,
   });
 
   String get formattedDuration {

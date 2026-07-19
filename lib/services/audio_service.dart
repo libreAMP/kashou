@@ -68,13 +68,17 @@ class AudioPlayerService {
 
 class AudioPlayerHandler extends BaseAudioHandler
     with QueueHandler, SeekHandler {
-  final AudioPlayer _player;
+  final AndroidLoudnessEnhancer loudness = AndroidLoudnessEnhancer();
+  late final AudioPlayer _player;
   Function()? onSkipNext;
   Function()? onSkipPrevious;
 
-  AudioPlayerHandler(int bufferSize)
-      : _player =
-            AudioPlayer(audioLoadConfiguration: _loadConfigFor(bufferSize)) {
+  AudioPlayerHandler(int bufferSize) {
+    loudness.setEnabled(true);
+    _player = AudioPlayer(
+      audioLoadConfiguration: _loadConfigFor(bufferSize),
+      audioPipeline: AudioPipeline(androidAudioEffects: [loudness]),
+    );
     _player.playbackEventStream.map(_transformEvent).pipe(playbackState);
   }
 

@@ -92,6 +92,7 @@ class _YoutubeHistoryScreenState extends State<YoutubeHistoryScreen> {
           ? placeholder.title
           : streamingData.title,
       artist: knownArtist ? placeholder.artist : streamingData.channelName,
+      loudnessDb: streamingData.loudnessDb,
       album: 'YouTube',
       path: selectedFormat.url,
       duration: streamingData.duration ?? placeholder.duration,

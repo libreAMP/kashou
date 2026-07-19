@@ -99,13 +99,11 @@ class MainActivity : AudioServiceActivity() {
         }
             }
 
+    // created idle, enabling these here cost loudness
     private fun initEqualizer(sessionId: Int) {
         equalizer = Equalizer(0, sessionId)
-        equalizer?.enabled = true
         bassBoost = BassBoost(0, sessionId)
-        bassBoost?.enabled = true
         virtualizer = Virtualizer(0, sessionId)
-        virtualizer?.enabled = true
     }
 
     private fun setBandLevel(bandId: Int, level: Int) {
