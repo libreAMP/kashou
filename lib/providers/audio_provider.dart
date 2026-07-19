@@ -802,6 +802,28 @@ class AudioProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> playAt(int index) async {
+    if (index < 0 || index >= _queue.length) return;
+    _currentIndex = index;
+    await playTrack(_queue[index], playlist: _queue);
+  }
+
+  void moveQueueItem(int oldIndex, int newIndex) {
+    if (oldIndex < 0 || oldIndex >= _queue.length) return;
+    if (newIndex > oldIndex) newIndex -= 1;
+    final track = _queue.removeAt(oldIndex);
+    _queue.insert(newIndex, track);
+    // keep the pointer on whatever is playing
+    if (_currentIndex == oldIndex) {
+      _currentIndex = newIndex;
+    } else if (oldIndex < _currentIndex && newIndex >= _currentIndex) {
+      _currentIndex -= 1;
+    } else if (oldIndex > _currentIndex && newIndex <= _currentIndex) {
+      _currentIndex += 1;
+    }
+    notifyListeners();
+  }
+
   Future<void> skipNext() async {
     if (_queue.isEmpty) return;
 

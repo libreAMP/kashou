@@ -8,7 +8,6 @@ import 'dart:ui';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
-import 'package:permission_handler/permission_handler.dart';
 
 import '../models/track.dart';
 import '../providers/library_provider.dart';
@@ -18,6 +17,7 @@ import '../widgets/squiggly_slider.dart';
 import '../providers/settings_provider.dart';
 import '../services/ytdl_service.dart';
 import '../services/ytmusic_service.dart';
+import '../utils/app_messenger.dart';
 import 'artist_screen.dart';
 
 class NowPlayingScreen extends StatefulWidget {
@@ -28,8 +28,8 @@ class NowPlayingScreen extends StatefulWidget {
 }
 
 class _NowPlayingScreenState extends State<NowPlayingScreen> {
-  bool _isDownloading = false;
-  double _downloadProgress = 0.0;
+  // static so a reopened player picks the running download back up
+  static final ValueNotifier<double?> _downloadProgress = ValueNotifier(null);
   bool _findingArtist = false;
 
   Future<void> _openArtist(Track track) async {
@@ -55,12 +55,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
   }
 
   Future<void> _downloadTrack(BuildContext context, Track track) async {
-    if (_isDownloading) return;
-
-    setState(() {
-      _isDownloading = true;
-      _downloadProgress = 0.0;
-    });
+    if (_downloadProgress.value != null) return;
+    _downloadProgress.value = 0;
 
     final isOnlineTrack = track.path.contains('youtube.com') ||
         track.path.contains('youtu.be') ||
@@ -72,9 +68,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           const SnackBar(content: Text('Only online tracks can be downloaded')),
         );
       }
-      setState(() {
-        _isDownloading = false;
-      });
+      _downloadProgress.value = null;
       return;
     }
 
@@ -86,28 +80,17 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
             const SnackBar(content: Text('YouTube integration is disabled')),
           );
         }
-        setState(() {
-          _isDownloading = false;
-        });
+        _downloadProgress.value = null;
         return;
       }
 
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Extracting audio stream...')),
-        );
-      }
-
-      setState(() => _downloadProgress = 0.1);
-
       const ytdlService = YtdlWrapperService();
-      final details = await ytdlService.fetchAudioDetails(track.path);
+      final details =
+          await ytdlService.fetchAudioDetails(track.sourceUrl ?? track.path);
 
       if (details == null) {
         throw Exception('Failed to extract audio stream');
       }
-
-      setState(() => _downloadProgress = 0.2);
 
       String? downloadUrl;
       final audio = details['audio'];
@@ -125,57 +108,6 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
         throw Exception('No audio stream available');
       }
 
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Requesting storage permission...')),
-        );
-      }
-
-      setState(() => _downloadProgress = 0.3);
-
-      bool hasPermission = false;
-
-      try {
-        if (await Permission.manageExternalStorage.isGranted) {
-          hasPermission = true;
-        } else {
-          final manageStatus = await Permission.manageExternalStorage.request();
-          if (manageStatus.isGranted) {
-            hasPermission = true;
-          } else {
-            _showPermissionDialog(context);
-            setState(() => _isDownloading = false);
-            return;
-          }
-        }
-      } catch (e) {
-        final storageStatus = await Permission.storage.request();
-        if (storageStatus.isGranted) {
-          hasPermission = true;
-        } else if (storageStatus.isPermanentlyDenied) {
-          _showPermissionDialog(context);
-          setState(() => _isDownloading = false);
-          return;
-        } else {
-          _showPermissionDialog(context);
-          setState(() => _isDownloading = false);
-          return;
-        }
-      }
-
-      if (!hasPermission) {
-        setState(() => _isDownloading = false);
-        return;
-      }
-
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Downloading...')),
-        );
-      }
-
-      setState(() => _downloadProgress = 0.4);
-
       final safeTitle = (details['title'] as String? ?? track.title)
           .replaceAll(RegExp(r'[<>:"/\\|?*]'), '_')
           .trim();
@@ -187,13 +119,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       final extension = _getFileExtension(codec);
       final filename = '$safeTitle - $safeArtist$extension';
 
-      setState(() => _downloadProgress = 0.5);
-
       final downloadDir = await _getDownloadDirectory();
       final filePath = '${downloadDir.path}/$filename';
       final file = File(filePath);
-
-      setState(() => _downloadProgress = 0.6);
 
       if (downloadUrl!.contains('.m3u8')) {
         await _downloadHLSStream(downloadUrl!, file, downloadDir.path);
@@ -201,19 +129,13 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
         await _downloadDirectFile(downloadUrl!, file, downloadDir.path);
       }
     } catch (e) {
-      setState(() {
-        _isDownloading = false;
-        _downloadProgress = 0.0;
-      });
-
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Download failed: ${e.toString()}'),
-            duration: const Duration(seconds: 5),
-          ),
-        );
-      }
+      _downloadProgress.value = null;
+      appMessenger.currentState?.showSnackBar(
+        SnackBar(
+          content: Text('Download failed: ${e.toString()}'),
+          duration: const Duration(seconds: 5),
+        ),
+      );
     }
   }
 
@@ -254,52 +176,6 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       await downloadDir.create(recursive: true);
     }
     return downloadDir;
-  }
-
-  void _showDownloadProgressDialog(BuildContext context, String filename) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
-          title: const Text('Downloading'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                filename,
-                style: Theme.of(context).textTheme.bodySmall,
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 16),
-              LinearProgressIndicator(
-                value: _downloadProgress,
-                backgroundColor:
-                    Theme.of(context).colorScheme.surfaceContainerHighest,
-                valueColor: AlwaysStoppedAnimation<Color>(
-                  Theme.of(context).colorScheme.primary,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                '${(_downloadProgress * 100).toInt()}%',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: _isDownloading
-                  ? null
-                  : () => Navigator.of(dialogContext).pop(),
-              child: Text(_isDownloading ? 'Downloading...' : 'Close'),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 
   Future<void> _downloadHLSStream(
@@ -349,27 +225,18 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
         }
 
         downloadedSegments++;
-        if (mounted) {
-          final progress = 0.6 + (downloadedSegments / totalSegments) * 0.3;
-          setState(() => _downloadProgress = progress.clamp(0.6, 0.9));
-        }
+        _downloadProgress.value =
+            (downloadedSegments / totalSegments).clamp(0.0, 1.0);
       }
 
       await sink.close();
-
-      setState(() {
-        _isDownloading = false;
-        _downloadProgress = 1.0;
-      });
-
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Download completed! Saved to: $downloadPath'),
-            duration: const Duration(seconds: 5),
-          ),
-        );
-      }
+      _downloadProgress.value = null;
+      appMessenger.currentState?.showSnackBar(
+        SnackBar(
+          content: Text('Saved ${outputFile.uri.pathSegments.last}'),
+          duration: const Duration(seconds: 5),
+        ),
+      );
     } finally {
       client.close();
     }
@@ -377,9 +244,11 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
 
   Future<void> _downloadDirectFile(
       String fileUrl, File outputFile, String downloadPath) async {
+    final filename = outputFile.uri.pathSegments.last;
     final client = http.Client();
     try {
       final request = http.Request('GET', Uri.parse(fileUrl));
+      request.headers['User-Agent'] = 'Mozilla/5.0';
       final response = await client.send(request);
 
       if (response.statusCode == 200) {
@@ -393,42 +262,30 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
             sink.add(chunk);
             downloadedBytes += chunk.length;
 
-            if (contentLength > 0 && mounted) {
-              final progress = 0.6 + (downloadedBytes / contentLength) * 0.3;
-              setState(() => _downloadProgress = progress.clamp(0.6, 0.9));
+            if (contentLength > 0) {
+              _downloadProgress.value =
+                  (downloadedBytes / contentLength).clamp(0.0, 1.0);
             }
           },
           onDone: () async {
             await sink.close();
-            setState(() {
-              _isDownloading = false;
-              _downloadProgress = 1.0;
-            });
-
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Download completed! Saved to: $downloadPath'),
-                  duration: const Duration(seconds: 5),
-                ),
-              );
-            }
+            _downloadProgress.value = null;
+            appMessenger.currentState?.showSnackBar(
+              SnackBar(
+                content: Text('Saved $filename'),
+                duration: const Duration(seconds: 5),
+              ),
+            );
           },
           onError: (error) {
             sink.close();
-            setState(() {
-              _isDownloading = false;
-              _downloadProgress = 0.0;
-            });
-
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Download failed: $error'),
-                  duration: const Duration(seconds: 5),
-                ),
-              );
-            }
+            _downloadProgress.value = null;
+            appMessenger.currentState?.showSnackBar(
+              SnackBar(
+                content: Text('Download failed: $error'),
+                duration: const Duration(seconds: 5),
+              ),
+            );
           },
         ).asFuture();
       } else {
@@ -437,36 +294,6 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     } finally {
       client.close();
     }
-  }
-
-  void _showPermissionDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Storage Permission Required'),
-        content: const Text(
-          'To download tracks, the app needs access to your storage.\n\n'
-          'On Android 11 and above:\n'
-          '1. Go to Settings > Apps > Kashou\n'
-          '2. Tap "Permissions" or "Special access"\n'
-          '3. Enable "All files access" or "Manage external storage"\n\n'
-          'On older Android versions, grant storage permission when prompted.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(dialogContext).pop();
-              openAppSettings();
-            },
-            child: const Text('Open Settings'),
-          ),
-        ],
-      ),
-    );
   }
 
   String _getFileExtension(String? codec) {
@@ -654,7 +481,6 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
   Widget _buildArtworkCard(BuildContext context, Track track, Size size) {
     final colorScheme = Theme.of(context).colorScheme;
     final dimension = size.width * 0.85;
-    final borderRadius = BorderRadius.circular(24);
 
     Widget buildFallback() {
       return Container(
@@ -705,7 +531,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
         width: dimension,
         height: dimension,
         decoration: BoxDecoration(
-          borderRadius: borderRadius,
+          borderRadius: BorderRadius.circular(24),
           boxShadow: [
             BoxShadow(
               color: colorScheme.shadow.withOpacity(0.25),
@@ -715,7 +541,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           ],
         ),
         child: ClipRRect(
-          borderRadius: borderRadius,
+          borderRadius: BorderRadius.circular(24),
           child: image,
         ),
       ),
@@ -1032,22 +858,43 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
         ),
         _buildSecondaryIconButton(
           context,
-          icon: Icons.queue_music_rounded,
+          icon: Icons.queue_play_next_rounded,
           tooltip: 'View queue',
           active: false,
           onTap: () => _showQueueSheet(context),
         ),
         if (isOnlineTrack)
-          _buildSecondaryIconButton(
-            context,
-            icon: _isDownloading ? Icons.downloading : Icons.download,
-            tooltip: 'Download track',
-            active: _isDownloading,
-            onTap: () {
-              if (audio.currentTrack != null) {
-                _downloadTrack(context, audio.currentTrack!);
-              }
-            },
+          ValueListenableBuilder<double?>(
+            valueListenable: _downloadProgress,
+            builder: (context, progress, _) => progress != null
+                ? Tooltip(
+                    message: 'Downloading',
+                    child: Container(
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Theme.of(context).colorScheme.primaryContainer,
+                      ),
+                      padding: const EdgeInsets.all(11),
+                      child: SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          value: progress > 0 ? progress : null,
+                        ),
+                      ),
+                    ),
+                  )
+                : _buildSecondaryIconButton(
+                    context,
+                    icon: Icons.download,
+                    tooltip: 'Download track',
+                    onTap: () {
+                      if (audio.currentTrack != null) {
+                        _downloadTrack(context, audio.currentTrack!);
+                      }
+                    },
+                  ),
           ),
       ],
     );
@@ -1217,14 +1064,16 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                       ),
                     ),
                     Expanded(
-                      child: ListView.builder(
-                        controller: scrollController,
+                      child: ReorderableListView.builder(
+                        scrollController: scrollController,
                         itemCount: audio.queue.length,
+                        onReorder: audio.moveQueueItem,
                         itemBuilder: (context, index) {
                           final track = audio.queue[index];
                           final isCurrent = index == audio.currentIndex;
 
                           return ListTile(
+                            key: ValueKey('${track.id}_$index'),
                             leading: Icon(
                               isCurrent
                                   ? Icons.play_circle_filled
@@ -1235,6 +1084,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                             ),
                             title: Text(
                               track.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                 color: isCurrent
                                     ? Theme.of(context).colorScheme.primary
@@ -1242,8 +1093,13 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                 fontWeight: isCurrent ? FontWeight.bold : null,
                               ),
                             ),
-                            subtitle: Text(track.artist),
-                            onTap: () {},
+                            subtitle: Text(track.artist,
+                                maxLines: 1, overflow: TextOverflow.ellipsis),
+                            trailing: ReorderableDragStartListener(
+                              index: index,
+                              child: const Icon(Icons.drag_handle_rounded),
+                            ),
+                            onTap: isCurrent ? null : () => audio.playAt(index),
                           );
                         },
                       ),

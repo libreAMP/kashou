@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import 'utils/app_messenger.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:dynamic_color/dynamic_color.dart';
@@ -163,6 +165,7 @@ class KashouApp extends StatelessWidget {
 
               return MaterialApp(
                 title: 'Kashou',
+                scaffoldMessengerKey: appMessenger,
                 debugShowCheckedModeBanner: false,
                 themeMode: themeProvider.themeMode,
                 theme: ThemeData(
