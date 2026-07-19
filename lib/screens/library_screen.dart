@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../models/track.dart';
 import '../providers/library_provider.dart';
+import '../services/download_store.dart';
 import '../providers/audio_provider.dart';
 import '../widgets/track_list_item.dart';
 import '../widgets/album_card.dart';
 import '../widgets/artist_card.dart';
+import 'track_list_page.dart';
 import 'youtube_history_screen.dart';
 
 class LibraryScreen extends StatefulWidget {
@@ -18,13 +21,13 @@ class _LibraryScreenState extends State<LibraryScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final TextEditingController _searchController = TextEditingController();
-  final _chipKeys = List.generate(5, (_) => GlobalKey());
+  final _chipKeys = List.generate(6, (_) => GlobalKey());
   int _lastChip = 0;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 5, vsync: this);
+    _tabController = TabController(length: 6, vsync: this);
   }
 
   @override
@@ -48,13 +51,21 @@ class _LibraryScreenState extends State<LibraryScreen>
   }
 
   PreferredSizeWidget _buildChipTabs() {
-    const labels = ['Liked', 'Songs', 'Albums', 'Artists', 'Playlists'];
+    const labels = [
+      'Liked',
+      'Songs',
+      'Albums',
+      'Artists',
+      'Playlists',
+      'Downloads',
+    ];
     const icons = [
       Icons.favorite_rounded,
       Icons.music_note_rounded,
       Icons.album_rounded,
       Icons.person_rounded,
       Icons.playlist_play_rounded,
+      Icons.download_done_rounded,
     ];
     return PreferredSize(
       preferredSize: const Size.fromHeight(64),
@@ -304,6 +315,7 @@ class _LibraryScreenState extends State<LibraryScreen>
                                 _buildAlbumsTab(library, bottomPadding),
                                 _buildArtistsTab(library, bottomPadding),
                                 _buildPlaylistsTab(library, bottomPadding),
+                                _buildDownloadsTab(bottomPadding),
                               ],
                             ),
                           ),
@@ -603,6 +615,50 @@ class _LibraryScreenState extends State<LibraryScreen>
     );
   }
 
+  Widget _buildDownloadsTab(double bottomPadding) {
+    return FutureBuilder<List<Track>>(
+      future: DownloadStore.tracks(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final tracks = snapshot.data!;
+        if (tracks.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.download_done_rounded,
+                  size: 64,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Nothing downloaded yet',
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Songs you download play here without internet.',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                ),
+              ],
+            ),
+          );
+        }
+        return ListView.builder(
+          padding: EdgeInsets.fromLTRB(16, 8, 16, bottomPadding),
+          itemCount: tracks.length,
+          itemBuilder: (context, index) =>
+              TrackListItem(track: tracks[index]),
+        );
+      },
+    );
+  }
+
   Widget _buildPlaylistsTab(LibraryProvider library, double bottomPadding) {
     if (library.playlists.isEmpty) {
       return Center(
@@ -652,10 +708,28 @@ class _LibraryScreenState extends State<LibraryScreen>
                 ? playlist.name[0].toUpperCase()
                 : '?'),
           ),
-          onTap: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Playlist detail coming soon.')),
+          onTap: () => Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => TrackListPage(
+                title: playlist.name, tracks: playlist.tracks),
+          )),
+          onLongPress: () async {
+            final remove = await showDialog<bool>(
+              context: context,
+              builder: (dialogContext) => AlertDialog(
+                title: Text('Delete ${playlist.name}?'),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(dialogContext, false),
+                    child: const Text('Cancel'),
+                  ),
+                  FilledButton(
+                    onPressed: () => Navigator.pop(dialogContext, true),
+                    child: const Text('Delete'),
+                  ),
+                ],
+              ),
             );
+            if (remove == true) library.deletePlaylist(playlist.id);
           },
         );
       },

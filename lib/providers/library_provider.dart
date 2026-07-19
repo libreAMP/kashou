@@ -22,6 +22,7 @@ class LibraryProvider extends ChangeNotifier {
 
   static const _libraryCacheKey = 'library_cache_v1';
   static const _favoriteTracksKey = 'favorite_tracks_v2';
+  static const _playlistsKey = 'playlists_v1';
 
   // Getters
   List<Track> get allTracks => _allTracks;
@@ -36,6 +37,28 @@ class LibraryProvider extends ChangeNotifier {
   LibraryProvider() {
     _loadLibrary();
     _loadFavorites();
+    _loadPlaylists();
+  }
+
+  Future<void> _loadPlaylists() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final stored = prefs.getString(_playlistsKey);
+      if (stored == null) return;
+      final data = jsonDecode(stored) as List<dynamic>;
+      _playlists = [
+        for (final p in data) Playlist.fromMap(Map<String, dynamic>.from(p)),
+      ];
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error loading playlists: $e');
+    }
+  }
+
+  Future<void> _savePlaylists() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+        _playlistsKey, jsonEncode([for (final p in _playlists) p.toMap()]));
   }
 
   Future<void> _loadLibrary() async {
@@ -205,6 +228,7 @@ class LibraryProvider extends ChangeNotifier {
 
     _playlists.add(playlist);
     notifyListeners();
+    await _savePlaylists();
   }
 
   Future<void> addToPlaylist(String playlistId, Track track) async {
@@ -212,6 +236,7 @@ class LibraryProvider extends ChangeNotifier {
     if (index != -1) {
       _playlists[index].tracks.add(track);
       notifyListeners();
+      await _savePlaylists();
     }
   }
 
@@ -220,12 +245,14 @@ class LibraryProvider extends ChangeNotifier {
     if (index != -1) {
       _playlists[index].tracks.remove(track);
       notifyListeners();
+      await _savePlaylists();
     }
   }
 
   Future<void> deletePlaylist(String playlistId) async {
     _playlists.removeWhere((p) => p.id == playlistId);
     notifyListeners();
+    await _savePlaylists();
   }
 
   List<Track> searchTracks(String query) {

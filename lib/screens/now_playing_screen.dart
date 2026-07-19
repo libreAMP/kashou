@@ -6,7 +6,7 @@ import '../widgets/equalizer_widget.dart';
 import 'metadata_editor_screen.dart';
 import 'dart:ui';
 import 'dart:io';
-import 'package:path_provider/path_provider.dart';
+import 'package:audiotags/audiotags.dart';
 import 'package:http/http.dart' as http;
 
 import '../models/track.dart';
@@ -17,6 +17,7 @@ import '../widgets/squiggly_slider.dart';
 import '../providers/settings_provider.dart';
 import '../services/ytdl_service.dart';
 import '../services/ytmusic_service.dart';
+import '../services/download_store.dart';
 import '../utils/app_messenger.dart';
 import 'artist_screen.dart';
 
@@ -119,15 +120,47 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       final extension = _getFileExtension(codec);
       final filename = '$safeTitle - $safeArtist$extension';
 
-      final downloadDir = await _getDownloadDirectory();
+      final downloadDir = await DownloadStore.dir();
       final filePath = '${downloadDir.path}/$filename';
       final file = File(filePath);
 
       if (downloadUrl!.contains('.m3u8')) {
-        await _downloadHLSStream(downloadUrl!, file, downloadDir.path);
+        await _downloadHLSStream(downloadUrl!, file);
       } else {
-        await _downloadDirectFile(downloadUrl!, file, downloadDir.path);
+        await _downloadDirectFile(downloadUrl!, file);
       }
+
+      // tags and art so the file stands on its own offline
+      try {
+        final art = track.albumArt ??
+            await ytdlService.fetchVideoArt(details['id'] as String? ?? '',
+                preferred: details['thumbnail'] as String?);
+        await AudioTags.write(
+          filePath,
+          Tag(
+            title: details['title'] as String? ?? track.title,
+            trackArtist: details['channel'] as String? ?? track.artist,
+            pictures: [
+              if (art != null)
+                Picture(
+                  bytes: art,
+                  mimeType: MimeType.jpeg,
+                  pictureType: PictureType.coverFront,
+                ),
+            ],
+          ),
+        );
+      } catch (e) {
+        debugPrint('[Download] tagging failed: $e');
+      }
+
+      _downloadProgress.value = null;
+      appMessenger.currentState?.showSnackBar(
+        SnackBar(
+          content: Text('Saved $filename'),
+          duration: const Duration(seconds: 5),
+        ),
+      );
     } catch (e) {
       _downloadProgress.value = null;
       appMessenger.currentState?.showSnackBar(
@@ -139,47 +172,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     }
   }
 
-  Future<Directory> _getDownloadDirectory() async {
-    try {
-      final downloadsDir = await getDownloadsDirectory();
-      if (downloadsDir != null) {
-        return downloadsDir;
-      }
-    } catch (e) {}
-
-    try {
-      final externalDir = await getExternalStorageDirectory();
-      if (externalDir != null) {
-        final musicDir = Directory('${externalDir.path}/Music');
-        if (!await musicDir.exists()) {
-          await musicDir.create(recursive: true);
-        }
-        return musicDir;
-      }
-    } catch (e) {}
-
-    try {
-      final externalDir = await getExternalStorageDirectory();
-      if (externalDir != null) {
-        final mediaDir =
-            Directory('${externalDir.path}/Android/media/com.libreamp.kashou');
-        if (!await mediaDir.exists()) {
-          await mediaDir.create(recursive: true);
-        }
-        return mediaDir;
-      }
-    } catch (e) {}
-
-    final tempDir = await getTemporaryDirectory();
-    final downloadDir = Directory('${tempDir.path}/Downloads');
-    if (!await downloadDir.exists()) {
-      await downloadDir.create(recursive: true);
-    }
-    return downloadDir;
-  }
-
-  Future<void> _downloadHLSStream(
-      String playlistUrl, File outputFile, String downloadPath) async {
+  Future<void> _downloadHLSStream(String playlistUrl, File outputFile) async {
     final client = http.Client();
     try {
       final playlistResponse = await client.get(Uri.parse(playlistUrl));
@@ -187,109 +180,66 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
         throw Exception('Failed to download playlist');
       }
 
-      final playlistContent = playlistResponse.body;
       final segmentUrls = <String>[];
-
-      final lines = playlistContent.split('\n');
-      for (final line in lines) {
+      for (final line in playlistResponse.body.split('\n')) {
         final trimmed = line.trim();
         if (trimmed.isNotEmpty &&
             !trimmed.startsWith('#') &&
             (trimmed.endsWith('.ts') ||
                 trimmed.endsWith('.aac') ||
                 trimmed.endsWith('.mp4'))) {
-          // Convert relative URLs to absolute
-          if (trimmed.startsWith('http')) {
-            segmentUrls.add(trimmed);
-          } else {
-            // Handle relative URLs
-            final baseUri = Uri.parse(playlistUrl);
-            final segmentUri = baseUri.resolve(trimmed);
-            segmentUrls.add(segmentUri.toString());
-          }
+          segmentUrls.add(trimmed.startsWith('http')
+              ? trimmed
+              : Uri.parse(playlistUrl).resolve(trimmed).toString());
         }
       }
-
       if (segmentUrls.isEmpty) {
         throw Exception('No segments found in playlist');
       }
 
       final sink = outputFile.openWrite();
-      int totalSegments = segmentUrls.length;
-      int downloadedSegments = 0;
-
-      for (final segmentUrl in segmentUrls) {
-        final segmentResponse = await client.get(Uri.parse(segmentUrl));
-        if (segmentResponse.statusCode == 200) {
-          sink.add(segmentResponse.bodyBytes);
+      var done = 0;
+      try {
+        for (final segmentUrl in segmentUrls) {
+          final segment = await client.get(Uri.parse(segmentUrl));
+          if (segment.statusCode == 200) {
+            sink.add(segment.bodyBytes);
+          }
+          done++;
+          _downloadProgress.value = (done / segmentUrls.length).clamp(0.0, 1.0);
         }
-
-        downloadedSegments++;
-        _downloadProgress.value =
-            (downloadedSegments / totalSegments).clamp(0.0, 1.0);
+      } finally {
+        await sink.close();
       }
-
-      await sink.close();
-      _downloadProgress.value = null;
-      appMessenger.currentState?.showSnackBar(
-        SnackBar(
-          content: Text('Saved ${outputFile.uri.pathSegments.last}'),
-          duration: const Duration(seconds: 5),
-        ),
-      );
     } finally {
       client.close();
     }
   }
 
-  Future<void> _downloadDirectFile(
-      String fileUrl, File outputFile, String downloadPath) async {
-    final filename = outputFile.uri.pathSegments.last;
+  Future<void> _downloadDirectFile(String fileUrl, File outputFile) async {
     final client = http.Client();
     try {
       final request = http.Request('GET', Uri.parse(fileUrl));
       request.headers['User-Agent'] = 'Mozilla/5.0';
       final response = await client.send(request);
-
-      if (response.statusCode == 200) {
-        final contentLength = response.contentLength ?? 0;
-        int downloadedBytes = 0;
-
-        final sink = outputFile.openWrite();
-
-        await response.stream.listen(
-          (List<int> chunk) {
-            sink.add(chunk);
-            downloadedBytes += chunk.length;
-
-            if (contentLength > 0) {
-              _downloadProgress.value =
-                  (downloadedBytes / contentLength).clamp(0.0, 1.0);
-            }
-          },
-          onDone: () async {
-            await sink.close();
-            _downloadProgress.value = null;
-            appMessenger.currentState?.showSnackBar(
-              SnackBar(
-                content: Text('Saved $filename'),
-                duration: const Duration(seconds: 5),
-              ),
-            );
-          },
-          onError: (error) {
-            sink.close();
-            _downloadProgress.value = null;
-            appMessenger.currentState?.showSnackBar(
-              SnackBar(
-                content: Text('Download failed: $error'),
-                duration: const Duration(seconds: 5),
-              ),
-            );
-          },
-        ).asFuture();
-      } else {
+      if (response.statusCode != 200) {
         throw Exception('Download failed: HTTP ${response.statusCode}');
+      }
+
+      final contentLength = response.contentLength ?? 0;
+      var downloadedBytes = 0;
+      final sink = outputFile.openWrite();
+      try {
+        await for (final chunk in response.stream) {
+          sink.add(chunk);
+          downloadedBytes += chunk.length;
+          if (contentLength > 0) {
+            _downloadProgress.value =
+                (downloadedBytes / contentLength).clamp(0.0, 1.0);
+          }
+        }
+      } finally {
+        await sink.close();
       }
     } finally {
       client.close();
@@ -1114,6 +1064,103 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     );
   }
 
+  Future<String?> _promptPlaylistName(BuildContext context) {
+    final controller = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('New playlist'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(hintText: 'Playlist name'),
+          onSubmitted: (v) => Navigator.pop(dialogContext, v),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, controller.text),
+            child: const Text('Create'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAddToPlaylist(BuildContext context, Track track) {
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Consumer<LibraryProvider>(
+          builder: (context, library, _) {
+            Future<void> add(String playlistId, String name) async {
+              final playlist =
+                  library.playlists.firstWhere((p) => p.id == playlistId);
+              if (playlist.tracks.any((t) => t.id == track.id)) {
+                appMessenger.currentState?.showSnackBar(
+                    SnackBar(content: Text('Already in $name')));
+              } else {
+                await library.addToPlaylist(playlistId, track);
+                appMessenger.currentState?.showSnackBar(
+                    SnackBar(content: Text('Added to $name')));
+              }
+              if (sheetContext.mounted) Navigator.pop(sheetContext);
+            }
+
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Add to playlist',
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleMedium
+                          ?.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.add_rounded),
+                  title: const Text('New playlist'),
+                  onTap: () async {
+                    final name = await _promptPlaylistName(sheetContext);
+                    if (name == null || name.trim().isEmpty) return;
+                    await library.createPlaylist(name.trim());
+                    await add(library.playlists.last.id, name.trim());
+                  },
+                ),
+                Flexible(
+                  child: ListView(
+                    shrinkWrap: true,
+                    children: [
+                      for (final p in library.playlists)
+                        ListTile(
+                          leading: const Icon(Icons.queue_music_rounded),
+                          title: Text(p.name,
+                              maxLines: 1, overflow: TextOverflow.ellipsis),
+                          subtitle: Text('${p.trackCount} songs'),
+                          onTap: () => add(p.id, p.name),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 8),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+
   void _showMoreOptions(BuildContext context) {
     final audioProvider = Provider.of<AudioProvider>(context, listen: false);
     final track = audioProvider.currentTrack;
@@ -1126,40 +1173,30 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              ListTile(
-                leading: const Icon(Icons.edit),
-                title: const Text('Edit Metadata'),
-                onTap: () {
-                  Navigator.pop(context);
-                  if (track == null) {
-                    return;
-                  }
-
-                  final source = track.sourceUrl ?? track.path;
-                  final isStream = source.startsWith('http');
-
-                  if (isStream) {
-                    ScaffoldMessenger.of(rootContext).showSnackBar(
-                      const SnackBar(
-                        content: Text('Online tracks cannot be edited.'),
+              if (track != null &&
+                  !(track.sourceUrl ?? track.path).startsWith('http'))
+                ListTile(
+                  leading: const Icon(Icons.edit),
+                  title: const Text('Edit Metadata'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) =>
+                            MetadataEditorScreen(track: track),
                       ),
                     );
-                    return;
-                  }
-
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => MetadataEditorScreen(track: track),
-                    ),
-                  );
-                },
-              ),
+                  },
+                ),
               ListTile(
                 leading: const Icon(Icons.playlist_add),
                 title: const Text('Add to Playlist'),
                 onTap: () {
-                  Navigator.pop(context);
+                  Navigator.pop(sheetContext);
+                  if (track != null) {
+                    _showAddToPlaylist(rootContext, track);
+                  }
                 },
               ),
               ListTile(
@@ -1280,198 +1317,84 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
   }
 
   void _showTrackInfo(BuildContext context, Track track) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+    final isStream = (track.sourceUrl ?? track.path).startsWith('http');
+    final rows = <MapEntry<String, String>>[
+      MapEntry('Title', track.title),
+      MapEntry('Artist', track.artist),
+      if (track.album.isNotEmpty) MapEntry('Album', track.album),
+      if (track.duration > Duration.zero)
+        MapEntry('Duration', _formatDuration(track.duration)),
+      if (track.genre != null && track.genre!.isNotEmpty)
+        MapEntry('Genre', track.genre!),
+      if (track.year != null) MapEntry('Year', '${track.year}'),
+      if (track.codec != null) MapEntry('Format', track.codec!),
+      if (track.bitrate != null) MapEntry('Bitrate', '${track.bitrate} kbps'),
+      if (track.sampleRate != null)
+        MapEntry('Sample rate', '${track.sampleRate} Hz'),
+      if (track.loudnessDb != null)
+        MapEntry('Loudness', '${track.loudnessDb!.toStringAsFixed(1)} dB'),
+      MapEntry('Source', isStream ? 'YouTube' : 'Local file'),
+      MapEntry(isStream ? 'Link' : 'Path', track.sourceUrl ?? track.path),
+    ];
 
     showModalBottomSheet(
       context: context,
+      showDragHandle: true,
       isScrollControlled: true,
-      builder: (context) {
-        return DraggableScrollableSheet(
-          initialChildSize: 0.6,
-          minChildSize: 0.4,
-          maxChildSize: 0.8,
-          expand: false,
-          builder: (context, scrollController) {
-            final infoRows = <MapEntry<String, String>>[
-              MapEntry('Title', track.title),
-              MapEntry('Artist', track.artist),
-              MapEntry('Album', track.album),
-              MapEntry('Format', track.codec ?? 'Unknown'),
-              MapEntry('Bitrate',
-                  track.bitrate != null ? '${track.bitrate} kbps' : 'Unknown'),
-              MapEntry(
-                  'Sample Rate',
-                  track.sampleRate != null
-                      ? '${track.sampleRate} Hz'
-                      : 'Unknown'),
-              MapEntry('Duration', _formatDuration(track.duration)),
-              MapEntry('Path', track.path),
-            ];
-
-            return Container(
-              decoration: BoxDecoration(
-                color: colorScheme.surface,
-                borderRadius:
-                    const BorderRadius.vertical(top: Radius.circular(24)),
-              ),
-              child: Column(
-                children: [
-                  // Handle bar
-                  Container(
-                    margin: const EdgeInsets.only(top: 8),
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: colorScheme.surfaceContainerHighest,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
+      builder: (sheetContext) {
+        final scheme = Theme.of(sheetContext).colorScheme;
+        return SafeArea(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(sheetContext).size.height * 0.7,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+                  child: Text(
+                    'Track info',
+                    style: Theme.of(sheetContext)
+                        .textTheme
+                        .titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w700),
                   ),
-                  // Header
-                  Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      children: [
-                        Text(
-                          'Track Information',
-                          style: theme.textTheme.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: colorScheme.onSurface,
+                ),
+                Flexible(
+                  child: ListView(
+                    shrinkWrap: true,
+                    padding: const EdgeInsets.fromLTRB(24, 4, 24, 16),
+                    children: [
+                      for (final row in rows)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 14),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                row.key,
+                                style: Theme.of(sheetContext)
+                                    .textTheme
+                                    .bodySmall
+                                    ?.copyWith(color: scheme.onSurfaceVariant),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                row.value,
+                                style:
+                                    Theme.of(sheetContext).textTheme.bodyLarge,
+                              ),
+                            ],
                           ),
                         ),
-                        const SizedBox(height: 16),
-                        // Track info summary
-                        Row(
-                          children: [
-                            // Album art
-                            Container(
-                              width: 60,
-                              height: 60,
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(8),
-                                image: track.albumArt != null
-                                    ? DecorationImage(
-                                        image: MemoryImage(track.albumArt!),
-                                        fit: BoxFit.cover,
-                                      )
-                                    : null,
-                                color: track.albumArt == null
-                                    ? colorScheme.primaryContainer
-                                    : null,
-                              ),
-                              child: track.albumArt == null
-                                  ? Icon(
-                                      Icons.music_note,
-                                      color: colorScheme.onPrimaryContainer,
-                                      size: 24,
-                                    )
-                                  : null,
-                            ),
-                            const SizedBox(width: 16),
-                            // Track details
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    track.title,
-                                    style:
-                                        theme.textTheme.titleMedium?.copyWith(
-                                      fontWeight: FontWeight.w600,
-                                      color: colorScheme.onSurface,
-                                    ),
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    track.artist,
-                                    style: theme.textTheme.bodyMedium?.copyWith(
-                                      color: colorScheme.onSurfaceVariant,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    track.album,
-                                    style: theme.textTheme.bodySmall?.copyWith(
-                                      color: colorScheme.onSurfaceVariant,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
+                    ],
                   ),
-                  // Details list
-                  Expanded(
-                    child: ListView(
-                      controller: scrollController,
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      children: [
-                        ...infoRows.map((entry) => Container(
-                              margin: const EdgeInsets.only(bottom: 16),
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: [
-                                    colorScheme.surfaceContainerHighest
-                                        .withValues(alpha: 0.8),
-                                    colorScheme.surfaceContainerHighest
-                                        .withValues(alpha: 0.4),
-                                  ],
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                ),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: colorScheme.outline
-                                      .withValues(alpha: 0.1),
-                                  width: 1,
-                                ),
-                              ),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  SizedBox(
-                                    width: 100,
-                                    child: Text(
-                                      '${entry.key}:',
-                                      style:
-                                          theme.textTheme.bodyMedium?.copyWith(
-                                        color: colorScheme.onSurfaceVariant,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Text(
-                                      entry.value,
-                                      style:
-                                          theme.textTheme.bodyMedium?.copyWith(
-                                        color: colorScheme.onSurface,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            )),
-                        const SizedBox(height: 24),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
+                ),
+              ],
+            ),
+          ),
         );
       },
     );
