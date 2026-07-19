@@ -680,11 +680,9 @@ class AudioProvider extends ChangeNotifier {
     if (db != null && db > 0) volume *= pow(10, -db / 20).toDouble();
     if (db != null && db < 0) boost = min(-db, 10.0);
     debugPrint('[Audio] loudness db=$db boost=$boost volume=$volume');
-    try {
-      await _audioHandler?.loudness.setTargetGain(boost);
-    } catch (e) {
-      debugPrint('[Audio] loudness gain failed: $e');
-    }
+    _audioHandler?.loudness
+        .setTargetGain(boost)
+        .catchError((e) => debugPrint('[Audio] loudness gain failed: $e'));
     await audioPlayer.setVolume(volume.clamp(0.0, 1.0));
   }
 
@@ -790,7 +788,9 @@ class AudioProvider extends ChangeNotifier {
   Future<void> _loadTrackIntoPlayer(Track track) async {
     debugPrint('[Audio] Loading track into player: ${track.title}');
     final source = _createAudioSource(track);
-    await audioPlayer.setAudioSource(source);
+    await audioPlayer
+        .setAudioSource(source)
+        .timeout(const Duration(seconds: 30));
     debugPrint('[Audio] Audio source set successfully');
   }
 
