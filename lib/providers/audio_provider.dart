@@ -623,6 +623,8 @@ class AudioProvider extends ChangeNotifier {
       if (enableGapless && _queue.length > 1 && !_isRemotePath(track.path)) {
         await _setupGaplessPlayback();
       } else {
+        _gaplessIndexSub?.cancel();
+        _gaplessIndexSub = null;
         _playlist = null;
         double volume = 1.0;
         if (enableReplayGain) {
@@ -647,14 +649,19 @@ class AudioProvider extends ChangeNotifier {
       _lastCommittedTrack = track;
       _clearPendingSnapshot();
       _pendingShouldUseExistingSource = false;
-      _addToRecentTracks(track.id);
-      _addToStreamHistory(track);
       final queueIndex = _queue.indexWhere((t) => t.id == track.id);
       if (queueIndex != -1) {
         _queue[queueIndex] = track;
         _currentIndex = queueIndex;
       }
       notifyListeners();
+      // history writes cant be allowed to trip the rollback
+      try {
+        _addToRecentTracks(track.id);
+        _addToStreamHistory(track);
+      } catch (e) {
+        debugPrint('[Audio] history bookkeeping failed: $e');
+      }
     } catch (e) {
       debugPrint('Error playing track: $e');
       _isLoadingTrack = false;
@@ -684,6 +691,8 @@ class AudioProvider extends ChangeNotifier {
 
     _gaplessIndexSub?.cancel();
     _gaplessIndexSub = audioPlayer.currentIndexStream.listen((index) {
+      // stale events fire after leaving gapless
+      if (_playlist == null) return;
       if (index != null && index < _queue.length) {
         _currentIndex = index;
         _currentTrack = _queue[index];
