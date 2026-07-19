@@ -14,6 +14,7 @@ import '../theme/radii.dart';
 import '../widgets/art_card.dart';
 import '../widgets/square_art.dart';
 import '../widgets/loading_indicator.dart';
+import '../widgets/fade_rise.dart';
 import 'artist_screen.dart';
 import 'mood_category_screen.dart';
 import 'section_page.dart';
@@ -665,7 +666,11 @@ class _StreamScreenState extends State<StreamScreen>
               ],
             ),
           ),
-          for (final shelf in _homeShelves) _buildPlaylistShelf(shelf),
+          for (var i = 0; i < _homeShelves.length; i++)
+            FadeRise(
+              index: i,
+              child: _buildPlaylistShelf(_homeShelves[i]),
+            ),
         ],
       ),
     );

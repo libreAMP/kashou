@@ -49,6 +49,8 @@ dependencies:
   cupertino_icons: ^1.0.8
   collection: ^1.19.1
   flutter_inappwebview: ^6.1.5
+  material3_expressive_loading_indicator: ^0.1.2
+  material_new_shapes: ^1.0.0
 
 dependency_overrides:
   just_audio:

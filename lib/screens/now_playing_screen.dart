@@ -13,6 +13,7 @@ import '../models/track.dart';
 import '../providers/library_provider.dart';
 import '../utils/hero_transitions.dart';
 import '../widgets/loading_indicator.dart';
+import '../widgets/pressable.dart';
 import '../widgets/squiggly_slider.dart';
 import '../providers/settings_provider.dart';
 import '../services/ytdl_service.dart';
@@ -674,12 +675,14 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
               _formatDuration(isLoading ? Duration.zero : audio.position),
               style: theme.textTheme.labelSmall?.copyWith(
                 color: colorScheme.onSurfaceVariant,
+                fontFeatures: const [FontFeature.tabularFigures()],
               ),
             ),
             Text(
               _formatDuration(isLoading ? Duration.zero : audio.duration),
               style: theme.textTheme.labelSmall?.copyWith(
                 color: colorScheme.onSurfaceVariant,
+                fontFeatures: const [FontFeature.tabularFigures()],
               ),
             ),
           ],
@@ -698,7 +701,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           onTap: audio.skipPrevious,
         ),
         const SizedBox(width: 18),
-        _buildPlayButton(context, audio),
+        PressableScale(child: _buildPlayButton(context, audio)),
         const SizedBox(width: 18),
         _buildCircleIconButton(
           context,
@@ -744,14 +747,27 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           width: 118,
           height: 64,
           child: Center(
-            child: isLoading
-                ? KashouLoader(
-                    size: 26, color: colorScheme.onPrimaryContainer)
-                : Icon(
-                    isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                    size: 34,
-                    color: colorScheme.onPrimaryContainer,
-                  ),
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 240),
+              switchInCurve: Curves.easeOutCubic,
+              transitionBuilder: (child, anim) => FadeTransition(
+                opacity: anim,
+                child: ScaleTransition(scale: anim, child: child),
+              ),
+              child: isLoading
+                  ? KashouLoader(
+                      key: const ValueKey('pl_load'),
+                      size: 26,
+                      color: colorScheme.onPrimaryContainer)
+                  : Icon(
+                      isPlaying
+                          ? Icons.pause_rounded
+                          : Icons.play_arrow_rounded,
+                      key: ValueKey(isPlaying),
+                      size: 34,
+                      color: colorScheme.onPrimaryContainer,
+                    ),
+            ),
           ),
         ),
       ),
@@ -816,35 +832,43 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
         if (isOnlineTrack)
           ValueListenableBuilder<double?>(
             valueListenable: _downloadProgress,
-            builder: (context, progress, _) => progress != null
-                ? Tooltip(
-                    message: 'Downloading',
-                    child: Container(
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Theme.of(context).colorScheme.primaryContainer,
-                      ),
-                      padding: const EdgeInsets.all(11),
-                      child: SizedBox(
-                        width: 22,
-                        height: 22,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2.5,
-                          value: progress > 0 ? progress : null,
+            builder: (context, progress, _) => AnimatedSwitcher(
+              duration: const Duration(milliseconds: 240),
+              switchInCurve: Curves.easeOutCubic,
+              transitionBuilder: (child, anim) => FadeTransition(
+                opacity: anim,
+                child: ScaleTransition(scale: anim, child: child),
+              ),
+              child: progress != null
+                  ? Tooltip(
+                      key: const ValueKey('dl_ring'),
+                      message: 'Downloading',
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            value: progress > 0 ? progress : null,
+                          ),
                         ),
                       ),
+                    )
+                  : KeyedSubtree(
+                      key: const ValueKey('dl_idle'),
+                      child: _buildSecondaryIconButton(
+                        context,
+                        icon: Icons.download,
+                        tooltip: 'Download track',
+                        onTap: () {
+                          if (audio.currentTrack != null) {
+                            _downloadTrack(context, audio.currentTrack!);
+                          }
+                        },
+                      ),
                     ),
-                  )
-                : _buildSecondaryIconButton(
-                    context,
-                    icon: Icons.download,
-                    tooltip: 'Download track',
-                    onTap: () {
-                      if (audio.currentTrack != null) {
-                        _downloadTrack(context, audio.currentTrack!);
-                      }
-                    },
-                  ),
+            ),
           ),
       ],
     );
@@ -887,38 +911,20 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     bool active = false,
   }) {
     final colorScheme = Theme.of(context).colorScheme;
-
-    final backgroundColor = active
-        ? colorScheme.primaryContainer
-        : colorScheme.surfaceContainerHigh;
-    final iconColor =
-        active ? colorScheme.primary : colorScheme.onSurfaceVariant;
-
     return Tooltip(
       message: tooltip,
-      child: Container(
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: backgroundColor,
-          boxShadow: active
-              ? [
-                  BoxShadow(
-                    color: colorScheme.primary.withOpacity(0.2),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ]
-              : null,
-        ),
-        child: Material(
-          color: Colors.transparent,
-          shape: const CircleBorder(),
-          child: InkWell(
-            customBorder: const CircleBorder(),
-            onTap: onTap,
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Icon(icon, color: iconColor, size: 24),
+      child: Material(
+        color: Colors.transparent,
+        shape: const CircleBorder(),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(11),
+            child: Icon(
+              icon,
+              size: 24,
+              color: active ? colorScheme.primary : colorScheme.onSurfaceVariant,
             ),
           ),
         ),

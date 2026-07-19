@@ -4,6 +4,7 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'loading_indicator.dart';
+import 'pressable.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_chrome_cast/flutter_chrome_cast.dart';
 
@@ -509,7 +510,8 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
                                       .instance.currentSessionStream,
                                   builder: (context, castSnapshot) {
                                     final isCasting = castSnapshot.data != null;
-                                    return Material(
+                                    return PressableScale(
+                                        child: Material(
                                       color: colorScheme.primaryContainer,
                                       borderRadius: BorderRadius.circular(14),
                                       child: InkWell(
@@ -522,17 +524,23 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
                                         child: SizedBox(
                                           width: 46,
                                           height: 46,
-                                          child: Icon(
-                                            snapshot.isPlaying
-                                                ? Icons.pause_rounded
-                                                : Icons.play_arrow_rounded,
-                                            size: 26,
-                                            color:
-                                                colorScheme.onPrimaryContainer,
+                                          child: Padding(
+                                            padding: EdgeInsets.only(
+                                                left: snapshot.isPlaying
+                                                    ? 0
+                                                    : 1.5),
+                                            child: Icon(
+                                              snapshot.isPlaying
+                                                  ? Icons.pause_rounded
+                                                  : Icons.play_arrow_rounded,
+                                              size: 26,
+                                              color: colorScheme
+                                                  .onPrimaryContainer,
+                                            ),
                                           ),
                                         ),
                                       ),
-                                    );
+                                    ));
                                   },
                                 ),
                               ],
