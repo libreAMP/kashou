@@ -660,7 +660,11 @@ class AudioProvider extends ChangeNotifier {
       _isLoadingTrack = false;
       _pendingTrack = null;
       _pendingShouldUseExistingSource = false;
-      if (_lastCommittedTrack != null) {
+      if (audioPlayer.playing) {
+        // the new audio made it out, rolling back would show the wrong song
+        _currentTrack = track;
+        _lastCommittedTrack = track;
+      } else if (_lastCommittedTrack != null) {
         _currentTrack = _lastCommittedTrack;
         _restorePendingSnapshot();
       }
