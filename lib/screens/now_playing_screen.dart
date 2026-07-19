@@ -708,27 +708,15 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           borderRadius: borderRadius,
           boxShadow: [
             BoxShadow(
-              color: colorScheme.primary.withOpacity(0.15),
-              blurRadius: 40,
-              spreadRadius: 8,
-              offset: const Offset(0, 20),
-            ),
-            BoxShadow(
-              color: colorScheme.shadow.withOpacity(0.12),
-              blurRadius: 20,
-              offset: const Offset(0, 8),
+              color: colorScheme.shadow.withOpacity(0.25),
+              blurRadius: 16,
+              offset: const Offset(0, 6),
             ),
           ],
         ),
         child: ClipRRect(
           borderRadius: borderRadius,
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              image,
-              // Subtle gradient overlay removed for cleaner look
-            ],
-          ),
+          child: image,
         ),
       ),
     );
@@ -753,77 +741,42 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       ),
     );
 
-    // stored art first, the network image flashes the gradient while it loads
-    if (track.albumArt == null && youtubeThumbnailUrl != null) {
-      return Stack(
-        fit: StackFit.expand,
-        children: [
-          Image.network(
-            youtubeThumbnailUrl,
-            fit: BoxFit.cover,
-            loadingBuilder: (context, child, loadingProgress) {
-              // Show fallback gradient while loading
-              if (loadingProgress != null) {
-                return fallbackGradient;
-              }
-              // Once loaded, show blurred image
-              return Stack(
-                fit: StackFit.expand,
-                children: [
-                  child,
-                  BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 100, sigmaY: 100),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            colorScheme.surface.withOpacity(0.7),
-                            colorScheme.surface.withOpacity(0.85),
-                            colorScheme.surface.withOpacity(0.95),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              );
-            },
-            errorBuilder: (_, __, ___) => fallbackGradient,
-          ),
-        ],
+    final scrim = Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            colorScheme.surface.withOpacity(0.7),
+            colorScheme.surface.withOpacity(0.85),
+            colorScheme.surface.withOpacity(0.95),
+          ],
+        ),
+      ),
+    );
+
+    // a 40px decode stretched over the screen is blurry on its own
+    Widget? art;
+    if (track.albumArt != null) {
+      art = Image.memory(
+        track.albumArt!,
+        fit: BoxFit.cover,
+        cacheWidth: 40,
+        gaplessPlayback: true,
+        errorBuilder: (_, __, ___) => fallbackGradient,
       );
-    } else if (track.albumArt != null) {
-      return Stack(
-        fit: StackFit.expand,
-        children: [
-          Image.memory(
-            track.albumArt!,
-            fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => fallbackGradient,
-          ),
-          BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 100, sigmaY: 100),
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    colorScheme.surface.withOpacity(0.7),
-                    colorScheme.surface.withOpacity(0.85),
-                    colorScheme.surface.withOpacity(0.95),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
+    } else if (youtubeThumbnailUrl != null) {
+      art = Image.network(
+        youtubeThumbnailUrl,
+        fit: BoxFit.cover,
+        cacheWidth: 40,
+        frameBuilder: (context, child, frame, wasSync) =>
+            frame != null || wasSync ? child : fallbackGradient,
+        errorBuilder: (_, __, ___) => fallbackGradient,
       );
     }
-
-    return fallbackGradient;
+    if (art == null) return fallbackGradient;
+    return Stack(fit: StackFit.expand, children: [art, scrim]);
   }
 
   Widget _buildTrackMeta(
