@@ -175,8 +175,8 @@ class SettingsProvider extends ChangeNotifier {
     if (q.isEmpty) return;
     _searchHistory.removeWhere((e) => e.toLowerCase() == q.toLowerCase());
     _searchHistory.insert(0, q);
-    if (_searchHistory.length > 10) {
-      _searchHistory = _searchHistory.sublist(0, 10);
+    if (_searchHistory.length > 15) {
+      _searchHistory = _searchHistory.sublist(0, 15);
     }
     final prefs = await SharedPreferences.getInstance();
     await prefs.setStringList('search_history', _searchHistory);

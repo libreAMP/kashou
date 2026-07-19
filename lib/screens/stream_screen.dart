@@ -39,6 +39,7 @@ class _StreamScreenState extends State<StreamScreen>
 
   bool _isLoading = true;
   bool _isSearching = false;
+  bool _songsExpanded = false;
   bool _exploreOpen = false;
   String _currentQuery = '';
   String? _error;
@@ -168,6 +169,7 @@ class _StreamScreenState extends State<StreamScreen>
     setState(() {
       _currentQuery = query;
       _isSearching = true;
+      _songsExpanded = false;
     });
     try {
       final results = await Future.wait([
@@ -453,6 +455,27 @@ class _StreamScreenState extends State<StreamScreen>
       padding: EdgeInsets.fromLTRB(0, 8, 0, bottom),
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       children: [
+        if (_searchResults.isNotEmpty) ...[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
+            child: _sectionTitle('Songs'),
+          ),
+          for (final video in _songsExpanded
+              ? _searchResults
+              : _searchResults.take(5))
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: _buildSongRow(video),
+            ),
+          if (!_songsExpanded && _searchResults.length > 5)
+            Center(
+              child: TextButton(
+                onPressed: () => setState(() => _songsExpanded = true),
+                child: Text('Show ${_searchResults.length - 5} more'),
+              ),
+            ),
+          const SizedBox(height: 16),
+        ],
         if (_searchPlaylists.isNotEmpty) ...[
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
@@ -497,17 +520,6 @@ class _StreamScreenState extends State<StreamScreen>
           ),
           const SizedBox(height: 16),
         ],
-        if (_searchResults.isNotEmpty &&
-            (_searchPlaylists.isNotEmpty || _searchAlbums.isNotEmpty))
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
-            child: _sectionTitle('Songs'),
-          ),
-        for (final video in _searchResults)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: _buildSongRow(video),
-          ),
       ],
     );
   }
@@ -527,7 +539,8 @@ class _StreamScreenState extends State<StreamScreen>
         if (recent.isNotEmpty) ...[
           _sectionTitle('Recent searches'),
           const SizedBox(height: 4),
-          for (final q in recent) _buildRecentSearchRow(q),
+          // five on screen, the rest surface as these get removed
+          for (final q in recent.take(5)) _buildRecentSearchRow(q),
           const SizedBox(height: 20),
         ],
         for (final section in _moodSections) ...[
