@@ -232,11 +232,13 @@ class YtMusicService {
         final title = _text(p['title']);
         if (title == null) continue;
         final by = _text(p['longBylineText']) ?? _text(p['shortBylineText']);
+        final views = _viewsFromByline(by);
         out.add({
           'id': id,
           'title': title,
           'url': 'https://www.youtube.com/watch?v=$id',
           'channel': by?.split(' • ').first ?? '',
+          if (views != null) 'views': views,
           'artistId': _artistIdFromRuns(p['longBylineText']) ??
               _artistIdFromRuns(p['shortBylineText']),
           'thumbnail': _lastThumb(p['thumbnail']?['thumbnails']),
@@ -261,11 +263,15 @@ class YtMusicService {
     final artist = cols.length > 1
         ? _text(cols[1]['musicResponsiveListItemFlexColumnRenderer']?['text'])
         : null;
+    final plays = cols.length > 2
+        ? _text(cols[2]['musicResponsiveListItemFlexColumnRenderer']?['text'])
+        : null;
     return {
       'id': videoId,
       'title': title,
       'url': 'https://www.youtube.com/watch?v=$videoId',
       'channel': artist?.split(' • ').first ?? '',
+      if (plays != null && plays.toLowerCase().contains('play')) 'views': plays,
       if (cols.length > 1) 'artistId': _artistIdFrom(cols[1]),
       'thumbnail': _lastThumb(
           r['thumbnail']?['musicThumbnailRenderer']?['thumbnail']?['thumbnails']),
@@ -657,6 +663,15 @@ class YtMusicService {
       return runs.map((e) => e['text'] ?? '').join();
     }
     return node['simpleText'] as String?;
+  }
+
+  String? _viewsFromByline(String? byline) {
+    if (byline == null) return null;
+    for (final part in byline.split(' • ')) {
+      final l = part.toLowerCase();
+      if (l.contains('views') || l.contains('plays')) return part.trim();
+    }
+    return null;
   }
 
   String? _lastThumb(dynamic thumbs) {

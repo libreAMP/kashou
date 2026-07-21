@@ -165,6 +165,7 @@ class _ArtistScreenState extends State<ArtistScreen> {
       duration: Duration.zero,
       sourceUrl: url,
       artistId: song['artistId'] as String? ?? widget.browseId,
+      views: song['views'] as String?,
     );
   }
 

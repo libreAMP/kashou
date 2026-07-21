@@ -44,6 +44,7 @@ class _StreamScreenState extends State<StreamScreen>
   bool _exploreOpen = false;
   String _currentQuery = '';
   String? _error;
+  String _searchFilter = 'All';
 
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocus = FocusNode();
@@ -171,6 +172,7 @@ class _StreamScreenState extends State<StreamScreen>
       _currentQuery = query;
       _isSearching = true;
       _songsExpanded = false;
+      _searchFilter = 'All';
     });
     try {
       final results = await Future.wait([
@@ -244,6 +246,7 @@ class _StreamScreenState extends State<StreamScreen>
       duration: Duration(seconds: durationSeconds),
       sourceUrl: videoUrl,
       artistId: video['artistId'] as String?,
+      views: video['views'] as String?,
     );
 
     await audioProvider.prepareTrackLoad(placeholder);
@@ -457,7 +460,9 @@ class _StreamScreenState extends State<StreamScreen>
       padding: EdgeInsets.fromLTRB(0, 8, 0, bottom),
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       children: [
-        if (_searchResults.isNotEmpty) ...[
+        _buildFilterChips(context),
+        if (_searchResults.isNotEmpty &&
+            (_searchFilter == 'All' || _searchFilter == 'Songs')) ...[
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
             child: _sectionTitle('Songs'),
@@ -478,7 +483,8 @@ class _StreamScreenState extends State<StreamScreen>
             ),
           const SizedBox(height: 16),
         ],
-        if (_searchPlaylists.isNotEmpty) ...[
+        if (_searchPlaylists.isNotEmpty &&
+            (_searchFilter == 'All' || _searchFilter == 'Playlists')) ...[
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
             child: _sectionTitle('Playlists'),
@@ -500,7 +506,8 @@ class _StreamScreenState extends State<StreamScreen>
           ),
           const SizedBox(height: 16),
         ],
-        if (_searchAlbums.isNotEmpty) ...[
+        if (_searchAlbums.isNotEmpty &&
+            (_searchFilter == 'All' || _searchFilter == 'Albums')) ...[
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
             child: _sectionTitle('Albums'),
@@ -523,6 +530,42 @@ class _StreamScreenState extends State<StreamScreen>
           const SizedBox(height: 16),
         ],
       ],
+    );
+  }
+
+  Widget _buildFilterChips(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final types = <String>[];
+    if (_searchResults.isNotEmpty) types.add('Songs');
+    if (_searchPlaylists.isNotEmpty) types.add('Playlists');
+    if (_searchAlbums.isNotEmpty) types.add('Albums');
+    if (types.length < 2) return const SizedBox.shrink();
+    final options = ['All', ...types];
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            for (var i = 0; i < options.length; i++) ...[
+              if (i > 0) const SizedBox(width: 8),
+              FilterChip(
+                label: Text(options[i]),
+                selected: _searchFilter == options[i],
+                onSelected: (_) => setState(() => _searchFilter = options[i]),
+                showCheckmark: false,
+                padding: EdgeInsets.zero,
+                labelStyle: TextStyle(
+                  color: _searchFilter == options[i]
+                      ? scheme.onSecondaryContainer
+                      : scheme.onSurfaceVariant,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 
@@ -768,6 +811,13 @@ class _StreamScreenState extends State<StreamScreen>
     );
   }
 
+  String _songSubtitle(Map<String, dynamic> video) {
+    final channel = video['channel'] as String? ?? '';
+    final views = video['views'] as String?;
+    if (views == null || views.isEmpty) return channel;
+    return '$channel · $views';
+  }
+
   Widget _buildSongRow(Map<String, dynamic> video) {
     final scheme = Theme.of(context).colorScheme;
     final thumb = _videoThumb(video);
@@ -799,7 +849,7 @@ class _StreamScreenState extends State<StreamScreen>
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      video['channel'] as String? ?? '',
+                      _songSubtitle(video),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context)

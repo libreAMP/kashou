@@ -824,7 +824,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
         ),
         _buildSecondaryIconButton(
           context,
-          icon: Icons.queue_play_next_rounded,
+          icon: Icons.queue_music_rounded,
           tooltip: 'View queue',
           active: false,
           onTap: () => _showQueueSheet(context),
@@ -1049,8 +1049,13 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                 fontWeight: isCurrent ? FontWeight.bold : null,
                               ),
                             ),
-                            subtitle: Text(track.artist,
-                                maxLines: 1, overflow: TextOverflow.ellipsis),
+                            subtitle: Text(
+                              track.views != null && track.views!.isNotEmpty
+                                  ? '${track.artist} · ${track.views}'
+                                  : track.artist,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                             trailing: ReorderableDragStartListener(
                               index: index,
                               child: const Icon(Icons.drag_handle_rounded),

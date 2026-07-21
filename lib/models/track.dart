@@ -17,6 +17,7 @@ class Track {
   final String? sourceUrl;
   final String? artistId;
   final double? loudnessDb;
+  final String? views;
 
   Track({
     required this.id,
@@ -35,6 +36,7 @@ class Track {
     this.sourceUrl,
     this.artistId,
     this.loudnessDb,
+    this.views,
   });
 
   Track copyWith({
@@ -54,6 +56,7 @@ class Track {
     String? sourceUrl,
     String? artistId,
     double? loudnessDb,
+    String? views,
   }) {
     return Track(
       id: id ?? this.id,
@@ -72,6 +75,7 @@ class Track {
       sourceUrl: sourceUrl ?? this.sourceUrl,
       artistId: artistId ?? this.artistId,
       loudnessDb: loudnessDb ?? this.loudnessDb,
+      views: views ?? this.views,
     );
   }
 
@@ -93,6 +97,7 @@ class Track {
       sourceUrl: map['sourceUrl'] as String?,
       artistId: map['artistId'] as String?,
       loudnessDb: (map['loudnessDb'] as num?)?.toDouble(),
+      views: map['views'] as String?,
     );
   }
 
@@ -114,6 +119,7 @@ class Track {
       'sourceUrl': sourceUrl,
       'artistId': artistId,
       'loudnessDb': loudnessDb,
+      'views': views,
     };
   }
 }
