@@ -64,7 +64,7 @@ class _SectionPageState extends State<SectionPage> {
     }
 
     if (streamingData == null || !streamingData.playable) {
-      audioProvider.cancelPendingTrack();
+      audioProvider.cancelPendingTrack(videoId);
       _showSnackBar('Unable to load audio stream.');
       return;
     }
@@ -84,7 +84,7 @@ class _SectionPageState extends State<SectionPage> {
     final selectedFormat =
         streamingData.bestStream ?? streamingData.fallbackStream;
     if (selectedFormat == null) {
-      audioProvider.cancelPendingTrack();
+      audioProvider.cancelPendingTrack(videoId);
       _showSnackBar('Audio stream unavailable.');
       return;
     }

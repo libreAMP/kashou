@@ -61,7 +61,7 @@ class _YoutubeHistoryScreenState extends State<YoutubeHistoryScreen> {
     }
 
     if (streamingData == null || !streamingData.playable) {
-      audioProvider.cancelPendingTrack();
+      audioProvider.cancelPendingTrack(entry.track.id);
       _showSnackBar('Unable to refresh YouTube stream.');
       setState(() {
         _loadingEntryId = null;
@@ -72,7 +72,7 @@ class _YoutubeHistoryScreenState extends State<YoutubeHistoryScreen> {
     final selectedFormat =
         streamingData.bestStream ?? streamingData.fallbackStream;
     if (selectedFormat == null) {
-      audioProvider.cancelPendingTrack();
+      audioProvider.cancelPendingTrack(entry.track.id);
       _showSnackBar('YouTube audio stream unavailable.');
       setState(() {
         _loadingEntryId = null;

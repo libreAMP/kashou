@@ -38,6 +38,7 @@ class AudioProvider extends ChangeNotifier {
 
   Track? _currentTrack;
   Track? _pendingTrack;
+  int _playSeq = 0;
   Track? _lastCommittedTrack;
   List<Track>? _queueBeforePending;
   int? _indexBeforePending;
@@ -169,8 +170,9 @@ class AudioProvider extends ChangeNotifier {
     _clearPendingSnapshot();
   }
 
-  void cancelPendingTrack() {
+  void cancelPendingTrack([String? forTrackId]) {
     if (_pendingTrack == null) return;
+    if (forTrackId != null && _pendingTrack!.id != forTrackId) return;
     _isLoadingTrack = false;
     _restorePendingSnapshot();
     _pendingTrack = null;
@@ -532,6 +534,8 @@ class AudioProvider extends ChangeNotifier {
   }
 
   Future<void> playTrack(Track track, {List<Track>? playlist}) async {
+    // two plays can overlap on the resolve await, the newer one wins
+    final seq = ++_playSeq;
     if (_isRemotePath(track.path) &&
         (_isWatchUrl(track.path) || _isStaleStreamUrl(track.path))) {
       final pendingAlready =
@@ -549,8 +553,9 @@ class AudioProvider extends ChangeNotifier {
       notifyListeners();
 
       final resolved = await _resolveWatchTrack(track);
+      if (seq != _playSeq) return;
       if (resolved == null) {
-        cancelPendingTrack();
+        cancelPendingTrack(track.id);
         return;
       }
       track = resolved;
@@ -608,6 +613,7 @@ class AudioProvider extends ChangeNotifier {
       notifyListeners();
     }
 
+    if (seq != _playSeq) return;
     try {
       if (_audioHandler != null) {
         await _audioHandler!.setTrackMediaItem(track);
@@ -635,6 +641,7 @@ class AudioProvider extends ChangeNotifier {
         }
       }
 
+      if (seq != _playSeq) return;
       _isPlaying = audioPlayer.playing;
       _currentTrack = track;
       _pendingTrack = null;
@@ -657,6 +664,7 @@ class AudioProvider extends ChangeNotifier {
       }
     } catch (e) {
       debugPrint('Error playing track: $e');
+      if (seq != _playSeq) return;
       _isLoadingTrack = false;
       _pendingTrack = null;
       _pendingShouldUseExistingSource = false;

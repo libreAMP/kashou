@@ -259,7 +259,7 @@ class _StreamScreenState extends State<StreamScreen>
     }
 
     if (streamingData == null || !streamingData.playable) {
-      audioProvider.cancelPendingTrack();
+      audioProvider.cancelPendingTrack(videoId);
       _snack('Unable to load audio stream.');
       return;
     }
@@ -267,7 +267,7 @@ class _StreamScreenState extends State<StreamScreen>
     final selectedFormat =
         streamingData.bestStream ?? streamingData.fallbackStream;
     if (selectedFormat == null) {
-      audioProvider.cancelPendingTrack();
+      audioProvider.cancelPendingTrack(videoId);
       _snack('Audio stream unavailable.');
       return;
     }
