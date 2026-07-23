@@ -3,7 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class ThemeProvider extends ChangeNotifier {
   ThemeMode _themeMode = ThemeMode.system;
-  bool _useMaterialYou = false;
+  bool _useMaterialYou = true;
   Color _accentColor = Colors.deepPurple;
   bool _isLoaded = false;
 
@@ -23,7 +23,7 @@ class ThemeProvider extends ChangeNotifier {
       _themeMode = themeModeIndex < ThemeMode.values.length 
           ? ThemeMode.values[themeModeIndex] 
           : ThemeMode.system;
-      _useMaterialYou = prefs.getBool('use_material_you') ?? false;
+      _useMaterialYou = prefs.getBool('use_material_you') ?? true;
       _accentColor = Color(
         prefs.getInt('accent_color') ?? Colors.deepPurple.value,
       );
