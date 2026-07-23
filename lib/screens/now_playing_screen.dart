@@ -33,6 +33,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
   // static so a reopened player picks the running download back up
   static final ValueNotifier<double?> _downloadProgress = ValueNotifier(null);
   bool _findingArtist = false;
+  double _doubleTapDx = 0;
 
   Future<void> _openArtist(Track track) async {
     if (_findingArtist) return;
@@ -474,29 +475,49 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       image = buildFallback();
     }
 
-    return Hero(
-      tag: 'album_art_${track.id}',
-      createRectTween: albumArtRectTween,
-      flightShuttleBuilder: albumArtFlightShuttleBuilder,
-      child: Container(
-        width: dimension,
-        height: dimension,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(24),
-          boxShadow: [
-            BoxShadow(
-              color: colorScheme.shadow.withOpacity(0.25),
-              blurRadius: 16,
-              offset: const Offset(0, 6),
-            ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(24),
-          child: image,
+    return GestureDetector(
+      // onDoubleTap has no position
+      onDoubleTapDown: (details) => _doubleTapDx = details.localPosition.dx,
+      onDoubleTap: () => _seekFromDoubleTap(context, dimension),
+      onHorizontalDragEnd: (details) {
+        final velocity = details.primaryVelocity ?? 0;
+        if (velocity.abs() < 400) return;
+        final audio = context.read<AudioProvider>();
+        velocity < 0 ? audio.skipNext() : audio.skipPrevious();
+      },
+      child: Hero(
+        tag: 'album_art_${track.id}',
+        createRectTween: albumArtRectTween,
+        flightShuttleBuilder: albumArtFlightShuttleBuilder,
+        child: Container(
+          width: dimension,
+          height: dimension,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: colorScheme.shadow.withOpacity(0.25),
+                blurRadius: 16,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(24),
+            child: image,
+          ),
         ),
       ),
     );
+  }
+
+  void _seekFromDoubleTap(BuildContext context, double dimension) {
+    final audio = context.read<AudioProvider>();
+    final step = Duration(seconds: _doubleTapDx < dimension / 2 ? -5 : 5);
+    var target = audio.position + step;
+    if (target < Duration.zero) target = Duration.zero;
+    if (target > audio.duration) target = audio.duration;
+    audio.seek(target);
   }
 
   Widget _buildAmbientBackground(BuildContext context, Track track) {
