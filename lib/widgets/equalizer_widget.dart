@@ -27,29 +27,71 @@ class EqualizerWidget extends StatelessWidget {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(24, 0, 16, 0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Equalizer',
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleLarge
-                      ?.copyWith(fontWeight: FontWeight.w700),
-                ),
-                Consumer<AudioProvider>(
-                  builder: (context, audio, child) {
-                    return Switch(
-                      value: audio.equalizerEnabled,
-                      onChanged: audio.setEqualizerEnabled,
-                    );
-                  },
-                ),
-              ],
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
+            child: Consumer<AudioProvider>(
+              builder: (context, audio, child) {
+                final on = audio.equalizerEnabled;
+                return Material(
+                  color: on
+                      ? scheme.primaryContainer
+                      : scheme.surfaceContainerHigh,
+                  borderRadius: BorderRadius.circular(rLg),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(rLg),
+                    onTap: () => audio.setEqualizerEnabled(!on),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 18, 12, 18),
+                      child: Row(
+                        children: [
+                          Icon(Icons.graphic_eq_rounded,
+                              size: 28,
+                              color: on
+                                  ? scheme.onPrimaryContainer
+                                  : scheme.onSurfaceVariant),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Equalizer',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleLarge
+                                      ?.copyWith(
+                                        fontWeight: FontWeight.w700,
+                                        color: on
+                                            ? scheme.onPrimaryContainer
+                                            : scheme.onSurface,
+                                      ),
+                                ),
+                                Text(
+                                  on ? 'On' : 'Off',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodySmall
+                                      ?.copyWith(
+                                        color: on
+                                            ? scheme.onPrimaryContainer
+                                            : scheme.onSurfaceVariant,
+                                      ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Switch(
+                            value: on,
+                            onChanged: audio.setEqualizerEnabled,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
           Expanded(
             child: SingleChildScrollView(
               child: Column(
@@ -274,31 +316,30 @@ class EqualizerWidget extends StatelessWidget {
                     spacing: 8,
                     runSpacing: 8,
                     children: presets.map((preset) {
-                      return ActionChip(
-                        label: Text(preset),
+                      // native preset names drag junk bytes along
+                      final label = preset
+                          .replaceAll(RegExp(r'[^\x20-\x7E]'), '')
+                          .trim();
+                      final selected = audio.activePreset == preset;
+                      return ChoiceChip(
+                        label: Text(label),
+                        selected: selected,
+                        showCheckmark: false,
                         backgroundColor: scheme.surfaceContainerHigh,
+                        selectedColor: scheme.primaryContainer,
                         side: BorderSide.none,
                         shape: const StadiumBorder(),
                         labelStyle: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
-                          color: audio.equalizerEnabled
-                              ? scheme.onSurface
-                              : scheme.onSurfaceVariant,
+                          color: selected
+                              ? scheme.onPrimaryContainer
+                              : audio.equalizerEnabled
+                                  ? scheme.onSurface
+                                  : scheme.onSurfaceVariant,
                         ),
-                        onPressed: audio.equalizerEnabled
-                            ? () async {
-                                await audio.applyEqualizerPreset(preset);
-                                if (context.mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text('Applied $preset'),
-                                      duration: const Duration(seconds: 1),
-                                      behavior: SnackBarBehavior.floating,
-                                    ),
-                                  );
-                                }
-                              }
+                        onSelected: audio.equalizerEnabled
+                            ? (_) => audio.applyEqualizerPreset(preset)
                             : null,
                       );
                     }).toList(),
@@ -332,7 +373,6 @@ class EqualizerWidget extends StatelessWidget {
                     onChanged: audio.setBassBoost,
                     resetAction: () => audio.setBassBoost(0.0),
                   ),
-                  const SizedBox(height: 10),
                   _buildSliderTile(
                     context,
                     icon: Icons.music_note_rounded,
@@ -341,7 +381,6 @@ class EqualizerWidget extends StatelessWidget {
                     onChanged: audio.setTrebleBoost,
                     resetAction: () => audio.setTrebleBoost(0.0),
                   ),
-                  const SizedBox(height: 10),
                   _buildSliderTile(
                     context,
                     icon: Icons.waves_rounded,
@@ -350,7 +389,6 @@ class EqualizerWidget extends StatelessWidget {
                     onChanged: audio.setReverbLevel,
                     resetAction: () => audio.setReverbLevel(0.0),
                   ),
-                  const SizedBox(height: 10),
                   _buildSliderTile(
                     context,
                     icon: Icons.speed_rounded,
@@ -389,12 +427,8 @@ class EqualizerWidget extends StatelessWidget {
     final clampedValue = value.clamp(min, max).toDouble();
     final effectiveValueLabel = valueLabel ?? clampedValue.toStringAsFixed(2);
 
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 12, 8, 4),
-      decoration: BoxDecoration(
-        color: scheme.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(rMd),
-      ),
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

@@ -65,6 +65,7 @@ class AudioProvider extends ChangeNotifier {
 
   List<double> _equalizerBands = [];
   bool _equalizerEnabled = false;
+  String? _activePreset;
 
   double _bassBoost = 0.0;
   double _trebleBoost = 0.0;
@@ -90,6 +91,7 @@ class AudioProvider extends ChangeNotifier {
   ShuffleMode get shuffleMode => _shuffleMode;
   List<double> get equalizerBands => _equalizerBands;
   bool get equalizerEnabled => _equalizerEnabled;
+  String? get activePreset => _activePreset;
 
   void addTracksToQueue(List<Track> tracks) {
     if (tracks.isEmpty) return;
@@ -953,6 +955,7 @@ class AudioProvider extends ChangeNotifier {
 
   void setEqualizerBand(int index, double value) {
     if (index < 0 || index >= _equalizerBands.length) return;
+    _activePreset = null;
     _equalizerBands[index] = value;
     if (_equalizerEnabled) {
       final millibels = (value * 125).toInt();
@@ -975,6 +978,7 @@ class AudioProvider extends ChangeNotifier {
   }
 
   void resetEqualizer() async {
+    _activePreset = null;
     _equalizerBands = List.filled(_equalizerBands.length, 0.0);
     if (_equalizerEnabled) {
       for (int i = 0; i < _equalizerBands.length; i++) {
@@ -993,6 +997,7 @@ class AudioProvider extends ChangeNotifier {
 
     try {
       await CustomEqualizer.setPreset(presetName);
+      _activePreset = presetName;
       final presetValues = await CustomEqualizer.getPresetBandLevels();
       if (presetValues.isNotEmpty) {
         _equalizerBands = presetValues.map((millibelValue) {
