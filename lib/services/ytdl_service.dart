@@ -30,7 +30,8 @@ class YtdlWrapperService {
   Future<Uint8List?> fetchVideoArt(String videoId, {String? preferred}) async {
     final urls = {
       if (preferred != null && preferred.isNotEmpty) preferred,
-      'https://i.ytimg.com/vi/$videoId/hqdefault.jpg',
+      // hq has black bars, mq doesnt
+      'https://i.ytimg.com/vi/$videoId/mqdefault.jpg',
     };
     for (final url in urls) {
       try {

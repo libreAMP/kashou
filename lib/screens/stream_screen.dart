@@ -272,9 +272,6 @@ class _StreamScreenState extends State<StreamScreen>
       return;
     }
 
-    final albumArt = await _service.fetchVideoArt(videoId,
-        preferred: streamingData.thumbnailUrl ?? video['thumbnail'] as String?);
-
     // the row already showed the right names, streaming data only fills gaps
     final knownArtist =
         placeholder.artist.isNotEmpty && placeholder.artist != 'Unknown';
@@ -287,11 +284,20 @@ class _StreamScreenState extends State<StreamScreen>
       album: 'YouTube',
       path: selectedFormat.url,
       duration: streamingData.duration ?? Duration(seconds: durationSeconds),
-      albumArt: albumArt ?? placeholder.albumArt,
       sourceUrl: placeholder.sourceUrl,
     );
 
     await audioProvider.playTrack(finalTrack);
+
+    // art can come in late, holding playback for it felt slow
+    _service
+        .fetchVideoArt(videoId,
+            preferred: streamingData.thumbnailUrl ?? video['thumbnail'] as String?)
+        .then((art) {
+      if (art != null) {
+        audioProvider.updateTrackMetadata(finalTrack.copyWith(albumArt: art));
+      }
+    });
   }
 
   int? _asInt(dynamic value) {

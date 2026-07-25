@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:ui';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'loading_indicator.dart';
 import 'pressable.dart';
@@ -416,25 +417,7 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
                                     child: SizedBox(
                                       width: 46,
                                       height: 46,
-                                      child: track.albumArt != null
-                                          ? Image.memory(
-                                              track.albumArt!,
-                                              fit: BoxFit.cover,
-                                              errorBuilder: (context, _, __) {
-                                                return Icon(
-                                                  Icons.music_note,
-                                                  size: 24,
-                                                  color: colorScheme
-                                                      .onPrimaryContainer,
-                                                );
-                                              },
-                                            )
-                                          : Icon(
-                                              Icons.music_note,
-                                              size: 24,
-                                              color: colorScheme
-                                                  .onPrimaryContainer,
-                                            ),
+                                      child: _miniArt(track, colorScheme),
                                     ),
                                   ),
                                 ),
@@ -843,4 +826,49 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
       },
     );
   }
+}
+
+Widget _miniArt(Track track, ColorScheme colorScheme) {
+  if (track.albumArt != null) {
+    return Image.memory(
+      track.albumArt!,
+      fit: BoxFit.cover,
+      gaplessPlayback: true,
+      errorBuilder: (_, __, ___) => _artFallback(colorScheme),
+    );
+  }
+  final thumb = _ytThumbUrl(track);
+  if (thumb == null) return _artFallback(colorScheme);
+  return CachedNetworkImage(
+    imageUrl: thumb,
+    fit: BoxFit.cover,
+    fadeInDuration: const Duration(milliseconds: 200),
+    fadeOutDuration: Duration.zero,
+    placeholderFadeInDuration: Duration.zero,
+    useOldImageOnUrlChange: true,
+    placeholder: (_, __) => Container(color: colorScheme.primaryContainer),
+    errorWidget: (_, __, ___) => _artFallback(colorScheme),
+  );
+}
+
+Widget _artFallback(ColorScheme colorScheme) => Icon(
+      Icons.music_note,
+      size: 24,
+      color: colorScheme.onPrimaryContainer,
+    );
+
+String? _ytThumbUrl(Track track) {
+  final url = track.sourceUrl ?? track.path;
+  if (url == null) return null;
+  final id = _ytVideoId(url);
+  return id == null ? null : 'https://i.ytimg.com/vi/$id/mqdefault.jpg';
+}
+
+String? _ytVideoId(String url) {
+  final uri = Uri.tryParse(url);
+  if (uri == null) return null;
+  if (uri.host.contains('youtu.be')) {
+    return uri.pathSegments.isNotEmpty ? uri.pathSegments.first : null;
+  }
+  return uri.queryParameters['v'];
 }

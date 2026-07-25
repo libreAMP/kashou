@@ -227,6 +227,9 @@ class AudioProvider extends ChangeNotifier {
     }
     if (updated) {
       _lastCommittedTrack = track;
+      if (_currentTrack?.id == track.id) {
+        _audioHandler?.setTrackMediaItem(track);
+      }
       notifyListeners();
     }
   }
@@ -657,6 +660,7 @@ class AudioProvider extends ChangeNotifier {
         _currentIndex = queueIndex;
       }
       notifyListeners();
+      _prefetchNext();
       // history writes cant be allowed to trip the rollback
       try {
         _addToRecentTracks(track.id);
@@ -694,6 +698,19 @@ class AudioProvider extends ChangeNotifier {
         .setTargetGain(boost)
         .catchError((e) => debugPrint('[Audio] loudness gain failed: $e'));
     await audioPlayer.setVolume(volume.clamp(0.0, 1.0));
+  }
+
+  void _prefetchNext() {
+    final next = _currentIndex + 1;
+    if (next >= _queue.length) return;
+    final url = _queue[next].sourceUrl ?? _queue[next].path;
+    if (!_isWatchUrl(url)) return;
+    // hold off so the prefetch doesnt compete with the current load
+    Future.delayed(const Duration(seconds: 2), () {
+      const YtdlWrapperService()
+          .fetchStreamingData(url)
+          .catchError((_) => null);
+    });
   }
 
   Future<void> _setupGaplessPlayback() async {
