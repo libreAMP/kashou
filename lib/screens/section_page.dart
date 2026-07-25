@@ -9,6 +9,7 @@ import '../models/track.dart';
 import '../models/youtube_streaming_data.dart';
 import '../theme/radii.dart';
 import '../widgets/square_art.dart';
+import '../widgets/page_mini_player.dart';
 
 enum ViewMode { grid, list }
 
@@ -192,6 +193,7 @@ class _SectionPageState extends State<SectionPage> {
     final screenWidth = MediaQuery.of(context).size.width;
 
     return Scaffold(
+      bottomNavigationBar: const PageMiniPlayer(),
       backgroundColor: colorScheme.surface,
       appBar: AppBar(
         backgroundColor: colorScheme.surface,

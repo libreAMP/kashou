@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/track.dart';
 import '../widgets/track_list_item.dart';
+import '../widgets/page_mini_player.dart';
 
 // see all target for the local sections
 class TrackListPage extends StatelessWidget {
@@ -13,6 +14,7 @@ class TrackListPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      bottomNavigationBar: const PageMiniPlayer(),
       appBar: AppBar(title: Text(title)),
       body: tracks.isEmpty
           ? Center(
