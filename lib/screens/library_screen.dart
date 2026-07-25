@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import '../models/track.dart';
 import '../providers/library_provider.dart';
 import '../services/download_store.dart';
+import '../services/ytmusic_service.dart';
+import '../utils/app_messenger.dart';
 import '../providers/audio_provider.dart';
 import '../widgets/track_list_item.dart';
 import '../widgets/album_card.dart';
@@ -736,6 +738,84 @@ class _LibraryScreenState extends State<LibraryScreen>
     );
   }
 
+  Future<void> _importFromYouTube() async {
+    final library = Provider.of<LibraryProvider>(context, listen: false);
+    final linkController = TextEditingController();
+    final nameController = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Import from YouTube'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: linkController,
+              autofocus: true,
+              decoration:
+                  const InputDecoration(hintText: 'Playlist or album link'),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: nameController,
+              decoration:
+                  const InputDecoration(hintText: 'Name here (optional)'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Import'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+
+    final id =
+        Uri.tryParse(linkController.text.trim())?.queryParameters['list'];
+    if (id == null || id.isEmpty) {
+      appMessenger.currentState?.showSnackBar(
+          const SnackBar(content: Text('That link has no playlist in it')));
+      return;
+    }
+
+    appMessenger.currentState
+        ?.showSnackBar(const SnackBar(content: Text('Importing...')));
+    final songs = await const YtMusicService().getPlaylistSongs(id);
+    if (songs.isEmpty) {
+      appMessenger.currentState?.showSnackBar(
+          const SnackBar(content: Text('Could not read that playlist')));
+      return;
+    }
+
+    final name = nameController.text.trim().isEmpty
+        ? 'YouTube import'
+        : nameController.text.trim();
+    await library.importPlaylist(name, [
+      for (final song in songs)
+        Track(
+          id: song['id'] as String? ?? '',
+          title: song['title'] as String? ?? 'Unknown',
+          artist: song['channel'] as String? ?? '',
+          album: 'YouTube',
+          path: song['url'] as String? ??
+              'https://www.youtube.com/watch?v=${song['id']}',
+          duration: Duration.zero,
+          sourceUrl: song['url'] as String? ??
+              'https://www.youtube.com/watch?v=${song['id']}',
+          artistId: song['artistId'] as String?,
+        ),
+    ]);
+    appMessenger.currentState?.showSnackBar(
+        SnackBar(content: Text('Imported ${songs.length} songs into $name')));
+  }
+
   void _showLibraryOptions(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -753,6 +833,14 @@ class _LibraryScreenState extends State<LibraryScreen>
                     MaterialPageRoute(
                         builder: (_) => const YoutubeHistoryScreen()),
                   );
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.link_rounded),
+                title: const Text('Import from YouTube'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _importFromYouTube();
                 },
               ),
               ListTile(

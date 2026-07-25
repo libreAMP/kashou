@@ -231,6 +231,17 @@ class LibraryProvider extends ChangeNotifier {
     await _savePlaylists();
   }
 
+  Future<void> importPlaylist(String name, List<Track> tracks) async {
+    _playlists.add(Playlist(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      name: name,
+      tracks: List<Track>.from(tracks),
+      createdAt: DateTime.now(),
+    ));
+    notifyListeners();
+    await _savePlaylists();
+  }
+
   Future<void> addToPlaylist(String playlistId, Track track) async {
     final index = _playlists.indexWhere((p) => p.id == playlistId);
     if (index != -1) {
