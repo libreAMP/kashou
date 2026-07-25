@@ -297,7 +297,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
             child: Stack(
               children: [
                 // Ambient background covering entire screen
-                Positioned.fill(child: _buildAmbientBackground(context, track)),
+                Positioned.fill(
+                    child: RepaintBoundary(
+                        child: _buildAmbientBackground(context, track))),
 
                 // Content overlay
                 Column(
@@ -338,7 +340,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                     crossAxisAlignment:
                                         CrossAxisAlignment.center,
                                     children: [
-                                      _buildArtworkCard(context, track, size),
+                                      RepaintBoundary(
+                                          child: _buildArtworkCard(
+                                              context, track, size)),
                                       const SizedBox(height: 28),
                                       _buildTrackMeta(context, track, audio),
                                       const SizedBox(height: 28),
@@ -356,7 +360,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                 child: Column(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    _buildProgressStrip(context, audio),
+                                    RepaintBoundary(
+                                        child:
+                                            _buildProgressStrip(context, audio)),
                                     const SizedBox(height: 18),
                                     _buildPrimaryControls(context, audio),
                                     const SizedBox(height: 34),
