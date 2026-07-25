@@ -103,12 +103,14 @@ class RecommendationProvider extends ChangeNotifier {
       final personalized = <Map<String, dynamic>>[];
       final seen = <String>{};
 
-      // seed radios off the last couple of things played, thats the real signal
-      final seeds = recentHistory
+      // random picks from recent history, always seeding the newest two got stale
+      final ids = recentHistory
           .map((e) => _historyVideoId(e))
           .whereType<String>()
           .toSet()
-          .take(2);
+          .toList()
+        ..shuffle();
+      final seeds = ids.take(3);
 
       for (final seed in seeds) {
         final radio = await _ytm.getSongRadio(seed, limit: 12);

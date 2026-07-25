@@ -9,6 +9,7 @@ import 'package:dynamic_color/dynamic_color.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_chrome_cast/flutter_chrome_cast.dart';
 import 'dart:io';
+import 'dart:math';
 import 'providers/audio_provider.dart';
 import 'providers/theme_provider.dart';
 import 'providers/library_provider.dart';
@@ -23,6 +24,14 @@ import 'screens/settings_screen.dart';
 import 'screens/stream_screen.dart';
 import 'screens/welcome_screen.dart';
 import 'widgets/mini_player.dart';
+
+// nudge the wallpaper seed a bit each launch so it doesnt sit on one shade
+final double _launchHue = Random().nextDouble() * 40 - 20;
+
+Color _launchShift(Color c) {
+  final hsl = HSLColor.fromColor(c);
+  return hsl.withHue((hsl.hue + _launchHue) % 360).toColor();
+}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -94,11 +103,11 @@ class KashouApp extends StatelessWidget {
                   darkDynamic != null) {
                 // reseed, the os scheme ships flat surfaces
                 lightColorScheme = ColorScheme.fromSeed(
-                  seedColor: lightDynamic.primary,
+                  seedColor: _launchShift(lightDynamic.primary),
                   brightness: Brightness.light,
                 );
                 darkColorScheme = ColorScheme.fromSeed(
-                  seedColor: darkDynamic.primary,
+                  seedColor: _launchShift(darkDynamic.primary),
                   brightness: Brightness.dark,
                 );
               } else {
