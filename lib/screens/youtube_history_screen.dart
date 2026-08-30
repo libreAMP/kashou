@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -7,8 +5,7 @@ import '../models/stream_history_entry.dart';
 import '../models/track.dart';
 import '../providers/audio_provider.dart';
 import '../providers/settings_provider.dart';
-import '../services/ytdl_service.dart';
-import '../models/youtube_streaming_data.dart';
+import '../services/youtube/youtube_service.dart';
 import '../theme/radii.dart';
 import '../widgets/loading_indicator.dart';
 import '../widgets/square_art.dart';
@@ -48,59 +45,30 @@ class _YoutubeHistoryScreenState extends State<YoutubeHistoryScreen> {
 
     await audioProvider.prepareTrackLoad(placeholder);
 
-    const ytdl = YtdlWrapperService();
-    YouTubeStreamingData? streamingData;
     try {
-      streamingData = await ytdl.fetchStreamingData(sourceUrl);
-    } catch (_) {
-      streamingData = null;
-    }
+      final videoId = Uri.parse(sourceUrl).queryParameters['v'] ?? sourceUrl;
+      final streamInfo = await YoutubeService.instance.fetchStreams(videoId);
+      if (streamInfo == null || streamInfo.audioStreams.isEmpty) {
+        if (!mounted) return;
+        audioProvider.cancelPendingTrack(entry.track.id);
+        _showSnackBar('Unable to refresh YouTube stream.');
+        setState(() {
+          _loadingEntryId = null;
+        });
+        return;
+      }
 
-    if (!mounted) {
-      return;
-    }
+      final mp4 = streamInfo.audioStreams
+          .where((s) => s.mimeType.contains('mp4'))
+          .toList()
+        ..sort((a, b) => b.bitrate.compareTo(a.bitrate));
+      final stream = mp4.isNotEmpty ? mp4.first : streamInfo.audioStreams.first;
 
-    if (streamingData == null || !streamingData.playable) {
-      audioProvider.cancelPendingTrack(entry.track.id);
-      _showSnackBar('Unable to refresh YouTube stream.');
-      setState(() {
-        _loadingEntryId = null;
-      });
-      return;
-    }
+      final updatedTrack = placeholder.copyWith(
+        loudnessDb: streamInfo.loudnessDb,
+        path: stream.url,
+      );
 
-    final selectedFormat =
-        streamingData.bestStream ?? streamingData.fallbackStream;
-    if (selectedFormat == null) {
-      audioProvider.cancelPendingTrack(entry.track.id);
-      _showSnackBar('YouTube audio stream unavailable.');
-      setState(() {
-        _loadingEntryId = null;
-      });
-      return;
-    }
-
-    Uint8List? art = entry.track.albumArt;
-    art ??= await ytdl.fetchVideoArt(streamingData.videoId,
-        preferred: streamingData.thumbnailUrl);
-
-    // the entry already knows its names, streaming data only fills gaps
-    final knownArtist =
-        placeholder.artist.isNotEmpty && placeholder.artist != 'Unknown';
-    final updatedTrack = placeholder.copyWith(
-      title: placeholder.title != 'Unknown' || streamingData.title.isEmpty
-          ? placeholder.title
-          : streamingData.title,
-      artist: knownArtist ? placeholder.artist : streamingData.channelName,
-      loudnessDb: streamingData.loudnessDb,
-      album: 'YouTube',
-      path: selectedFormat.url,
-      duration: streamingData.duration ?? placeholder.duration,
-      albumArt: art,
-      sourceUrl: sourceUrl,
-    );
-
-    try {
       await audioProvider.playTrack(updatedTrack);
     } catch (error) {
       _showSnackBar('Failed to start playback: $error');

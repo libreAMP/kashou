@@ -118,18 +118,8 @@ class YtdlWrapperService {
             .fetchStreams(parsedVideoId, forceRefresh: forceRefresh);
 
         if (streamInfo != null && streamInfo.audioStreams.isNotEmpty) {
-
-          Video? videoMetadata;
-          try {
-            final videoId = VideoId(parsedVideoId);
-            videoMetadata = await _client.videos.get(videoId);
-          } catch (e, stackTrace) {
-            print('[innertube] Metadata fetch failed: $e');
-            print('[innertube] Stack trace: $stackTrace');
-          }
-
           final streamingData = _convertInnerTubeToStreamingData(
-              streamInfo, trimmedUrl, videoMetadata);
+              streamInfo, trimmedUrl, null);
           _streamCache[cacheKey] =
               _CachedResult(streamingData, ttl: _defaultStreamCacheTtl);
           return streamingData;
@@ -261,8 +251,8 @@ class YtdlWrapperService {
     String sourceUrl,
     Video? videoMetadata,
   ) {
-    final videoId = streamInfo.videoId as String;
-    final title = streamInfo.title as String;
+    final videoId = streamInfo.videoId as String? ?? '';
+    final title = streamInfo.title as String? ?? '';
     final audioStreams = streamInfo.audioStreams as List<innertube.AudioStream>;
 
     final primaryFormats = audioStreams.map((stream) {

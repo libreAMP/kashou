@@ -12,17 +12,11 @@ class YoutubeService {
 
   final Map<String, CachedStreamData> _streamCache = {};
 
-  // a prefetch and a real skip for the same video race without this
-  final Map<String, Future<YoutubeStreamInfo?>> _inFlight = {};
-
   static const int _maxCacheSize = 100;
 
-  // YouTube stream URLs go stale after ~6 hours
   static const Duration _streamExpiration = Duration(hours: 6);
 
-  Future<void> initialize() async {
-    debugPrint('[YoutubeService] Initialized with innertube_dart');
-  }
+  Future<void> initialize() async {}
 
   Future<YoutubeStreamInfo?> fetchStreams(
     String videoId, {
@@ -35,24 +29,18 @@ class YoutubeService {
         return cached;
       }
     }
-    // two callers for the same video share one innertube round trip
-    final pending = _inFlight[videoId];
-    if (pending != null) return pending;
-
-    final future = _fetchFresh(videoId).whenComplete(() => _inFlight.remove(videoId));
-    _inFlight[videoId] = future;
-    return future;
+    return await _fetchFresh(videoId);
   }
 
   Future<YoutubeStreamInfo?> _fetchFresh(String videoId) async {
     try {
-      debugPrint('[YoutubeService] Fetching streams for: $videoId');
-      // grab a potoken for gated videos; null just falls through to android_vr in player()
-      final session = await PoTokenService.instance.getSession();
+      final session = await PoTokenService.instance
+          .getSession(videoId: videoId);
       final streamInfo = await _innerTube.player(
         videoId,
         visitorData: session?.visitorData,
         poToken: session?.poToken,
+        gvsPoToken: session?.gvsPoToken,
       );
 
       final result = YoutubeStreamInfo(
@@ -69,17 +57,9 @@ class YoutubeService {
         loudnessDb: streamInfo.loudnessDb,
       );
 
-      _cacheStreams(videoId, result);
+    _cacheStreams(videoId, result);
 
-      debugPrint(
-          '[YoutubeService] Successfully fetched ${result.audioStreams.length} audio streams, '
-          '${result.videoStreams.length} video streams');
-      if (result.hasMultipleLanguages) {
-        debugPrint(
-            '[YoutubeService] Available languages: ${result.availableLanguages}');
-      }
-
-      return result;
+    return result;
     } catch (e) {
       debugPrint('[YoutubeService] Error fetching streams for $videoId: $e');
       return null;

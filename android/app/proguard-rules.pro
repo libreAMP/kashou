@@ -1,0 +1,1 @@
+-keep class net.jonhanson.flutter_native_splash.** { *; }

@@ -1,0 +1,6 @@
+[submodule "packages/innertube_dart"]
+	path = packages/innertube_dart
+	url = https://github.com/libreAMP/innertube_dart.git
+[submodule "packages/just_audio"]
+	path = packages/just_audio
+	url = https://github.com/primalkz/just_audio.git

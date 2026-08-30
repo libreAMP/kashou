@@ -1,12 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:http/http.dart' as http;
 import 'package:shimmer/shimmer.dart';
-import 'dart:typed_data';
 import '../providers/audio_provider.dart';
-import '../services/ytdl_service.dart';
+import '../services/youtube/youtube_service.dart';
 import '../models/track.dart';
-import '../models/youtube_streaming_data.dart';
 import '../theme/radii.dart';
 import '../widgets/square_art.dart';
 import '../widgets/page_mini_player.dart';
@@ -49,7 +46,7 @@ class _SectionPageState extends State<SectionPage> {
       id: videoId,
       title: video['title'] as String? ?? 'Unknown',
       artist: video['channel'] as String? ?? 'Unknown',
-      album: video['title'] as String? ?? 'YouTube',
+      album: 'YouTube',
       path: videoUrl,
       duration: Duration(seconds: _asInt(video['duration'])),
       sourceUrl: videoUrl,
@@ -57,66 +54,30 @@ class _SectionPageState extends State<SectionPage> {
 
     await audioProvider.prepareTrackLoad(placeholderTrack);
 
-    YouTubeStreamingData? streamingData;
     try {
-      streamingData = await _fetchStreamingData(videoUrl);
-    } catch (_) {
-      streamingData = null;
-    }
+      final streamInfo = await YoutubeService.instance.fetchStreams(videoId);
+      if (streamInfo == null || streamInfo.audioStreams.isEmpty) {
+        audioProvider.cancelPendingTrack(videoId);
+        _showSnackBar('Unable to load audio stream.');
+        return;
+      }
 
-    if (streamingData == null || !streamingData.playable) {
-      audioProvider.cancelPendingTrack(videoId);
-      _showSnackBar('Unable to load audio stream.');
-      return;
-    }
+      final mp4 = streamInfo.audioStreams
+          .where((s) => s.mimeType.contains('mp4'))
+          .toList()
+        ..sort((a, b) => b.bitrate.compareTo(a.bitrate));
+      final stream = mp4.isNotEmpty ? mp4.first : streamInfo.audioStreams.first;
 
-    Uint8List? albumArt;
-    final thumbUrl =
-        streamingData.thumbnailUrl ?? video['thumbnail'] as String?;
-    if (thumbUrl != null && thumbUrl.isNotEmpty) {
-      try {
-        final thumbnailResponse = await http.get(Uri.parse(thumbUrl));
-        if (thumbnailResponse.statusCode == 200) {
-          albumArt = thumbnailResponse.bodyBytes;
-        }
-      } catch (_) {}
-    }
+      final finalTrack = placeholderTrack.copyWith(
+        path: stream.url,
+      );
 
-    final selectedFormat =
-        streamingData.bestStream ?? streamingData.fallbackStream;
-    if (selectedFormat == null) {
-      audioProvider.cancelPendingTrack(videoId);
-      _showSnackBar('Audio stream unavailable.');
-      return;
-    }
-
-    final finalTrack = placeholderTrack.copyWith(
-      title: streamingData.title.isNotEmpty
-          ? streamingData.title
-          : placeholderTrack.title,
-      artist: streamingData.channelName.isNotEmpty
-          ? streamingData.channelName
-          : placeholderTrack.artist,
-      album: 'YouTube',
-      path: selectedFormat.url,
-      duration: streamingData.duration ??
-          Duration(seconds: _asInt(video['duration'])),
-      albumArt: albumArt ?? placeholderTrack.albumArt,
-      sourceUrl: placeholderTrack.sourceUrl,
-    );
-
-    await audioProvider.playTrack(finalTrack);
-  }
-
-  Future<YouTubeStreamingData?> _fetchStreamingData(String url) async {
-    final ytdlService = YtdlWrapperService();
-    try {
-      return await ytdlService.fetchStreamingData(url);
+      await audioProvider.playTrack(finalTrack);
     } catch (e) {
-      return null;
+      audioProvider.cancelPendingTrack(videoId);
+      _showSnackBar('Error loading audio: $e');
     }
   }
-
   void _showSnackBar(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(

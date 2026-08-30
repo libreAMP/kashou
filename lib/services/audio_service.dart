@@ -79,22 +79,27 @@ class AudioPlayerHandler extends BaseAudioHandler
       audioLoadConfiguration: _loadConfigFor(bufferSize),
       audioPipeline: AudioPipeline(androidAudioEffects: [loudness]),
     );
-    _player.playbackEventStream.map(_transformEvent).pipe(playbackState);
+    _player.playbackEventStream.map(_transformEvent).listen(playbackState.add);
   }
 
   AudioPlayer get player => _player;
+
+  void updateDuration(Duration duration) {
+    final current = mediaItem.value;
+    if (current != null) {
+      mediaItem.add(current.copyWith(duration: duration));
+    }
+  }
 
   Future<void> setTrackMediaItem(Track track) async {
     Uri? artUri;
     if (track.albumArt != null) {
       try {
-        // Write album art to temporary file for Android media notification
         final tempDir = await getTemporaryDirectory();
         final artFile =
             File('${tempDir.path}/album_art_${track.id.hashCode}.jpg');
         await artFile.writeAsBytes(track.albumArt!);
         artUri = Uri.file(artFile.path);
-        print('Created album art file: ${artFile.path}');
       } catch (e) {
         print('Error saving album art to file: $e');
       }
@@ -118,7 +123,6 @@ class AudioPlayerHandler extends BaseAudioHandler
         MediaControl.skipToPrevious,
         if (_player.playing) MediaControl.pause else MediaControl.play,
         MediaControl.skipToNext,
-        MediaControl.stop,
       ],
       systemActions: const {
         MediaAction.seek,

@@ -4,11 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../models/track.dart';
-import '../models/youtube_streaming_data.dart';
 import '../providers/audio_provider.dart';
 import '../providers/recommendation_provider.dart';
 import '../providers/settings_provider.dart';
-import '../services/ytdl_service.dart';
+import '../services/youtube/youtube_service.dart';
 import '../services/ytmusic_service.dart';
 import '../theme/radii.dart';
 import '../widgets/art_card.dart';
@@ -29,7 +28,6 @@ class StreamScreen extends StatefulWidget {
 
 class _StreamScreenState extends State<StreamScreen>
     with AutomaticKeepAliveClientMixin {
-  final YtdlWrapperService _service = const YtdlWrapperService();
   final YtMusicService _ytm = const YtMusicService();
 
   List<Map<String, dynamic>> _homeShelves = const [];
@@ -251,53 +249,30 @@ class _StreamScreenState extends State<StreamScreen>
 
     await audioProvider.prepareTrackLoad(placeholder);
 
-    YouTubeStreamingData? streamingData;
     try {
-      streamingData = await _service.fetchStreamingData(videoUrl);
-    } catch (_) {
-      streamingData = null;
-    }
-
-    if (streamingData == null || !streamingData.playable) {
-      audioProvider.cancelPendingTrack(videoId);
-      _snack('Unable to load audio stream.');
-      return;
-    }
-
-    final selectedFormat =
-        streamingData.bestStream ?? streamingData.fallbackStream;
-    if (selectedFormat == null) {
-      audioProvider.cancelPendingTrack(videoId);
-      _snack('Audio stream unavailable.');
-      return;
-    }
-
-    // the row already showed the right names, streaming data only fills gaps
-    final knownArtist =
-        placeholder.artist.isNotEmpty && placeholder.artist != 'Unknown';
-    final finalTrack = placeholder.copyWith(
-      title: placeholder.title != 'Unknown' || streamingData.title.isEmpty
-          ? placeholder.title
-          : streamingData.title,
-      artist: knownArtist ? placeholder.artist : streamingData.channelName,
-      loudnessDb: streamingData.loudnessDb,
-      album: 'YouTube',
-      path: selectedFormat.url,
-      duration: streamingData.duration ?? Duration(seconds: durationSeconds),
-      sourceUrl: placeholder.sourceUrl,
-    );
-
-    await audioProvider.playTrack(finalTrack);
-
-    // art can come in late, holding playback for it felt slow
-    _service
-        .fetchVideoArt(videoId,
-            preferred: streamingData.thumbnailUrl ?? video['thumbnail'] as String?)
-        .then((art) {
-      if (art != null) {
-        audioProvider.updateTrackMetadata(finalTrack.copyWith(albumArt: art));
+      final streamInfo = await YoutubeService.instance.fetchStreams(videoId);
+      if (streamInfo == null || streamInfo.audioStreams.isEmpty) {
+        audioProvider.cancelPendingTrack(videoId);
+        _snack('Unable to load audio stream.');
+        return;
       }
-    });
+
+      final mp4 = streamInfo.audioStreams
+          .where((s) => s.mimeType.contains('mp4'))
+          .toList()
+        ..sort((a, b) => b.bitrate.compareTo(a.bitrate));
+      final stream = mp4.isNotEmpty ? mp4.first : streamInfo.audioStreams.first;
+
+      final finalTrack = placeholder.copyWith(
+        path: stream.url,
+        loudnessDb: streamInfo.loudnessDb,
+      );
+
+      await audioProvider.playTrack(finalTrack);
+    } catch (e) {
+      audioProvider.cancelPendingTrack(videoId);
+      _snack('Error loading audio: $e');
+    }
   }
 
   int? _asInt(dynamic value) {

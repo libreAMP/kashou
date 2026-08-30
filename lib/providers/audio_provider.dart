@@ -9,6 +9,7 @@ import 'package:audio_session/audio_session.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/track.dart';
 import '../services/audio_service.dart' as audio_svc;
+import '../services/youtube/youtube_service.dart';
 import '../services/ytdl_service.dart';
 import '../providers/settings_provider.dart';
 import '../providers/library_provider.dart';
@@ -78,6 +79,13 @@ class AudioProvider extends ChangeNotifier {
 
   bool _isHlsStream(String path) =>
       path.contains('.m3u8') || path.contains('playlist.m3u8');
+
+  String? _extractVideoId(String url) {
+    if (url.contains('googlevideo')) return null;
+    final uri = Uri.tryParse(url);
+    if (uri == null) return null;
+    return uri.queryParameters['v'] ?? uri.pathSegments.lastOrNull;
+  }
 
   Track? get currentTrack => _pendingTrack ?? _currentTrack;
   List<Track> get queue => _queue;
@@ -369,6 +377,9 @@ class AudioProvider extends ChangeNotifier {
 
     _playerSubs.add(audioPlayer.durationStream.listen((duration) {
       _duration = duration ?? Duration.zero;
+      if (_audioHandler != null && duration != null && duration > Duration.zero) {
+        _audioHandler!.updateDuration(duration);
+      }
       notifyListeners();
     }));
 
@@ -506,31 +517,22 @@ class AudioProvider extends ChangeNotifier {
     final watchUrl = _isWatchUrl(track.path) ? track.path : track.sourceUrl;
     if (watchUrl == null || !_isWatchUrl(watchUrl)) return null;
     try {
-      final data =
-          await const YtdlWrapperService().fetchStreamingData(watchUrl);
-      if (data == null || !data.playable) return null;
-      final format = data.bestStream ?? data.fallbackStream;
-      if (format == null) return null;
-
-      // only fill in what the track is missing, never overwrite known metadata
-      final noArtist = track.artist.isEmpty || track.artist == 'Unknown';
-      final channel =
-          data.channelName.replaceAll(RegExp(r'\s*-\s*Topic$'), '').trim();
-
-      Uint8List? art = track.albumArt;
-      art ??= await const YtdlWrapperService()
-          .fetchVideoArt(data.videoId, preferred: data.thumbnailUrl);
+      final videoId = Uri.parse(watchUrl).queryParameters['v'] ?? watchUrl;
+      final streamInfo = await YoutubeService.instance.fetchStreams(videoId);
+      if (streamInfo == null || streamInfo.audioStreams.isEmpty) {
+        debugPrint('[Audio] resolve failed, no streams: ${track.title}');
+        return null;
+      }
+      final mp4 = streamInfo.audioStreams
+          .where((s) => s.mimeType.contains('mp4'))
+          .toList()
+        ..sort((a, b) => b.bitrate.compareTo(a.bitrate));
+      final stream = mp4.isNotEmpty ? mp4.first : streamInfo.audioStreams.first;
+      debugPrint('[Audio] resolved stream: ${track.title}');
 
       return track.copyWith(
-        path: format.url,
-        title: track.title == 'Unknown' && data.title.isNotEmpty
-            ? data.title
-            : track.title,
-        artist: noArtist && channel.isNotEmpty ? channel : track.artist,
-        duration:
-            track.duration == Duration.zero ? data.duration : track.duration,
-        albumArt: art,
-        loudnessDb: data.loudnessDb,
+        path: stream.url,
+        loudnessDb: streamInfo.loudnessDb,
       );
     } catch (e) {
       debugPrint('[Audio] watch url resolve failed: $e');
@@ -585,6 +587,7 @@ class AudioProvider extends ChangeNotifier {
       try {
         await audioPlayer.stop();
       } catch (_) {}
+      await Future.delayed(const Duration(milliseconds: 200));
 
       _position = Duration.zero;
       _bufferedPosition = Duration.zero;
@@ -704,12 +707,10 @@ class AudioProvider extends ChangeNotifier {
     final next = _currentIndex + 1;
     if (next >= _queue.length) return;
     final url = _queue[next].sourceUrl ?? _queue[next].path;
-    if (!_isWatchUrl(url)) return;
-    // hold off so the prefetch doesnt compete with the current load
+    final videoId = _extractVideoId(url);
+    if (videoId == null) return;
     Future.delayed(const Duration(seconds: 2), () {
-      const YtdlWrapperService()
-          .fetchStreamingData(url)
-          .catchError((_) => null);
+      YoutubeService.instance.fetchStreams(videoId).catchError((_) => null);
     });
   }
 
@@ -806,19 +807,40 @@ class AudioProvider extends ChangeNotifier {
         return HlsAudioSource(uri);
       }
       debugPrint('[Audio] Using URI audio source');
+      // googlevideo 403s requests without a bounded range header
+      if (path.contains('googlevideo.com')) {
+        final headers = <String, String>{
+          'User-Agent':
+              'com.google.android.apps.youtube.vr.oculus/1.65.10 (Linux; U; Android 12L; Quest 3) gzip',
+        };
+        final end = int.tryParse(uri.queryParameters['clen'] ?? '');
+        if (end != null && end > 0) {
+          headers['Range'] = 'bytes=0-${end - 1}';
+        }
+        return AudioSource.uri(uri, headers: headers);
+      }
       return AudioSource.uri(uri);
     }
     debugPrint('[Audio] Using file audio source');
     return AudioSource.file(path);
   }
 
+  bool _isLoadingSource = false;
+
   Future<void> _loadTrackIntoPlayer(Track track) async {
-    debugPrint('[Audio] Loading track into player: ${track.title}');
+    if (_isLoadingSource) {
+      await audioPlayer.stop();
+      await Future.delayed(const Duration(milliseconds: 100));
+    }
+    _isLoadingSource = true;
     final source = _createAudioSource(track);
-    await audioPlayer
-        .setAudioSource(source)
-        .timeout(const Duration(seconds: 30));
-    debugPrint('[Audio] Audio source set successfully');
+    try {
+      await audioPlayer
+          .setAudioSource(source)
+          .timeout(const Duration(seconds: 30));
+    } finally {
+      _isLoadingSource = false;
+    }
   }
 
   Future<void> togglePlayPause() async {

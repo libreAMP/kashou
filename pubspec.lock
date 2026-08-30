@@ -375,7 +375,7 @@ packages:
     source: hosted
     version: "6.0.0"
   flutter_native_splash:
-    dependency: "direct dev"
+    dependency: "direct main"
     description:
       name: flutter_native_splash
       sha256: "4fb9f4113350d3a80841ce05ebf1976a36de622af7d19aca0ca9a9911c7ff002"
@@ -500,7 +500,7 @@ packages:
     description:
       path: just_audio
       ref: hires
-      resolved-ref: af6cf82db99ffb8046bb7d204398c09a4a36d8b3
+      resolved-ref: c056d1957f875d17d5e6eb3481117d28c2c16059
       url: "https://github.com/primalkz/just_audio.git"
     source: git
     version: "0.10.6+hires.1"

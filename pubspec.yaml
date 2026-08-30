@@ -52,6 +52,7 @@ dependencies:
   flutter_inappwebview: ^6.1.5
   material3_expressive_loading_indicator: ^0.1.2
   material_new_shapes: ^1.0.0
+  flutter_native_splash: ^2.4.1
 
 dependency_overrides:
   just_audio:
@@ -65,7 +66,6 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^6.0.0
   flutter_launcher_icons: ^0.14.1
-  flutter_native_splash: ^2.4.1
 
 flutter:
   uses-material-design: true
