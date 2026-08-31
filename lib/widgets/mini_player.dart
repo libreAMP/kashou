@@ -6,6 +6,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'loading_indicator.dart';
 import 'pressable.dart';
+import 'scrolling_text.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_chrome_cast/flutter_chrome_cast.dart';
 
@@ -18,11 +19,15 @@ import '../models/track.dart';
 class MiniPlayer extends StatefulWidget {
   final VoidCallback onTap;
   final VoidCallback onDismiss;
+  final bool embedded;
+  final ValueChanged<double>? onSlideProgress;
 
   const MiniPlayer({
     super.key,
     required this.onTap,
     required this.onDismiss,
+    this.embedded = false,
+    this.onSlideProgress,
   });
 
   @override
@@ -67,6 +72,7 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
   late Animation<double> _fadeAnimation;
   double _dragDistance = 0;
   bool _isSwipingHorizontal = false;
+  bool _reporting = true;
   StreamSubscription<GoogleCastSession?>? _castSessionSubscription;
   bool _castingEnabled = false;
   bool _wasCasting = false;
@@ -78,7 +84,7 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
     super.initState();
     _slideController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 240),
+      duration: const Duration(milliseconds: 190),
     );
     _swipeController = AnimationController(
       vsync: this,
@@ -100,6 +106,7 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
       curve: Curves.easeInOutCubic,
       reverseCurve: Curves.easeInOutCubic,
     ));
+    _slideController.addListener(_reportSlide);
 
     final settings = Provider.of<SettingsProvider>(context, listen: false);
     _castingEnabled = settings.enableCasting;
@@ -279,8 +286,13 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
     }
   }
 
+  void _reportSlide() {
+    if (_reporting) widget.onSlideProgress?.call(_slideController.value);
+  }
+
   @override
   void dispose() {
+    _slideController.removeListener(_reportSlide);
     _castConnectionDebounce?.cancel();
     _castSessionSubscription?.cancel();
     if (_castingEnabled) {
@@ -323,7 +335,9 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
         details.primaryVelocity != null && details.primaryVelocity! > 500) {
       _slideController.forward().then((_) {
         widget.onDismiss();
+        _reporting = false;
         _slideController.reset();
+        _reporting = true;
       });
     } else {
       _slideController.reverse();
@@ -371,7 +385,10 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
         final theme = Theme.of(context);
         final colorScheme = theme.colorScheme;
         final isLoading = snapshot.isLoading;
-        final totalMillis = snapshot.duration.inMilliseconds;
+        final liveDur = snapshot.duration > Duration.zero
+            ? snapshot.duration
+            : track.duration;
+        final totalMillis = liveDur.inMilliseconds;
         final progress = totalMillis > 0
             ? snapshot.position.inMilliseconds / totalMillis
             : 0.0;
@@ -391,11 +408,19 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
                   details, context.read<AudioProvider>()),
               child: RepaintBoundary(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(10, 0, 10, 8),
+                  padding: widget.embedded
+                      ? EdgeInsets.zero
+                      : const EdgeInsets.fromLTRB(10, 0, 10, 8),
                   child: Material(
-                    color: colorScheme.surfaceContainerHigh,
-                    borderRadius: BorderRadius.circular(16),
-                    clipBehavior: Clip.antiAlias,
+                    color: widget.embedded
+                        ? Colors.transparent
+                        : colorScheme.surfaceContainerHigh,
+                    borderRadius: widget.embedded
+                        ? BorderRadius.zero
+                        : BorderRadius.circular(16),
+                    clipBehavior: widget.embedded
+                        ? Clip.none
+                        : Clip.antiAlias,
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -428,15 +453,13 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Text(
-                                      track.title,
+                                    ScrollingText(
+                                      text: track.title,
                                       style: TextStyle(
                                         fontWeight: FontWeight.w600,
                                         fontSize: 14,
                                         color: colorScheme.onSurface,
                                       ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
                                     ),
                                     const SizedBox(height: 2),
                                     Text(

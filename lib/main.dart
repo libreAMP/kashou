@@ -23,7 +23,8 @@ import 'screens/now_playing_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/stream_screen.dart';
 import 'screens/welcome_screen.dart';
-import 'widgets/mini_player.dart';
+import 'theme/app_theme.dart';
+import 'widgets/player_nav_bar.dart';
 
 // nudge the wallpaper seed a bit each launch so it doesnt sit on one shade
 final double _launchHue = Random().nextDouble() * 40 - 20;
@@ -185,15 +186,13 @@ class KashouApp extends StatelessWidget {
                 scaffoldMessengerKey: appMessenger,
                 debugShowCheckedModeBanner: false,
                 themeMode: themeProvider.themeMode,
-                theme: ThemeData(
-                  useMaterial3: true,
-                  colorScheme: lightColorScheme,
-                  textTheme: getTextTheme(lightColorScheme),
+                theme: buildKashouTheme(
+                  lightColorScheme,
+                  getTextTheme(lightColorScheme),
                 ),
-                darkTheme: ThemeData(
-                  useMaterial3: true,
-                  colorScheme: darkColorScheme,
-                  textTheme: getTextTheme(darkColorScheme),
+                darkTheme: buildKashouTheme(
+                  darkColorScheme,
+                  getTextTheme(darkColorScheme),
                 ),
                 home: const SplashScreen(),
                 routes: {
@@ -318,11 +317,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
     return Scaffold(
       resizeToAvoidBottomInset: false,
+      extendBody: true,
       body: AnimatedSwitcher(
         duration: const Duration(milliseconds: 200),
         switchInCurve: Curves.easeInOut,
@@ -333,82 +330,35 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
           children: _screens,
         ),
       ),
-      bottomNavigationBar: NavigationBarTheme(
-        data: NavigationBarThemeData(
-          height: 72,
-          indicatorColor: Colors.transparent,
-          iconTheme: WidgetStateProperty.resolveWith<IconThemeData>((states) {
-            final onSurface = colorScheme.onSurfaceVariant;
-            final onSelected = colorScheme.onSecondaryContainer;
-            return IconThemeData(
-              color: states.contains(WidgetState.selected)
-                  ? onSelected
-                  : onSurface,
-              size: states.contains(WidgetState.selected) ? 26 : 24,
-            );
-          }),
-          labelTextStyle: WidgetStateProperty.resolveWith<TextStyle>((states) {
-            final base = theme.textTheme.labelMedium;
-            if (base == null) return const TextStyle();
-            return states.contains(WidgetState.selected)
-                ? base.copyWith(
-                    color: colorScheme.onSecondaryContainer,
-                    fontWeight: FontWeight.w600,
-                  )
-                : base.copyWith(color: colorScheme.onSurfaceVariant);
-          }),
-        ),
-        child: Consumer2<AudioProvider, SettingsProvider>(
-          builder: (context, audioProvider, settings, child) {
-            final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
-            final route = ModalRoute.of(context);
-            final isModalOpen = route != null && !route.isFirst;
-            final hasPlayer =
-                audioProvider.currentTrack != null && _showMiniPlayer;
-
-            final navigationBar = NavigationBar(
-              selectedIndex: _selectedIndex,
-              onDestinationSelected: _onItemTapped,
-              labelBehavior: settings.minimalBottomBar
-                  ? NavigationDestinationLabelBehavior.onlyShowSelected
-                  : NavigationDestinationLabelBehavior.alwaysShow,
-              destinations: const [
-                NavigationDestination(
-                  icon: Icon(Icons.music_note_outlined),
-                  selectedIcon: Icon(Icons.music_note),
-                  label: 'Stream',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.folder_outlined),
-                  selectedIcon: Icon(Icons.folder),
-                  label: 'Local',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.library_music_outlined),
-                  selectedIcon: Icon(Icons.library_music),
-                  label: 'Library',
-                ),
-              ],
-            );
-
-            if (keyboardHeight > 0) {
-              return const SizedBox.shrink();
-            }
-            if (!hasPlayer || isModalOpen) {
-              return navigationBar;
-            }
-            return Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                MiniPlayer(
-                  onTap: _openNowPlaying,
-                  onDismiss: _dismissMiniPlayer,
-                ),
-                navigationBar,
-              ],
-            );
-          },
-        ),
+      bottomNavigationBar: Consumer<AudioProvider>(
+        builder: (context, audioProvider, child) {
+          final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
+          if (keyboardHeight > 0) return const SizedBox.shrink();
+          final route = ModalRoute.of(context);
+          final isModalOpen = route != null && !route.isFirst;
+          final hasPlayer =
+              audioProvider.currentTrack != null && _showMiniPlayer && !isModalOpen;
+          return PlayerNavBar(
+            items: const [
+              NavItem(
+                Icons.music_note_outlined,
+                Icons.music_note,
+                'Stream',
+              ),
+              NavItem(Icons.folder_outlined, Icons.folder, 'Local'),
+              NavItem(
+                Icons.library_music_outlined,
+                Icons.library_music,
+                'Library',
+              ),
+            ],
+            selectedIndex: _selectedIndex,
+            onDestinationSelected: _onItemTapped,
+            hasPlayer: hasPlayer,
+            onPlayerTap: _openNowPlaying,
+            onPlayerDismiss: _dismissMiniPlayer,
+          );
+        },
       ),
     );
   }
