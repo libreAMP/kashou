@@ -103,6 +103,11 @@ class AudioPlayerHandler extends BaseAudioHandler
       } catch (e) {
         print('Error saving album art to file: $e');
       }
+    } else if (track.sourceUrl != null) {
+      final videoId = Uri.tryParse(track.sourceUrl!)?.queryParameters['v'];
+      if (videoId != null) {
+        artUri = Uri.parse('https://i.ytimg.com/vi/$videoId/hqdefault.jpg');
+      }
     }
 
     mediaItem.add(

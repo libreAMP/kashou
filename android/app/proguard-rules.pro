@@ -1,1 +1,5 @@
 -keep class net.jonhanson.flutter_native_splash.** { *; }
+-keep class androidx.media3.** { *; }
+-keep class com.ryanheise.just_audio.** { *; }
+-keep class com.ryanheise.audioservice.** { *; }
+-dontwarn androidx.media3.**

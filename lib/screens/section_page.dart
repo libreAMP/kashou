@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:http/http.dart' as http;
 import 'package:shimmer/shimmer.dart';
 import '../providers/audio_provider.dart';
 import '../services/youtube/youtube_service.dart';
@@ -73,6 +74,15 @@ class _SectionPageState extends State<SectionPage> {
       );
 
       await audioProvider.playTrack(finalTrack);
+
+      final thumb = video['thumbnail'] as String? ??
+          'https://i.ytimg.com/vi/$videoId/hqdefault.jpg';
+      http.get(Uri.parse(thumb)).then((resp) {
+        if (resp.statusCode == 200) {
+          audioProvider.updateTrackMetadata(
+              finalTrack.copyWith(albumArt: resp.bodyBytes));
+        }
+      });
     } catch (e) {
       audioProvider.cancelPendingTrack(videoId);
       _showSnackBar('Error loading audio: $e');

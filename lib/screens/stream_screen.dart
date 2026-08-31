@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:http/http.dart' as http;
 
 import '../models/track.dart';
 import '../providers/audio_provider.dart';
@@ -269,6 +270,15 @@ class _StreamScreenState extends State<StreamScreen>
       );
 
       await audioProvider.playTrack(finalTrack);
+
+      final thumb = video['thumbnail'] as String? ??
+          'https://i.ytimg.com/vi/$videoId/hqdefault.jpg';
+      http.get(Uri.parse(thumb)).then((resp) {
+        if (resp.statusCode == 200) {
+          audioProvider.updateTrackMetadata(
+              finalTrack.copyWith(albumArt: resp.bodyBytes));
+        }
+      });
     } catch (e) {
       audioProvider.cancelPendingTrack(videoId);
       _snack('Error loading audio: $e');
