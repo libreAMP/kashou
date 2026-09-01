@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart' hide RepeatMode;
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -12,8 +14,10 @@ import 'package:http/http.dart' as http;
 import '../models/track.dart';
 import '../providers/library_provider.dart';
 import '../utils/hero_transitions.dart';
+import '../theme/app_theme.dart';
 import '../widgets/loading_indicator.dart';
 import '../widgets/pressable.dart';
+import '../widgets/scrolling_text.dart';
 import '../widgets/squiggly_slider.dart';
 import '../providers/settings_provider.dart';
 import '../services/ytdl_service.dart';
@@ -34,6 +38,14 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
   static final ValueNotifier<double?> _downloadProgress = ValueNotifier(null);
   bool _findingArtist = false;
   double _doubleTapDx = 0;
+  int _seekFlash = 0;
+  Timer? _seekFlashTimer;
+
+  @override
+  void dispose() {
+    _seekFlashTimer?.cancel();
+    super.dispose();
+  }
 
   Future<void> _openArtist(Track track) async {
     if (_findingArtist) return;
@@ -114,7 +126,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       final safeTitle = (details['title'] as String? ?? track.title)
           .replaceAll(RegExp(r'[<>:"/\\|?*]'), '_')
           .trim();
-      final safeArtist = (details['channel'] as String? ?? track.artist)
+      final rawArtist = (details['channel'] as String? ?? '').trim();
+      final safeArtist = (rawArtist.isEmpty ? track.artist : rawArtist)
           .replaceAll(RegExp(r'[<>:"/\\|?*]'), '_')
           .trim();
 
@@ -141,7 +154,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           filePath,
           Tag(
             title: details['title'] as String? ?? track.title,
-            trackArtist: details['channel'] as String? ?? track.artist,
+            trackArtist: safeArtist,
             pictures: [
               if (art != null)
                 Picture(
@@ -250,8 +263,10 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
 
   String _getFileExtension(String? codec) {
     if (codec == null) return '.mp3';
+    final c = codec.toLowerCase();
+    if (c.startsWith('mp4a') || c.startsWith('m4a')) return '.m4a';
 
-    switch (codec.toLowerCase()) {
+    switch (c) {
       case 'mp3':
         return '.mp3';
       case 'flac':
@@ -340,6 +355,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                     crossAxisAlignment:
                                         CrossAxisAlignment.center,
                                     children: [
+                                      const SizedBox(height: 8),
                                       RepaintBoundary(
                                           child: _buildArtworkCard(
                                               context, track, size)),
@@ -438,7 +454,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
 
   Widget _buildArtworkCard(BuildContext context, Track track, Size size) {
     final colorScheme = Theme.of(context).colorScheme;
-    final dimension = size.width * 0.85;
+    final dimension = (size.width - 40) * 0.92;
 
     Widget buildFallback() {
       return Container(
@@ -484,14 +500,19 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     return GestureDetector(
       // onDoubleTap has no position
       onDoubleTapDown: (details) => _doubleTapDx = details.localPosition.dx,
-      onDoubleTap: () => _seekFromDoubleTap(context, dimension),
+      onDoubleTap: () {
+        _triggerSeekFlash(_doubleTapDx < dimension / 2);
+        _seekFromDoubleTap(context, dimension);
+      },
       onHorizontalDragEnd: (details) {
         final velocity = details.primaryVelocity ?? 0;
         if (velocity.abs() < 400) return;
         final audio = context.read<AudioProvider>();
         velocity < 0 ? audio.skipNext() : audio.skipPrevious();
       },
-      child: Hero(
+      child: Stack(
+        children: [
+          Hero(
         tag: 'album_art_${track.id}',
         createRectTween: albumArtRectTween,
         flightShuttleBuilder: albumArtFlightShuttleBuilder,
@@ -508,9 +529,68 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
               ),
             ],
           ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(24),
-            child: image,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(24),
+              child: image,
+            ),
+          ),
+          ),
+          _buildSeekFlash(context),
+        ],
+      ),
+    );
+  }
+
+  void _triggerSeekFlash(bool left) {
+    _seekFlashTimer?.cancel();
+    setState(() => _seekFlash = left ? 1 : 2);
+    _seekFlashTimer = Timer(const Duration(milliseconds: 550), () {
+      if (mounted) setState(() => _seekFlash = 0);
+    });
+  }
+
+  Widget _buildSeekFlash(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Positioned.fill(
+      child: IgnorePointer(
+        child: AnimatedOpacity(
+          duration: const Duration(milliseconds: 220),
+          opacity: _seekFlash == 0 ? 0 : 1,
+          child: Align(
+            alignment: _seekFlash == 1
+                ? Alignment.centerLeft
+                : Alignment.centerRight,
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                decoration: BoxDecoration(
+                  color: scheme.surface.withOpacity(0.75),
+                  borderRadius: EShape.radius(EShape.md),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      _seekFlash == 1
+                          ? Icons.fast_rewind_rounded
+                          : Icons.fast_forward_rounded,
+                      size: 30,
+                      color: scheme.onSurface,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _seekFlash == 1 ? '-5s' : '+5s',
+                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                            color: scheme.onSurface,
+                            fontWeight: FontWeight.w700,
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
         ),
       ),
@@ -590,17 +670,14 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
 
     return Column(
       children: [
-        Text(
-          track.title,
-          textAlign: TextAlign.center,
+        ScrollingText(
+          text: track.title,
           style: theme.textTheme.headlineSmall?.copyWith(
             fontWeight: FontWeight.w700,
             letterSpacing: -0.3,
             fontSize: 22,
             height: 1.2,
           ),
-          maxLines: 3,
-          overflow: TextOverflow.ellipsis,
         ),
         const SizedBox(height: 8),
         Material(
@@ -678,10 +755,12 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final isLoading = audio.isLoadingTrack;
+    final trackDur = audio.currentTrack?.duration ?? Duration.zero;
+    final liveDur = audio.duration > Duration.zero ? audio.duration : trackDur;
     final position = isLoading ? 0.0 : audio.position.inMilliseconds.toDouble();
     final duration = isLoading
         ? 1.0
-        : audio.duration.inMilliseconds.toDouble().clamp(1.0, double.infinity);
+        : liveDur.inMilliseconds.toDouble().clamp(1.0, double.infinity);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -758,21 +837,20 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     );
   }
 
-  // wide pill play, the one loud element in the transport row
   Widget _buildPlayButton(BuildContext context, AudioProvider audio) {
     final colorScheme = Theme.of(context).colorScheme;
     final isLoading = audio.isLoadingTrack;
     final isPlaying = audio.isPlaying;
 
     return Material(
-      color: colorScheme.primaryContainer,
-      borderRadius: BorderRadius.circular(22),
+      color: colorScheme.primary,
+      shape: const CircleBorder(),
       child: InkWell(
-        borderRadius: BorderRadius.circular(22),
+        customBorder: const CircleBorder(),
         onTap: isLoading ? null : audio.togglePlayPause,
         child: SizedBox(
-          width: 118,
-          height: 64,
+          width: 78,
+          height: 78,
           child: Center(
             child: AnimatedSwitcher(
               duration: const Duration(milliseconds: 240),
@@ -791,8 +869,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                           ? Icons.pause_rounded
                           : Icons.play_arrow_rounded,
                       key: ValueKey(isPlaying),
-                      size: 34,
-                      color: colorScheme.onPrimaryContainer,
+                      size: 40,
+                      color: colorScheme.onPrimary,
                     ),
             ),
           ),
@@ -1200,75 +1278,168 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
   }
 
   void _showMoreOptions(BuildContext context) {
-    final audioProvider = Provider.of<AudioProvider>(context, listen: false);
-    final track = audioProvider.currentTrack;
     final rootContext = context;
 
     showModalBottomSheet(
       context: context,
+      showDragHandle: true,
       builder: (sheetContext) {
         return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (track != null &&
-                  !(track.sourceUrl ?? track.path).startsWith('http'))
-                ListTile(
-                  leading: const Icon(Icons.edit),
-                  title: const Text('Edit Metadata'),
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) =>
-                            MetadataEditorScreen(track: track),
-                      ),
-                    );
-                  },
-                ),
-              ListTile(
-                leading: const Icon(Icons.playlist_add),
-                title: const Text('Add to Playlist'),
-                onTap: () {
-                  Navigator.pop(sheetContext);
-                  if (track != null) {
-                    _showAddToPlaylist(rootContext, track);
-                  }
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: Consumer<AudioProvider>(
+                builder: (context, audio, _) {
+                  final current = audio.currentTrack;
+                  if (current == null) return const SizedBox.shrink();
+                  final isOnline = current.path.contains('youtube.com') ||
+                      current.path.contains('youtu.be') ||
+                      current.album == 'YouTube';
+                  return Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _sheetNowPlayingCard(context, current),
+                      const SizedBox(height: 12),
+                      _sheetCard(context, [
+                        if (!isOnline)
+                          ListTile(
+                            leading: const Icon(Icons.edit_rounded),
+                            title: const Text('Edit Metadata'),
+                            onTap: () {
+                              Navigator.pop(sheetContext);
+                              Navigator.push(
+                                rootContext,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      MetadataEditorScreen(track: current),
+                                ),
+                              );
+                            },
+                          ),
+                        ListTile(
+                          leading: const Icon(Icons.playlist_add_rounded),
+                          title: const Text('Add to Playlist'),
+                          onTap: () {
+                            Navigator.pop(sheetContext);
+                            _showAddToPlaylist(rootContext, current);
+                          },
+                        ),
+                        ListTile(
+                          leading: const Icon(Icons.share_rounded),
+                          title: const Text('Share'),
+                          onTap: () async {
+                            Navigator.pop(sheetContext);
+                            await _shareTrack(rootContext, current);
+                          },
+                        ),
+                        ListTile(
+                          leading: const Icon(Icons.person_rounded),
+                          title: const Text('View artist'),
+                          onTap: () {
+                            Navigator.pop(sheetContext);
+                            _openArtist(current);
+                          },
+                        ),
+                        ListTile(
+                          leading: const Icon(Icons.info_outline),
+                          title: const Text('Track Info'),
+                          onTap: () {
+                            Navigator.pop(sheetContext);
+                            _showTrackInfo(rootContext, current);
+                          },
+                        ),
+                      ]),
+                    ],
+                  );
                 },
               ),
-              ListTile(
-                leading: const Icon(Icons.share),
-                title: const Text('Share'),
-                onTap: () async {
-                  Navigator.pop(sheetContext);
-                  await _shareTrack(rootContext, track);
-                },
-              ),
-              if (track != null &&
-                  (track.sourceUrl ?? track.path).startsWith('http'))
-                ListTile(
-                  leading: const Icon(Icons.download_rounded),
-                  title: const Text('Download'),
-                  onTap: () async {
-                    Navigator.pop(sheetContext);
-                    await _downloadTrack(rootContext, track);
-                  },
-                ),
-              ListTile(
-                leading: const Icon(Icons.info_outline),
-                title: const Text('Track Info'),
-                onTap: () {
-                  Navigator.pop(sheetContext);
-                  if (track != null) {
-                    _showTrackInfo(rootContext, track);
-                  }
-                },
-              ),
-            ],
+            ),
           ),
         );
       },
+    );
+  }
+
+  Widget _sheetNowPlayingCard(BuildContext context, Track track) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerHigh,
+        borderRadius: EShape.radius(EShape.lg),
+      ),
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: SizedBox(
+              width: 48,
+              height: 48,
+              child: track.albumArt != null
+                  ? Image.memory(
+                      track.albumArt!,
+                      fit: BoxFit.cover,
+                      gaplessPlayback: true,
+                    )
+                  : Container(
+                      color: scheme.surfaceContainerHighest,
+                      child: Icon(Icons.music_note,
+                          color: scheme.onSurfaceVariant),
+                    ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Now Playing',
+                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                        color: scheme.primary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  track.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+                Text(
+                  track.artist,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                      ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _sheetCard(BuildContext context, List<Widget> children) {
+    final scheme = Theme.of(context).colorScheme;
+    final rows = <Widget>[];
+    for (var i = 0; i < children.length; i++) {
+      if (i > 0) {
+        rows.add(Divider(
+            height: 1, indent: 56, color: scheme.outlineVariant.withValues(alpha: 0.4)));
+      }
+      rows.add(children[i]);
+    }
+    return Material(
+      color: scheme.surfaceContainerHigh,
+      borderRadius: EShape.radius(EShape.lg),
+      clipBehavior: Clip.antiAlias,
+      child: Column(children: rows),
     );
   }
 

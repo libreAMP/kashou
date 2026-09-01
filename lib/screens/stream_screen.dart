@@ -50,6 +50,7 @@ class _StreamScreenState extends State<StreamScreen>
   Timer? _searchDebounceTimer;
 
   String? _lastTrackId;
+  DateTime _lastRecFetch = DateTime.fromMillisecondsSinceEpoch(0);
   VoidCallback? _audioListener;
 
   @override
@@ -86,13 +87,15 @@ class _StreamScreenState extends State<StreamScreen>
 
       _audioListener = () {
         final current = audioProvider.currentTrack;
-        if (current != null && current.id != _lastTrackId) {
-          _lastTrackId = current.id;
-          rec.updateRecommendations(current, audioProvider: audioProvider);
-          if (audioProvider.streamHistory.isNotEmpty) {
-            rec.fetchPersonalizedFromHistory(audioProvider.streamHistory);
-          }
+        if (current == null || current.id == _lastTrackId) return;
+        _lastTrackId = current.id;
+        // one innertube radio call per track change adds up fast
+        if (DateTime.now().difference(_lastRecFetch) <
+            const Duration(minutes: 3)) {
+          return;
         }
+        _lastRecFetch = DateTime.now();
+        rec.updateRecommendations(current, audioProvider: audioProvider);
       };
       audioProvider.addListener(_audioListener!);
     });
@@ -545,12 +548,27 @@ class _StreamScreenState extends State<StreamScreen>
                 selected: _searchFilter == options[i],
                 onSelected: (_) => setState(() => _searchFilter = options[i]),
                 showCheckmark: false,
-                padding: EdgeInsets.zero,
+                avatar: Icon(
+                  options[i] == 'All'
+                      ? Icons.check_rounded
+                      : options[i] == 'Songs'
+                          ? Icons.music_note_rounded
+                          : options[i] == 'Playlists'
+                              ? Icons.queue_music_rounded
+                              : Icons.album_rounded,
+                  size: 18,
+                ),
+                side: BorderSide.none,
+                backgroundColor: scheme.surfaceContainerHigh,
+                selectedColor: scheme.secondaryContainer,
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 12, vertical: 6),
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 labelStyle: TextStyle(
                   color: _searchFilter == options[i]
                       ? scheme.onSecondaryContainer
                       : scheme.onSurfaceVariant,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
             ],
@@ -812,51 +830,96 @@ class _StreamScreenState extends State<StreamScreen>
   Widget _buildSongRow(Map<String, dynamic> video) {
     final scheme = Theme.of(context).colorScheme;
     final thumb = _videoThumb(video);
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () => _playVideo(video),
-        onLongPress: () => _showSongSheet(video),
-        borderRadius: BorderRadius.circular(rMd),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          child: Row(
-            children: [
-              SquareArt(url: thumb, size: 56, radius: rSm),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      video['title'] as String? ?? 'Unknown',
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
-                            height: 1.25,
+    return Consumer<AudioProvider>(
+      builder: (context, audio, _) {
+        final isCurrent = audio.currentTrack?.id == video['id'];
+        final playing = isCurrent && audio.isPlaying;
+        return Material(
+          color: isCurrent
+              ? scheme.primary.withValues(alpha: 0.12)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(rMd),
+          child: InkWell(
+            onTap: () =>
+                isCurrent ? audio.togglePlayPause() : _playVideo(video),
+            onLongPress: () => _showSongSheet(video),
+            borderRadius: BorderRadius.circular(rMd),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(8, 8, 4, 8),
+              child: Row(
+                children: [
+                  Stack(
+                    children: [
+                      SquareArt(url: thumb, size: 56, radius: rSm),
+                      if (playing)
+                        SizedBox(
+                          width: 56,
+                          height: 56,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(rSm),
+                            child: ColoredBox(
+                              color: Colors.black.withValues(alpha: 0.4),
+                              child: Icon(Icons.graphic_eq_rounded,
+                                  color: scheme.primary, size: 24),
+                            ),
                           ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          video['title'] as String? ?? 'Unknown',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodyMedium
+                              ?.copyWith(
+                                fontWeight: FontWeight.w600,
+                                height: 1.25,
+                                color: isCurrent
+                                    ? scheme.primary
+                                    : null,
+                              ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          _songSubtitle(video),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodySmall
+                              ?.copyWith(color: scheme.onSurfaceVariant),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      _songSubtitle(video),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodySmall
-                          ?.copyWith(color: scheme.onSurfaceVariant),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    icon: Icon(
+                      playing
+                          ? Icons.pause_rounded
+                          : Icons.play_arrow_rounded,
+                      color: isCurrent
+                          ? scheme.primary
+                          : scheme.onSurfaceVariant,
                     ),
-                  ],
-                ),
+                    onPressed: () => isCurrent
+                        ? audio.togglePlayPause()
+                        : _playVideo(video),
+                  ),
+                ],
               ),
-              const SizedBox(width: 8),
-              Icon(Icons.play_arrow_rounded, color: scheme.onSurfaceVariant),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -910,8 +973,8 @@ class _StreamScreenState extends State<StreamScreen>
       title,
       style: Theme.of(context)
           .textTheme
-          .titleMedium
-          ?.copyWith(fontWeight: FontWeight.w700),
+          .titleLarge
+          ?.copyWith(fontWeight: FontWeight.w800, letterSpacing: -0.3),
     );
   }
 

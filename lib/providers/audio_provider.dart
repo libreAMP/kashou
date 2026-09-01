@@ -518,7 +518,12 @@ class AudioProvider extends ChangeNotifier {
     if (watchUrl == null || !_isWatchUrl(watchUrl)) return null;
     try {
       final videoId = Uri.parse(watchUrl).queryParameters['v'] ?? watchUrl;
-      final streamInfo = await YoutubeService.instance.fetchStreams(videoId);
+      var streamInfo = await YoutubeService.instance.fetchStreams(videoId);
+      if (streamInfo == null || streamInfo.audioStreams.isEmpty) {
+        await Future.delayed(const Duration(milliseconds: 800));
+        streamInfo = await YoutubeService.instance
+            .fetchStreams(videoId, forceRefresh: true);
+      }
       if (streamInfo == null || streamInfo.audioStreams.isEmpty) {
         debugPrint('[Audio] resolve failed, no streams: ${track.title}');
         return null;
@@ -863,6 +868,8 @@ class AudioProvider extends ChangeNotifier {
     _currentTrack = null;
     _pendingTrack = null;
     _lastCommittedTrack = null;
+    _queue = [];
+    _currentIndex = 0;
     _clearPendingSnapshot();
     _position = Duration.zero;
     _duration = Duration.zero;

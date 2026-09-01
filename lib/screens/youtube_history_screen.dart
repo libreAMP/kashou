@@ -47,7 +47,12 @@ class _YoutubeHistoryScreenState extends State<YoutubeHistoryScreen> {
 
     try {
       final videoId = Uri.parse(sourceUrl).queryParameters['v'] ?? sourceUrl;
-      final streamInfo = await YoutubeService.instance.fetchStreams(videoId);
+      var streamInfo = await YoutubeService.instance.fetchStreams(videoId);
+      if (streamInfo == null || streamInfo.audioStreams.isEmpty) {
+        await Future.delayed(const Duration(milliseconds: 800));
+        streamInfo = await YoutubeService.instance
+            .fetchStreams(videoId, forceRefresh: true);
+      }
       if (streamInfo == null || streamInfo.audioStreams.isEmpty) {
         if (!mounted) return;
         audioProvider.cancelPendingTrack(entry.track.id);
@@ -125,63 +130,71 @@ class _YoutubeHistoryScreenState extends State<YoutubeHistoryScreen> {
     final colorScheme = theme.colorScheme;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('History'),
-        actions: [
+      body: CustomScrollView(
+        slivers: [
+          SliverAppBar.large(
+            title: const Text('History'),
+            actions: [
+              Consumer<AudioProvider>(
+                builder: (context, audioProvider, _) {
+                  final hasHistory =
+                      audioProvider.youtubeStreamHistoryEntries.isNotEmpty;
+                  return IconButton(
+                    tooltip: 'Clear history',
+                    icon: const Icon(Icons.delete_outline),
+                    onPressed: hasHistory ? _confirmClearHistory : null,
+                  );
+                },
+              ),
+            ],
+          ),
           Consumer<AudioProvider>(
             builder: (context, audioProvider, _) {
-              final hasHistory =
-                  audioProvider.youtubeStreamHistoryEntries.isNotEmpty;
-              return IconButton(
-                tooltip: 'Clear history',
-                icon: const Icon(Icons.delete_outline),
-                onPressed: hasHistory ? _confirmClearHistory : null,
+              final entries = audioProvider.youtubeStreamHistoryEntries;
+
+              if (entries.isEmpty) {
+                return SliverFillRemaining(
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.history,
+                            size: 48,
+                            color:
+                                colorScheme.onSurfaceVariant.withOpacity(0.5)),
+                        const SizedBox(height: 16),
+                        Text(
+                          'No history yet',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'What you play from Stream shows up here.',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color:
+                                colorScheme.onSurfaceVariant.withOpacity(0.7),
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }
+
+              return SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) =>
+                      _buildHistoryTile(context, entries[index], colorScheme),
+                  childCount: entries.length,
+                ),
               );
             },
           ),
+          const SliverToBoxAdapter(child: SizedBox(height: 24)),
         ],
-      ),
-      body: Consumer<AudioProvider>(
-        builder: (context, audioProvider, _) {
-          final entries = audioProvider.youtubeStreamHistoryEntries;
-
-          if (entries.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.history,
-                      size: 48,
-                      color: colorScheme.onSurfaceVariant.withOpacity(0.5)),
-                  const SizedBox(height: 16),
-                  Text(
-                    'No history yet',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'What you play from Stream shows up here.',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: colorScheme.onSurfaceVariant.withOpacity(0.7),
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
-            );
-          }
-
-          return ListView.builder(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-            itemBuilder: (context, index) {
-              final entry = entries[index];
-              return _buildHistoryTile(context, entry, colorScheme);
-            },
-            itemCount: entries.length,
-          );
-        },
       ),
     );
   }
@@ -192,34 +205,38 @@ class _YoutubeHistoryScreenState extends State<YoutubeHistoryScreen> {
     final theme = Theme.of(context);
     final isLoading = _loadingEntryId == track.id;
 
-    return Dismissible(
-      key: ValueKey(track.sourceUrl ?? track.id),
-      direction: DismissDirection.endToStart,
-      background: Container(
-        alignment: Alignment.centerRight,
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        decoration: BoxDecoration(
-          color: colorScheme.errorContainer,
-          borderRadius: BorderRadius.circular(rMd),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 3, 16, 3),
+      child: Dismissible(
+        key: ValueKey(track.sourceUrl ?? track.id),
+        direction: DismissDirection.endToStart,
+        background: Container(
+          alignment: Alignment.centerRight,
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          decoration: BoxDecoration(
+            color: colorScheme.errorContainer,
+            borderRadius: BorderRadius.circular(rMd),
+          ),
+          child: Icon(Icons.delete_outline,
+              color: colorScheme.onErrorContainer),
         ),
-        child: Icon(Icons.delete_outline, color: colorScheme.onErrorContainer),
-      ),
-      onDismissed: (_) {
-        context
-            .read<AudioProvider>()
-            .removeFromStreamHistory(track.sourceUrl ?? track.path);
-      },
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
+        onDismissed: (_) {
+          context
+              .read<AudioProvider>()
+              .removeFromStreamHistory(track.sourceUrl ?? track.path);
+        },
+        child: Material(
+          color: colorScheme.surfaceContainerHigh,
           borderRadius: BorderRadius.circular(rMd),
-          onTap: isLoading ? null : () => _playEntry(entry),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Row(
-              children: [
-                _buildAlbumArt(track, colorScheme),
-                const SizedBox(width: 14),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: isLoading ? null : () => _playEntry(entry),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 10, 16, 10),
+              child: Row(
+                children: [
+                  _buildAlbumArt(track, colorScheme),
+                  const SizedBox(width: 14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -246,11 +263,12 @@ class _YoutubeHistoryScreenState extends State<YoutubeHistoryScreen> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                isLoading
-                    ? KashouLoader(size: 26, color: colorScheme.primary)
-                    : Icon(Icons.play_arrow_rounded,
-                        color: colorScheme.onSurfaceVariant),
-              ],
+                  isLoading
+                      ? KashouLoader(size: 26, color: colorScheme.primary)
+                      : Icon(Icons.play_arrow_rounded,
+                          color: colorScheme.onSurfaceVariant),
+                ],
+              ),
             ),
           ),
         ),
@@ -264,7 +282,7 @@ class _YoutubeHistoryScreenState extends State<YoutubeHistoryScreen> {
       // no stored bytes, the video thumb still exists online
       final id = _videoIdOf(track);
       return SquareArt(
-        url: id != null ? 'https://i.ytimg.com/vi/$id/hqdefault.jpg' : null,
+        url: id != null ? 'https://i.ytimg.com/vi/$id/mqdefault.jpg' : null,
         size: 56,
         radius: rSm,
       );
