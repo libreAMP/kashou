@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:provider/provider.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../providers/theme_provider.dart';
 import '../providers/settings_provider.dart';
-import '../providers/library_provider.dart';
 import '../screens/personalization_screen.dart';
+import '../theme/app_theme.dart';
+import '../widgets/settings_tiles.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -20,8 +19,7 @@ class SettingsScreen extends StatelessWidget {
           const SliverAppBar.large(title: Text('Settings')),
           SliverList(
             delegate: SliverChildListDelegate([
-              _buildSection(
-                context,
+              SettingsSection(
                 title: 'Appearance',
                 children: [
                   ListTile(
@@ -40,8 +38,7 @@ class SettingsScreen extends StatelessWidget {
                   ),
                 ],
               ),
-              _buildSection(
-                context,
+              SettingsSection(
                 title: 'Library',
                 children: [
                   ListTile(
@@ -58,7 +55,6 @@ class SettingsScreen extends StatelessWidget {
                     title: const Text('Rescan Library'),
                     subtitle: const Text('Scan for new music files'),
                     onTap: () {
-                      // Trigger library rescan
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('Rescanning library...')),
                       );
@@ -66,182 +62,133 @@ class SettingsScreen extends StatelessWidget {
                   ),
                 ],
               ),
-              _buildSection(
-                context,
-                title: 'Audio',
-                children: [
-                  Consumer<SettingsProvider>(
-                    builder: (context, settings, child) {
-                      return SwitchListTile(
-                        secondary: const Icon(Icons.music_note),
-                        title: const Text('Gapless Playback'),
-                        subtitle: const Text(
-                          'Seamless transition between tracks',
-                        ),
-                        value: settings.enableGapless,
-                        onChanged: settings.setEnableGapless,
-                      );
-                    },
-                  ),
-                  Consumer<SettingsProvider>(
-                    builder: (context, settings, child) {
-                      return SwitchListTile(
-                        secondary: const Icon(Icons.animation),
-                        title: const Text('Crossfade'),
-                        subtitle: const Text('Fade between tracks'),
-                        value: settings.enableCrossfade,
-                        onChanged: settings.setEnableCrossfade,
-                      );
-                    },
-                  ),
-                  Consumer<SettingsProvider>(
-                    builder: (context, settings, child) {
-                      if (!settings.enableCrossfade) {
-                        return const SizedBox.shrink();
-                      }
-                      return ListTile(
+              Consumer<SettingsProvider>(
+                builder: (context, settings, child) => SettingsSection(
+                  title: 'Audio',
+                  children: [
+                    SettingsSwitchTile(
+                      icon: Icons.music_note,
+                      title: 'Gapless Playback',
+                      subtitle: 'No gaps between tracks',
+                      value: settings.enableGapless,
+                      onChanged: settings.setEnableGapless,
+                    ),
+                    SettingsSwitchTile(
+                      icon: Icons.animation,
+                      title: 'Crossfade',
+                      subtitle: 'Fade between tracks',
+                      value: settings.enableCrossfade,
+                      onChanged: settings.setEnableCrossfade,
+                    ),
+                    if (settings.enableCrossfade)
+                      ListTile(
                         leading: const SizedBox(width: 40),
                         title: const Text('Crossfade Duration'),
-                        subtitle: Slider(
-                          value: settings.crossfadeDuration,
-                          min: 1,
-                          max: 10,
-                          divisions: 9,
-                          label: '${settings.crossfadeDuration.toInt()}s',
-                          onChanged: settings.setCrossfadeDuration,
+                        subtitle: SliderTheme(
+                          data: m3eSliderTheme(context),
+                          child: Slider(
+                            value: settings.crossfadeDuration,
+                            min: 1,
+                            max: 10,
+                            divisions: 9,
+                            label: '${settings.crossfadeDuration.toInt()}s',
+                            onChanged: settings.setCrossfadeDuration,
+                          ),
                         ),
-                      );
-                    },
-                  ),
-                  Consumer<SettingsProvider>(
-                    builder: (context, settings, child) {
-                      return SwitchListTile(
-                        secondary: const Icon(Icons.volume_up),
-                        title: const Text('Replay Gain'),
-                        subtitle: const Text('Normalize volume across tracks'),
-                        value: settings.enableReplayGain,
-                        onChanged: settings.setEnableReplayGain,
-                      );
-                    },
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.tune),
-                    title: const Text('Buffer Size'),
-                    subtitle: const Text('Applies on next launch'),
-                    trailing: Consumer<SettingsProvider>(
-                      builder: (context, settings, child) {
-                        return DropdownButton<int>(
-                          value: settings.bufferSize,
-                          items: const [
-                            DropdownMenuItem(value: 1024, child: Text('1024')),
-                            DropdownMenuItem(value: 2048, child: Text('2048')),
-                            DropdownMenuItem(value: 4096, child: Text('4096')),
-                          ],
-                          onChanged: (value) {
-                            if (value != null) settings.setBufferSize(value);
-                          },
-                        );
-                      },
+                      ),
+                    SettingsSwitchTile(
+                      icon: Icons.volume_up,
+                      title: 'Replay Gain',
+                      subtitle: 'Normalize volume across tracks',
+                      value: settings.enableReplayGain,
+                      onChanged: settings.setEnableReplayGain,
                     ),
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.high_quality),
-                    title: const Text('Resampler Quality'),
-                    subtitle: const Text('Float output on high, next launch'),
-                    trailing: Consumer<SettingsProvider>(
-                      builder: (context, settings, child) {
-                        return DropdownButton<String>(
-                          value: settings.resamplerQuality,
-                          items: const [
-                            DropdownMenuItem(value: 'Low', child: Text('Low')),
-                            DropdownMenuItem(
-                              value: 'Medium',
-                              child: Text('Medium'),
-                            ),
-                            DropdownMenuItem(
-                              value: 'High',
-                              child: Text('High'),
-                            ),
-                            DropdownMenuItem(
-                              value: 'Very High',
-                              child: Text('Very High'),
-                            ),
-                          ],
-                          onChanged: (value) {
-                            if (value != null)
-                              settings.setResamplerQuality(value);
-                          },
-                        );
-                      },
+                    ListTile(
+                      leading: const Icon(Icons.tune),
+                      title: const Text('Buffer Size'),
+                      subtitle: const Text('Applies on next launch'),
+                      trailing: DropdownButton<int>(
+                        value: settings.bufferSize,
+                        items: const [
+                          DropdownMenuItem(value: 1024, child: Text('1024')),
+                          DropdownMenuItem(value: 2048, child: Text('2048')),
+                          DropdownMenuItem(value: 4096, child: Text('4096')),
+                        ],
+                        onChanged: (value) {
+                          if (value != null) settings.setBufferSize(value);
+                        },
+                      ),
                     ),
-                  ),
-                  Consumer<SettingsProvider>(
-                    builder: (context, settings, child) {
-                      return SwitchListTile(
-                        secondary: const Icon(Icons.blur_on),
-                        title: const Text('Dithering'),
-                        subtitle:
-                            const Text('Dither on the 16 bit path, next launch'),
-                        value: settings.enableDither,
-                        onChanged: settings.setEnableDither,
-                      );
-                    },
-                  ),
-                ],
+                    ListTile(
+                      leading: const Icon(Icons.high_quality),
+                      title: const Text('Resampler Quality'),
+                      subtitle: const Text('Float output on high, next launch'),
+                      trailing: DropdownButton<String>(
+                        value: settings.resamplerQuality,
+                        items: const [
+                          DropdownMenuItem(value: 'Low', child: Text('Low')),
+                          DropdownMenuItem(
+                            value: 'Medium',
+                            child: Text('Medium'),
+                          ),
+                          DropdownMenuItem(value: 'High', child: Text('High')),
+                          DropdownMenuItem(
+                            value: 'Very High',
+                            child: Text('Very High'),
+                          ),
+                        ],
+                        onChanged: (value) {
+                          if (value != null)
+                            settings.setResamplerQuality(value);
+                        },
+                      ),
+                    ),
+                    SettingsSwitchTile(
+                      icon: Icons.blur_on,
+                      title: 'Dithering',
+                      subtitle: 'Dither on the 16 bit path, next launch',
+                      value: settings.enableDither,
+                      onChanged: settings.setEnableDither,
+                    ),
+                  ],
+                ),
               ),
-              _buildSection(
-                context,
-                title: 'Online Features',
-                children: [
-                  Consumer<SettingsProvider>(
-                    builder: (context, settings, child) {
-                      return SwitchListTile(
-                        secondary: const Icon(Icons.cloud_outlined),
-                        title: const Text('YouTube Integration'),
-                        subtitle: const Text('Enable online music streaming'),
-                        value: settings.enableYouTubeIntegration,
-                        onChanged: settings.setEnableYouTubeIntegration,
-                      );
-                    },
-                  ),
-                  Consumer<SettingsProvider>(
-                    builder: (context, settings, child) {
-                      return SwitchListTile(
-                        secondary: const Icon(Icons.history_rounded),
-                        title: const Text('Search history'),
-                        subtitle:
-                            const Text('Remember what you search on Stream'),
-                        value: settings.enableSearchHistory,
-                        onChanged: settings.setEnableSearchHistory,
-                      );
-                    },
-                  ),
-                  Consumer<SettingsProvider>(
-                    builder: (context, settings, child) {
-                      return SwitchListTile(
-                        secondary: const Icon(Icons.cast),
-                        title: const Text('Casting'),
-                        subtitle: const Text('Chromecast support'),
-                        value: settings.enableCasting,
-                        onChanged: settings.setEnableCasting,
-                      );
-                    },
-                  ),
-                  Consumer<SettingsProvider>(
-                    builder: (context, settings, child) {
-                      return SwitchListTile(
-                        secondary: const Icon(Icons.directions_car),
-                        title: const Text('Android Auto'),
-                        subtitle: const Text('Car dashboard integration'),
-                        value: settings.enableAndroidAuto,
-                        onChanged: settings.setEnableAndroidAuto,
-                      );
-                    },
-                  ),
-                ],
+              Consumer<SettingsProvider>(
+                builder: (context, settings, child) => SettingsSection(
+                  title: 'Online Features',
+                  children: [
+                    SettingsSwitchTile(
+                      icon: Icons.cloud_outlined,
+                      title: 'YouTube Integration',
+                      subtitle: 'Enable online music streaming',
+                      value: settings.enableYouTubeIntegration,
+                      onChanged: settings.setEnableYouTubeIntegration,
+                    ),
+                    SettingsSwitchTile(
+                      icon: Icons.history_rounded,
+                      title: 'Search history',
+                      subtitle: 'Remember what you search on Stream',
+                      value: settings.enableSearchHistory,
+                      onChanged: settings.setEnableSearchHistory,
+                    ),
+                    SettingsSwitchTile(
+                      icon: Icons.cast,
+                      title: 'Casting',
+                      subtitle: 'Chromecast support',
+                      value: settings.enableCasting,
+                      onChanged: settings.setEnableCasting,
+                    ),
+                    SettingsSwitchTile(
+                      icon: Icons.directions_car,
+                      title: 'Android Auto',
+                      subtitle: 'Car dashboard integration',
+                      value: settings.enableAndroidAuto,
+                      onChanged: settings.setEnableAndroidAuto,
+                    ),
+                  ],
+                ),
               ),
-              _buildSection(
-                context,
+              SettingsSection(
                 title: 'About',
                 children: [
                   ListTile(
@@ -306,7 +253,8 @@ class SettingsScreen extends StatelessWidget {
                         icon: const Icon(Icons.delete),
                         onPressed: () async {
                           customPaths.remove(path);
-                          await prefs.setStringList('custom_music_paths', customPaths);
+                          await prefs.setStringList(
+                              'custom_music_paths', customPaths);
                           Navigator.pop(context);
                           _showMusicFoldersDialog(context);
                         },
@@ -322,8 +270,9 @@ class SettingsScreen extends StatelessWidget {
           ),
           FilledButton.icon(
             onPressed: () async {
-              String? selectedDirectory = await FilePicker.platform.getDirectoryPath();
-              
+              String? selectedDirectory =
+                  await FilePicker.platform.getDirectoryPath();
+
               if (selectedDirectory != null) {
                 customPaths.add(selectedDirectory);
                 await prefs.setStringList('custom_music_paths', customPaths);
@@ -338,29 +287,6 @@ class SettingsScreen extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildSection(
-    BuildContext context, {
-    required String title,
-    required List<Widget> children,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
-          child: Text(
-            title,
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-              color: Theme.of(context).colorScheme.primary,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
-        ...children,
-      ],
     );
   }
 }

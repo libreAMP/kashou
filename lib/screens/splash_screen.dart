@@ -40,7 +40,7 @@ class _SplashScreenState extends State<SplashScreen>
     _badgeSpin = Tween<double>(begin: -0.14, end: 0.0).animate(CurvedAnimation(
         parent: _controller,
         curve: const Interval(0.0, 0.7, curve: Curves.easeOutCubic)));
-    _kaUntwist = Tween<double>(begin: 0.16, end: 0.0).animate(CurvedAnimation(
+    _kaUntwist = Tween<double>(begin: 0.09, end: 0.0).animate(CurvedAnimation(
         parent: _controller,
         curve: const Interval(0.28, 1.0, curve: Curves.easeOutBack)));
     _wordFade = Tween<double>(begin: 0.0, end: 1.0).animate(CurvedAnimation(

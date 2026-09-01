@@ -67,9 +67,9 @@ class HomeScreen extends StatelessWidget {
           Expanded(
             child: Material(
               color: scheme.surfaceContainerHigh,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(rMd),
               child: InkWell(
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(rMd),
                 onTap: () => Navigator.push(
                   context,
                   PageRouteBuilder(
@@ -495,8 +495,9 @@ class HomeScreen extends StatelessWidget {
       children: [
         Text(
           title,
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w700,
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.3,
                 color: colorScheme.onSurface,
               ),
         ),
