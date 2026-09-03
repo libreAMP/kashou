@@ -231,15 +231,32 @@ class LibraryProvider extends ChangeNotifier {
     await _savePlaylists();
   }
 
-  Future<void> importPlaylist(String name, List<Track> tracks) async {
+  Future<void> importPlaylist(String name, List<Track> tracks,
+      {String? coverImage}) async {
     _playlists.add(Playlist(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       name: name,
       tracks: List<Track>.from(tracks),
       createdAt: DateTime.now(),
+      coverImage: coverImage,
     ));
     notifyListeners();
     await _savePlaylists();
+  }
+
+  Future<void> setPlaylistCover(String playlistId, String? cover) async {
+    final i = _playlists.indexWhere((p) => p.id == playlistId);
+    if (i == -1) return;
+    final old = _playlists[i];
+    _playlists[i] = Playlist(
+      id: old.id,
+      name: old.name,
+      tracks: old.tracks,
+      createdAt: old.createdAt,
+      coverImage: cover,
+    );
+    await _savePlaylists();
+    notifyListeners();
   }
 
   Future<void> addToPlaylist(String playlistId, Track track) async {
@@ -258,6 +275,22 @@ class LibraryProvider extends ChangeNotifier {
       notifyListeners();
       await _savePlaylists();
     }
+  }
+
+  Future<void> renamePlaylist(String playlistId, String name) async {
+    final i = _playlists.indexWhere((p) => p.id == playlistId);
+    final trimmed = name.trim();
+    if (i == -1 || trimmed.isEmpty) return;
+    final old = _playlists[i];
+    _playlists[i] = Playlist(
+      id: old.id,
+      name: trimmed,
+      tracks: old.tracks,
+      createdAt: old.createdAt,
+      coverImage: old.coverImage,
+    );
+    await _savePlaylists();
+    notifyListeners();
   }
 
   Future<void> deletePlaylist(String playlistId) async {

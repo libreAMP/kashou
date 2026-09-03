@@ -73,6 +73,7 @@ class SettingsSwitchTile extends StatelessWidget {
     required this.title,
     this.subtitle,
     required this.value,
+    this.contentPadding,
     required this.onChanged,
   });
 
@@ -80,6 +81,7 @@ class SettingsSwitchTile extends StatelessWidget {
   final String title;
   final String? subtitle;
   final bool value;
+  final EdgeInsetsGeometry? contentPadding;
   final ValueChanged<bool> onChanged;
 
   @override
@@ -87,6 +89,7 @@ class SettingsSwitchTile extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final sub = subtitle;
     return ListTile(
+      contentPadding: contentPadding,
       leading: Icon(icon),
       title: Text(title),
       subtitle: sub != null ? Text(sub) : null,

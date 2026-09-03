@@ -26,6 +26,7 @@ class Playlist {
         'id': id,
         'name': name,
         'createdAt': createdAt.millisecondsSinceEpoch,
+        if (coverImage != null) 'coverImage': coverImage,
         'tracks': [
           for (final t in tracks)
             (t.toMap()..remove('albumArt')),
@@ -37,6 +38,7 @@ class Playlist {
         name: map['name'] as String,
         createdAt:
             DateTime.fromMillisecondsSinceEpoch(map['createdAt'] as int? ?? 0),
+        coverImage: map['coverImage'] as String?,
         tracks: [
           for (final t in (map['tracks'] as List? ?? const []))
             Track.fromMap(Map<String, dynamic>.from(t as Map)),

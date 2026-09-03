@@ -513,6 +513,33 @@ class YtMusicService {
     return songs;
   }
 
+  Future<String?> getPlaylistTitle(String playlistId) async {
+    final id = playlistId.startsWith('VL') ? playlistId.substring(2) : playlistId;
+    final json = await _browse('VL$id');
+    if (json == null) return null;
+    final header = json['header'];
+    final h = header?['musicDetailHeaderRenderer'] ??
+        header?['musicEditableHeaderRenderer']?['header']
+            ?['musicDetailHeaderRenderer'] ??
+        header?['musicResponsiveHeaderRenderer'];
+    final t = _text(h?['title']);
+    if (t != null && t.isNotEmpty) return t;
+    // microformat keeps the title when signed out
+    return json['microformat']?['microformatDataRenderer']?['title']
+        as String?;
+  }
+
+  Future<String?> getPlaylistThumb(String playlistId) async {
+    final id = playlistId.startsWith('VL') ? playlistId.substring(2) : playlistId;
+    final json = await _browse('VL$id');
+    final thumbs =
+        json?['microformat']?['microformatDataRenderer']?['thumbnail']?['thumbnails'];
+    if (thumbs is List && thumbs.isNotEmpty) {
+      return (thumbs.last as Map<String, dynamic>)['url'] as String?;
+    }
+    return null;
+  }
+
   List<Map<String, dynamic>> _playlistItems(dynamic contents) {
     final out = <Map<String, dynamic>>[];
     if (contents is! List) return out;

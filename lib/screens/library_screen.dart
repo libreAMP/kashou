@@ -1,9 +1,18 @@
+import 'dart:io';
+
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
+import '../models/playlist.dart';
 import '../models/track.dart';
 import '../providers/library_provider.dart';
 import '../services/download_store.dart';
 import '../services/ytmusic_service.dart';
+import '../theme/app_theme.dart';
+import '../theme/radii.dart';
+import '../widgets/settings_tiles.dart';
 import '../utils/app_messenger.dart';
 import '../providers/audio_provider.dart';
 import '../widgets/track_list_item.dart';
@@ -705,34 +714,12 @@ class _LibraryScreenState extends State<LibraryScreen>
         return ListTile(
           title: Text(playlist.name),
           subtitle: Text('${playlist.tracks.length} songs'),
-          leading: CircleAvatar(
-            child: Text(playlist.name.isNotEmpty
-                ? playlist.name[0].toUpperCase()
-                : '?'),
-          ),
+          leading: _playlistArt(playlist, Theme.of(context).colorScheme),
           onTap: () => Navigator.of(context).push(MaterialPageRoute(
             builder: (_) => TrackListPage(
                 title: playlist.name, tracks: playlist.tracks),
           )),
-          onLongPress: () async {
-            final remove = await showDialog<bool>(
-              context: context,
-              builder: (dialogContext) => AlertDialog(
-                title: Text('Delete ${playlist.name}?'),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(dialogContext, false),
-                    child: const Text('Cancel'),
-                  ),
-                  FilledButton(
-                    onPressed: () => Navigator.pop(dialogContext, true),
-                    child: const Text('Delete'),
-                  ),
-                ],
-              ),
-            );
-            if (remove == true) library.deletePlaylist(playlist.id);
-          },
+          onLongPress: () => _showPlaylistOptions(context, playlist.id),
         );
       },
     );
@@ -742,37 +729,73 @@ class _LibraryScreenState extends State<LibraryScreen>
     final library = Provider.of<LibraryProvider>(context, listen: false);
     final linkController = TextEditingController();
     final nameController = TextEditingController();
+    var useYtName = true;
     final ok = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Import from YouTube'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: linkController,
-              autofocus: true,
-              decoration:
-                  const InputDecoration(hintText: 'Playlist or album link'),
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          insetPadding:
+              const EdgeInsets.symmetric(horizontal: 12, vertical: 24),
+          title: Text(
+            'Import from YouTube',
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.3,
+                ),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: linkController,
+                autofocus: true,
+                decoration: InputDecoration(
+                  hintText: 'Playlist or album link',
+                  prefixIcon: const Icon(Icons.link_rounded),
+                  filled: true,
+                  fillColor:
+                      Theme.of(context).colorScheme.surfaceContainerHighest,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(rMd),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+              SettingsSwitchTile(
+                icon: Icons.title,
+                title: 'Use YouTube playlist name',
+                value: useYtName,
+                contentPadding: EdgeInsets.zero,
+                onChanged: (v) => setState(() => useYtName = v),
+              ),
+              if (!useYtName)
+                TextField(
+                  controller: nameController,
+                  decoration: InputDecoration(
+                    hintText: 'Name here',
+                    filled: true,
+                    fillColor: Theme.of(context)
+                        .colorScheme
+                        .surfaceContainerHighest,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(rMd),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancel'),
             ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: nameController,
-              decoration:
-                  const InputDecoration(hintText: 'Name here (optional)'),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Import'),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Import'),
-          ),
-        ],
       ),
     );
     if (ok != true) return;
@@ -794,9 +817,13 @@ class _LibraryScreenState extends State<LibraryScreen>
       return;
     }
 
-    final name = nameController.text.trim().isEmpty
-        ? 'YouTube import'
-        : nameController.text.trim();
+    const ytm = YtMusicService();
+    final name = useYtName
+        ? (await ytm.getPlaylistTitle(id) ?? 'YouTube import')
+        : nameController.text.trim().isEmpty
+            ? 'YouTube import'
+            : nameController.text.trim();
+    final cover = await ytm.getPlaylistThumb(id);
     await library.importPlaylist(name, [
       for (final song in songs)
         Track(
@@ -811,12 +838,13 @@ class _LibraryScreenState extends State<LibraryScreen>
               'https://www.youtube.com/watch?v=${song['id']}',
           artistId: song['artistId'] as String?,
         ),
-    ]);
+    ], coverImage: cover);
     appMessenger.currentState?.showSnackBar(
         SnackBar(content: Text('Imported ${songs.length} songs into $name')));
   }
 
   void _showLibraryOptions(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     showModalBottomSheet(
       context: context,
       builder: (context) {
@@ -824,48 +852,150 @@ class _LibraryScreenState extends State<LibraryScreen>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              ListTile(
-                leading: const Icon(Icons.history),
-                title: const Text('YouTube History'),
-                onTap: () {
-                  Navigator.pop(context);
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                        builder: (_) => const YoutubeHistoryScreen()),
-                  );
-                },
+              Container(
+                margin: const EdgeInsets.symmetric(vertical: 12),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: scheme.onSurfaceVariant.withValues(alpha: 0.4),
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
-              ListTile(
-                leading: const Icon(Icons.link_rounded),
-                title: const Text('Import from YouTube'),
-                onTap: () {
-                  Navigator.pop(context);
-                  _importFromYouTube();
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.refresh),
-                title: const Text('Rescan Library'),
-                onTap: () {
-                  Navigator.pop(context);
-                  final provider = Provider.of<LibraryProvider>(
-                    context,
-                    listen: false,
-                  );
-                  provider.scanLibrary(force: true);
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.sort),
-                title: const Text('Sort Options'),
-                onTap: () {
-                  Navigator.pop(context);
-                },
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                child: Material(
+                  color: scheme.surfaceContainerHigh,
+                  borderRadius: EShape.radius(EShape.lg),
+                  clipBehavior: Clip.antiAlias,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      ListTile(
+                        leading: const Icon(Icons.history),
+                        title: const Text('YouTube History'),
+                        onTap: () {
+                          Navigator.pop(context);
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                                builder: (_) => const YoutubeHistoryScreen()),
+                          );
+                        },
+                      ),
+                      Divider(
+                          height: 1,
+                          indent: 56,
+                          color:
+                              scheme.outlineVariant.withValues(alpha: 0.4)),
+                      ListTile(
+                        leading: const Icon(Icons.link_rounded),
+                        title: const Text('Import from YouTube'),
+                        onTap: () {
+                          Navigator.pop(context);
+                          _importFromYouTube();
+                        },
+                      ),
+                      Divider(
+                          height: 1,
+                          indent: 56,
+                          color:
+                              scheme.outlineVariant.withValues(alpha: 0.4)),
+                      ListTile(
+                        leading: const Icon(Icons.refresh),
+                        title: const Text('Rescan Library'),
+                        onTap: () {
+                          Navigator.pop(context);
+                          final provider = Provider.of<LibraryProvider>(
+                            context,
+                            listen: false,
+                          );
+                          provider.scanLibrary(force: true);
+                        },
+                      ),
+                      Divider(
+                          height: 1,
+                          indent: 56,
+                          color:
+                              scheme.outlineVariant.withValues(alpha: 0.4)),
+                      ListTile(
+                        leading: const Icon(Icons.sort),
+                        title: const Text('Sort Options'),
+                        onTap: () {
+                          Navigator.pop(context);
+                        },
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ],
           ),
         );
       },
+    );
+  }
+
+  Widget _playlistArt(Playlist playlist, ColorScheme scheme) {
+    final fallback = CircleAvatar(
+      backgroundColor: scheme.surfaceContainerHighest,
+      child: Text(playlist.name.isNotEmpty
+          ? playlist.name[0].toUpperCase()
+          : '?'),
+    );
+    final cover = playlist.coverImage;
+    if (cover == null || cover.isEmpty) return fallback;
+    final Widget img = cover.startsWith('http')
+        ? CachedNetworkImage(
+            imageUrl: cover,
+            fit: BoxFit.cover,
+            errorWidget: (_, __, ___) => fallback,
+          )
+        : Image.file(
+            File(cover),
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => fallback,
+          );
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(rSm),
+      child: SizedBox(width: 56, height: 56, child: img),
+    );
+  }
+
+  void _showRenameDialog(
+      BuildContext context, String playlistId, String current) {
+    final controller = TextEditingController(text: current);
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        insetPadding:
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 24),
+        title: const Text('Rename Playlist'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: InputDecoration(
+            filled: true,
+            fillColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(rMd),
+              borderSide: BorderSide.none,
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Provider.of<LibraryProvider>(context, listen: false)
+                  .renamePlaylist(playlistId, controller.text);
+              Navigator.pop(context);
+            },
+            child: const Text('Rename'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -909,6 +1039,7 @@ class _LibraryScreenState extends State<LibraryScreen>
   }
 
   void _showPlaylistOptions(BuildContext context, String playlistId) {
+    final scheme = Theme.of(context).colorScheme;
     showModalBottomSheet(
       context: context,
       builder: (context) {
@@ -916,16 +1047,105 @@ class _LibraryScreenState extends State<LibraryScreen>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              ListTile(
-                leading: const Icon(Icons.delete),
-                title: const Text('Delete Playlist'),
-                onTap: () {
-                  Navigator.pop(context);
-                  Provider.of<LibraryProvider>(
-                    context,
-                    listen: false,
-                  ).deletePlaylist(playlistId);
-                },
+              Container(
+                margin: const EdgeInsets.symmetric(vertical: 12),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: scheme.onSurfaceVariant.withValues(alpha: 0.4),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                child: Material(
+                  color: scheme.surfaceContainerHigh,
+                  borderRadius: EShape.radius(EShape.lg),
+                  clipBehavior: Clip.antiAlias,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      ListTile(
+                        leading: const Icon(Icons.edit_rounded),
+                        title: const Text('Rename Playlist'),
+                        onTap: () {
+                          Navigator.pop(context);
+                          final current = Provider.of<LibraryProvider>(
+                            context,
+                            listen: false,
+                          ).playlists.firstWhere((p) => p.id == playlistId).name;
+                          _showRenameDialog(context, playlistId, current);
+                        },
+                      ),
+                      Divider(
+                          height: 1,
+                          indent: 56,
+                          color:
+                              scheme.outlineVariant.withValues(alpha: 0.4)),
+                      ListTile(
+                        leading: const Icon(Icons.image_outlined),
+                        title: const Text('Change Cover'),
+                        onTap: () async {
+                          Navigator.pop(context);
+                          final picked = await FilePicker.platform
+                              .pickFiles(type: FileType.image);
+                          final src = picked?.files.single.path;
+                          if (src == null) return;
+                          final dir =
+                              await getApplicationDocumentsDirectory();
+                          final f =
+                              File('${dir.path}/playlist_$playlistId.jpg');
+                          await f.writeAsBytes(await File(src).readAsBytes());
+                          if (context.mounted) {
+                            Provider.of<LibraryProvider>(context,
+                                    listen: false)
+                                .setPlaylistCover(playlistId, f.path);
+                          }
+                        },
+                      ),
+                      Divider(
+                          height: 1,
+                          indent: 56,
+                          color:
+                              scheme.outlineVariant.withValues(alpha: 0.4)),
+                      ListTile(
+                        leading: const Icon(Icons.delete),
+                        title: const Text('Delete Playlist'),
+                        onTap: () async {
+                          Navigator.pop(context);
+                          final library = Provider.of<LibraryProvider>(
+                            context,
+                            listen: false,
+                          );
+                          final name = library.playlists
+                              .firstWhere((p) => p.id == playlistId)
+                              .name;
+                          final remove = await showDialog<bool>(
+                            context: context,
+                            builder: (dialogContext) => AlertDialog(
+                              title: Text('Delete $name?'),
+                              actions: [
+                                TextButton(
+                                  onPressed: () =>
+                                      Navigator.pop(dialogContext, false),
+                                  child: const Text('Cancel'),
+                                ),
+                                FilledButton(
+                                  onPressed: () =>
+                                      Navigator.pop(dialogContext, true),
+                                  child: const Text('Delete'),
+                                ),
+                              ],
+                            ),
+                          );
+                          if (remove == true) {
+                            library.deletePlaylist(playlistId);
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ],
           ),
