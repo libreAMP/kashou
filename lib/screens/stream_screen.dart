@@ -71,14 +71,14 @@ class _StreamScreenState extends State<StreamScreen>
       final audioProvider = Provider.of<AudioProvider>(context, listen: false);
       final rec = Provider.of<RecommendationProvider>(context, listen: false);
 
-      rec.loadInitialRecommendations();
-
-      // give stream history a moment to come back from shared prefs
+      // history loads async from prefs
       await Future.delayed(const Duration(milliseconds: 500));
       if (!mounted) return;
 
       if (audioProvider.streamHistory.isNotEmpty) {
         rec.fetchPersonalizedFromHistory(audioProvider.streamHistory);
+      } else {
+        rec.loadInitialRecommendations();
       }
       if (audioProvider.currentTrack != null) {
         rec.updateRecommendations(audioProvider.currentTrack,
@@ -235,9 +235,9 @@ class _StreamScreenState extends State<StreamScreen>
   Future<void> _playVideo(Map<String, dynamic> video) async {
     _rememberSearch();
     final audioProvider = Provider.of<AudioProvider>(context, listen: false);
-    final videoId = video['id']?.toString() ?? UniqueKey().toString();
-    final videoUrl = video['url'] ?? 'https://www.youtube.com/watch?v=$videoId';
-    final durationSeconds = _asInt(video['duration']) ?? 0;
+      final videoId = video['id']?.toString() ?? UniqueKey().toString();
+      final videoUrl = video['url'] ?? 'https://www.youtube.com/watch?v=$videoId';
+      final durationSeconds = _asInt(video['duration']) ?? 0;
 
     final placeholder = Track(
       id: videoId,
@@ -254,7 +254,12 @@ class _StreamScreenState extends State<StreamScreen>
     await audioProvider.prepareTrackLoad(placeholder);
 
     try {
-      final streamInfo = await YoutubeService.instance.fetchStreams(videoId);
+      var streamInfo = await YoutubeService.instance.fetchStreams(videoId);
+      if (streamInfo == null || streamInfo.audioStreams.isEmpty) {
+        await Future.delayed(const Duration(milliseconds: 800));
+        streamInfo = await YoutubeService.instance
+            .fetchStreams(videoId, forceRefresh: true);
+      }
       if (streamInfo == null || streamInfo.audioStreams.isEmpty) {
         audioProvider.cancelPendingTrack(videoId);
         _snack('Unable to load audio stream.');
@@ -274,12 +279,22 @@ class _StreamScreenState extends State<StreamScreen>
 
       await audioProvider.playTrack(finalTrack);
 
-      final thumb = video['thumbnail'] as String? ??
-          'https://i.ytimg.com/vi/$videoId/hqdefault.jpg';
-      http.get(Uri.parse(thumb)).then((resp) {
+      // hqdefault has black bars baked in
+      http
+          .get(Uri.parse('https://i.ytimg.com/vi/$videoId/maxresdefault.jpg'))
+          .then((resp) {
         if (resp.statusCode == 200) {
           audioProvider.updateTrackMetadata(
               finalTrack.copyWith(albumArt: resp.bodyBytes));
+        } else {
+          return http
+              .get(Uri.parse('https://i.ytimg.com/vi/$videoId/mqdefault.jpg'))
+              .then((r2) {
+            if (r2.statusCode == 200) {
+              audioProvider.updateTrackMetadata(
+                  finalTrack.copyWith(albumArt: r2.bodyBytes));
+            }
+          });
         }
       });
     } catch (e) {
@@ -404,7 +419,7 @@ class _StreamScreenState extends State<StreamScreen>
               ),
             ),
           ),
-          if (!searching) ...[
+          ...[
             const SizedBox(width: 4),
             Consumer<SettingsProvider>(
               builder: (context, settings, _) {

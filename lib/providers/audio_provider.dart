@@ -380,6 +380,17 @@ class AudioProvider extends ChangeNotifier {
       if (_audioHandler != null && duration != null && duration > Duration.zero) {
         _audioHandler!.updateDuration(duration);
       }
+      // search sometimes ships no duration
+      if (duration != null &&
+          duration > Duration.zero &&
+          _currentTrack != null &&
+          _currentTrack!.duration != duration) {
+        final updated = _currentTrack!.copyWith(duration: duration);
+        _currentTrack = updated;
+        _lastCommittedTrack = updated;
+        final qi = _queue.indexWhere((t) => t.id == updated.id);
+        if (qi != -1) _queue[qi] = updated;
+      }
       notifyListeners();
     }));
 
@@ -583,17 +594,7 @@ class AudioProvider extends ChangeNotifier {
     final bool shouldReuse = _pendingShouldUseExistingSource;
 
     if (!shouldReuse) {
-      if (wasPlaying || audioPlayer.playing) {
-        try {
-          await audioPlayer.pause();
-        } catch (_) {}
-      }
-
-      try {
-        await audioPlayer.stop();
-      } catch (_) {}
-      await Future.delayed(const Duration(milliseconds: 200));
-
+      // stop() here kills the media notification
       _position = Duration.zero;
       _bufferedPosition = Duration.zero;
       _duration = Duration.zero;
@@ -731,8 +732,8 @@ class AudioProvider extends ChangeNotifier {
 
     _gaplessIndexSub?.cancel();
     _gaplessIndexSub = audioPlayer.currentIndexStream.listen((index) {
-      // stale events fire after leaving gapless
-      if (_playlist == null) return;
+      // stale gapless events fire mid handoff
+      if (_playlist == null || _pendingTrack != null) return;
       if (index != null && index < _queue.length) {
         _currentIndex = index;
         _currentTrack = _queue[index];

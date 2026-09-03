@@ -1,8 +1,10 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/track.dart';
 import '../providers/audio_provider.dart';
 import '../providers/library_provider.dart';
+import '../theme/radii.dart';
 
 class TrackListItem extends StatelessWidget {
   final Track track;
@@ -21,7 +23,7 @@ class TrackListItem extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 4),
           child: Material(
             color: Colors.transparent,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(rMd),
             child: InkWell(
               onTap: () {
                 final library = Provider.of<LibraryProvider>(
@@ -30,92 +32,40 @@ class TrackListItem extends StatelessWidget {
                 );
                 audio.playTrack(track, playlist: library.allTracks);
               },
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(rMd),
               splashColor: colorScheme.primary.withValues(alpha: 0.05),
               highlightColor: colorScheme.primary.withValues(alpha: 0.03),
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      isCurrent
-                          ? colorScheme.primary.withValues(alpha: 0.08)
-                          : colorScheme.surface.withValues(alpha: 0.8),
-                      isCurrent
-                          ? colorScheme.primary.withValues(alpha: 0.04)
-                          : colorScheme.surface.withValues(alpha: 0.4),
-                    ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
                     color: isCurrent
-                        ? colorScheme.primary.withValues(alpha: 0.3)
-                        : colorScheme.outline.withValues(alpha: 0.1),
-                    width: 1,
+                        ? colorScheme.primary.withValues(alpha: 0.12)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(rMd),
                   ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: (isCurrent ? colorScheme.primary : colorScheme.shadow)
-                          .withValues(alpha: 0.05),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                      spreadRadius: 0,
-                    ),
-                  ],
-                ),
                 child: Row(
                   children: [
-                    // Album art with enhanced styling
                     ClipRRect(
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(rSm),
                       child: Container(
                         width: 50,
                         height: 50,
-                        decoration: BoxDecoration(
-                          color: colorScheme.surfaceContainerHighest,
-                          boxShadow: [
-                            BoxShadow(
-                              color: colorScheme.shadow.withValues(alpha: 0.1),
-                              blurRadius: 6,
-                              offset: const Offset(0, 2),
-                            ),
+                        color: colorScheme.surfaceContainerHighest,
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            _artFor(track, colorScheme),
+                            if (isPlaying)
+                              Container(
+                                color: Colors.black.withValues(alpha: 0.4),
+                                child: Icon(
+                                  Icons.graphic_eq,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
+                              ),
                           ],
                         ),
-                        child: track.albumArt != null
-                            ? Stack(
-                                fit: StackFit.expand,
-                                children: [
-                                  Image.memory(
-                                    track.albumArt!,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (context, error, stackTrace) {
-                                      return Icon(
-                                        Icons.music_note,
-                                        color: colorScheme.onSurfaceVariant,
-                                        size: 24,
-                                      );
-                                    },
-                                  ),
-                                  if (isPlaying)
-                                    Container(
-                                      color: Colors.black.withValues(alpha: 0.4),
-                                      child: Icon(
-                                        Icons.graphic_eq,
-                                        color: Colors.white,
-                                        size: 20,
-                                      ),
-                                    ),
-                                ],
-                              )
-                            : Icon(
-                                isPlaying ? Icons.graphic_eq : Icons.music_note,
-                                color: isCurrent
-                                    ? colorScheme.onPrimaryContainer
-                                    : colorScheme.onSurfaceVariant,
-                                size: 24,
-                              ),
                       ),
                     ),
                     const SizedBox(width: 16),
@@ -304,6 +254,43 @@ class TrackListItem extends StatelessWidget {
         );
       },
     );
+  }
+
+  Widget _artFor(Track track, ColorScheme colorScheme) {
+    if (track.albumArt != null) {
+      return Image.memory(
+        track.albumArt!,
+        fit: BoxFit.cover,
+        gaplessPlayback: true,
+        errorBuilder: (_, __, ___) => Icon(
+          Icons.music_note,
+          color: colorScheme.onSurfaceVariant,
+          size: 24,
+        ),
+      );
+    }
+    final uri = Uri.tryParse(track.sourceUrl ?? track.path);
+    final id = uri?.queryParameters['v'] ??
+        (uri != null &&
+                uri.host.contains('youtu.be') &&
+                uri.pathSegments.isNotEmpty
+            ? uri.pathSegments.first
+            : null);
+    if (id != null) {
+      return CachedNetworkImage(
+        imageUrl: 'https://i.ytimg.com/vi/$id/mqdefault.jpg',
+        fit: BoxFit.cover,
+        placeholder: (_, __) =>
+            Container(color: colorScheme.surfaceContainerHighest),
+        errorWidget: (_, __, ___) => Icon(
+          Icons.music_note,
+          color: colorScheme.onSurfaceVariant,
+          size: 24,
+        ),
+      );
+    }
+    return Icon(Icons.music_note,
+        color: colorScheme.onSurfaceVariant, size: 24);
   }
 
   Widget _buildInfoRow(String label, String value) {

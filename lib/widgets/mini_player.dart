@@ -490,6 +490,17 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
                                     onPressed: () => _showCastDialog(context),
                                     splashRadius: 22,
                                   ),
+                                IconButton(
+                                  icon: Icon(
+                                    Icons.skip_previous_rounded,
+                                    color: colorScheme.onSurface,
+                                  ),
+                                  iconSize: 26,
+                                  onPressed: () => context
+                                      .read<AudioProvider>()
+                                      .skipPrevious(),
+                                  splashRadius: 24,
+                                ),
                                 StreamBuilder<GoogleCastSession?>(
                                   stream: GoogleCastSessionManager
                                       .instance.currentSessionStream,

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart' hide RepeatMode;
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -346,23 +347,22 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                               child: _buildTopBar(context, track),
                             ),
                             Expanded(
-                              child: SingleChildScrollView(
-                                physics: const BouncingScrollPhysics(),
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 20),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.center,
-                                    children: [
-                                      const SizedBox(height: 8),
-                                      RepaintBoundary(
-                                          child: _buildArtworkCard(
-                                              context, track, size)),
-                                      const SizedBox(height: 28),
-                                      _buildTrackMeta(context, track, audio),
-                                      const SizedBox(height: 28),
-                                    ],
+                              child: LayoutBuilder(
+                                builder: (context, constraints) =>
+                                    SingleChildScrollView(
+                                  physics: const BouncingScrollPhysics(),
+                                  child: ConstrainedBox(
+                                    constraints: BoxConstraints(
+                                        minHeight: constraints.maxHeight),
+                                    child: Center(
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 20),
+                                        child: RepaintBoundary(
+                                            child: _buildArtworkCard(
+                                                context, track, size)),
+                                      ),
+                                    ),
                                   ),
                                 ),
                               ),
@@ -372,16 +372,18 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                               minimum: const EdgeInsets.only(bottom: 12),
                               child: Padding(
                                 padding:
-                                    const EdgeInsets.fromLTRB(20, 16, 20, 12),
+                                    const EdgeInsets.fromLTRB(20, 8, 20, 12),
                                 child: Column(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
+                                    _buildTrackMeta(context, track, audio),
+                                    const SizedBox(height: 16),
                                     RepaintBoundary(
                                         child:
                                             _buildProgressStrip(context, audio)),
                                     const SizedBox(height: 18),
                                     _buildPrimaryControls(context, audio),
-                                    const SizedBox(height: 34),
+                                    const SizedBox(height: 20),
                                     _buildSecondaryControlRow(
                                         context, audio, library),
                                   ],
@@ -468,33 +470,41 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       );
     }
 
-    final String? youtubeThumbnailUrl = _buildYoutubeThumbnailUrl(track);
+    final String? videoId = _extractYouTubeId(track.sourceUrl ?? track.path);
+
+    final online = videoId != null;
+
+    Widget lowArt() {
+      if (online) {
+        // mqdefault has no bars
+        return CachedNetworkImage(
+          imageUrl: 'https://i.ytimg.com/vi/$videoId/mqdefault.jpg',
+          fit: BoxFit.cover,
+          placeholder: (_, __) => buildFallback(),
+          errorWidget: (_, __, ___) => buildFallback(),
+        );
+      }
+      if (track.albumArt != null) {
+        return Image.memory(
+          track.albumArt!,
+          fit: BoxFit.cover,
+          gaplessPlayback: true,
+          filterQuality: FilterQuality.medium,
+        );
+      }
+      return buildFallback();
+    }
 
     final Widget image;
-    if (track.albumArt != null) {
-      image = Image.memory(
-        track.albumArt!,
+    if (online) {
+      image = CachedNetworkImage(
+        imageUrl: 'https://i.ytimg.com/vi/$videoId/maxresdefault.jpg',
         fit: BoxFit.cover,
-        gaplessPlayback: true,
-        errorBuilder: (_, __, ___) => buildFallback(),
-      );
-    } else if (youtubeThumbnailUrl != null) {
-      image = Image.network(
-        youtubeThumbnailUrl,
-        fit: BoxFit.cover,
-        frameBuilder: (context, child, frame, wasSync) =>
-            frame != null || wasSync ? child : buildFallback(),
-        // maxres is missing for a lot of videos
-        errorBuilder: (_, __, ___) => Image.network(
-          youtubeThumbnailUrl.replaceFirst('maxresdefault', 'hqdefault'),
-          fit: BoxFit.cover,
-          frameBuilder: (context, child, frame, wasSync) =>
-              frame != null || wasSync ? child : buildFallback(),
-          errorBuilder: (_, __, ___) => buildFallback(),
-        ),
+        placeholder: (_, __) => lowArt(),
+        errorWidget: (_, __, ___) => lowArt(),
       );
     } else {
-      image = buildFallback();
+      image = lowArt();
     }
 
     return GestureDetector(
@@ -516,19 +526,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
         tag: 'album_art_${track.id}',
         createRectTween: albumArtRectTween,
         flightShuttleBuilder: albumArtFlightShuttleBuilder,
-        child: Container(
+        child: SizedBox(
           width: dimension,
           height: dimension,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(24),
-            boxShadow: [
-              BoxShadow(
-                color: colorScheme.shadow.withOpacity(0.25),
-                blurRadius: 16,
-                offset: const Offset(0, 6),
-              ),
-            ],
-          ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(24),
               child: image,
@@ -645,7 +645,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       art = Image.memory(
         track.albumArt!,
         fit: BoxFit.cover,
-        cacheWidth: 40,
+        cacheWidth: 96,
         gaplessPlayback: true,
         errorBuilder: (_, __, ___) => fallbackGradient,
       );
@@ -653,7 +653,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       art = Image.network(
         youtubeThumbnailUrl,
         fit: BoxFit.cover,
-        cacheWidth: 40,
+        cacheWidth: 96,
         frameBuilder: (context, child, frame, wasSync) =>
             frame != null || wasSync ? child : fallbackGradient,
         errorBuilder: (_, __, ___) => fallbackGradient,
@@ -801,18 +801,22 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        _buildCircleIconButton(
-          context,
-          icon: Icons.skip_previous_rounded,
-          onTap: audio.skipPrevious,
+        PressableScale(
+          child: _buildCircleIconButton(
+            context,
+            icon: Icons.skip_previous_outlined,
+            onTap: audio.skipPrevious,
+          ),
         ),
         const SizedBox(width: 18),
         PressableScale(child: _buildPlayButton(context, audio)),
         const SizedBox(width: 18),
-        _buildCircleIconButton(
-          context,
-          icon: Icons.skip_next_rounded,
-          onTap: audio.skipNext,
+        PressableScale(
+          child: _buildCircleIconButton(
+            context,
+            icon: Icons.skip_next_outlined,
+            onTap: audio.skipNext,
+          ),
         ),
       ],
     );
@@ -828,11 +832,11 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       child: InkWell(
         customBorder: const CircleBorder(),
         onTap: onTap,
-        child: SizedBox(
-          width: 58,
-          height: 58,
-          child: Icon(icon, size: 28, color: colorScheme.onSurface),
-        ),
+          child: SizedBox(
+            width: 72,
+            height: 72,
+            child: Icon(icon, size: 32, color: colorScheme.onSurface),
+          ),
       ),
     );
   }
@@ -844,13 +848,13 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
 
     return Material(
       color: colorScheme.primary,
-      shape: const CircleBorder(),
+      borderRadius: BorderRadius.circular(24),
       child: InkWell(
-        customBorder: const CircleBorder(),
+        borderRadius: BorderRadius.circular(24),
         onTap: isLoading ? null : audio.togglePlayPause,
         child: SizedBox(
-          width: 78,
-          height: 78,
+          width: 96,
+          height: 74,
           child: Center(
             child: AnimatedSwitcher(
               duration: const Duration(milliseconds: 240),
@@ -866,10 +870,10 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                       color: colorScheme.onPrimaryContainer)
                   : Icon(
                       isPlaying
-                          ? Icons.pause_rounded
-                          : Icons.play_arrow_rounded,
+                          ? Icons.pause_outlined
+                          : Icons.play_arrow_outlined,
                       key: ValueKey(isPlaying),
-                      size: 40,
+                      size: 44,
                       color: colorScheme.onPrimary,
                     ),
             ),
@@ -889,14 +893,30 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
             audio.currentTrack!.path.contains('youtu.be') ||
             audio.currentTrack!.album == 'YouTube');
 
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: [
+    final colorScheme = Theme.of(context).colorScheme;
+    return Center(
+      child: ClipRRect(
+        borderRadius: EShape.radius(EShape.xl),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            decoration: BoxDecoration(
+              color: colorScheme.surfaceContainerHigh.withValues(alpha: 0.7),
+              borderRadius: EShape.radius(EShape.xl),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
         _buildSecondaryIconButton(
           context,
           icon: _getShuffleIcon(audio.shuffleMode),
           tooltip: 'Shuffle',
           active: isShuffle,
+          tileShape: BorderRadius.horizontal(
+            left: const Radius.circular(30),
+            right: const Radius.circular(20),
+          ),
           onTap: () {
             final newMode = audio.shuffleMode == ShuffleMode.off
                 ? ShuffleMode.songs
@@ -966,6 +986,10 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                         context,
                         icon: Icons.download,
                         tooltip: 'Download track',
+                        tileShape: BorderRadius.horizontal(
+                          left: const Radius.circular(20),
+                          right: const Radius.circular(30),
+                        ),
                         onTap: () {
                           if (audio.currentTrack != null) {
                             _downloadTrack(context, audio.currentTrack!);
@@ -975,7 +999,11 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                     ),
             ),
           ),
-      ],
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -1014,25 +1042,38 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     required String tooltip,
     required VoidCallback onTap,
     bool active = false,
+    BorderRadius? tileShape,
   }) {
     final colorScheme = Theme.of(context).colorScheme;
-    return Tooltip(
+    final shape = tileShape ?? EShape.radius(EShape.xl);
+    return PressableScale(
+      child: Tooltip(
       message: tooltip,
       child: Material(
         color: Colors.transparent,
-        shape: const CircleBorder(),
         child: InkWell(
-          customBorder: const CircleBorder(),
+          borderRadius: shape,
           onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.all(11),
+          child: AnimatedContainer(
+            duration: EMotion.fast,
+            margin: const EdgeInsets.symmetric(horizontal: 3),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: active
+                  ? colorScheme.primaryContainer
+                  : colorScheme.surfaceContainerHighest,
+              borderRadius: shape,
+            ),
             child: Icon(
               icon,
               size: 24,
-              color: active ? colorScheme.primary : colorScheme.onSurfaceVariant,
+              color: active
+                  ? colorScheme.onPrimaryContainer
+                  : colorScheme.onSurfaceVariant,
             ),
           ),
         ),
+      ),
       ),
     );
   }
@@ -1282,11 +1323,23 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
 
     showModalBottomSheet(
       context: context,
-      showDragHandle: true,
       builder: (sheetContext) {
+        final scheme = Theme.of(context).colorScheme;
         return SafeArea(
           child: SingleChildScrollView(
-            child: Padding(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  margin: const EdgeInsets.symmetric(vertical: 12),
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: scheme.onSurfaceVariant.withValues(alpha: 0.4),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
               child: Consumer<AudioProvider>(
                 builder: (context, audio, _) {
@@ -1353,6 +1406,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                   );
                 },
               ),
+            ),
+              ],
             ),
           ),
         );
@@ -1489,7 +1544,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     final sourceUrl = track.sourceUrl ?? track.path;
     final videoId = _extractYouTubeId(sourceUrl);
     if (videoId == null) return null;
-    return 'https://i.ytimg.com/vi/$videoId/maxresdefault.jpg';
+    return 'https://i.ytimg.com/vi/$videoId/mqdefault.jpg';
   }
 
   String? _extractYouTubeId(String? url) {

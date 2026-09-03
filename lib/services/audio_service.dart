@@ -1,4 +1,6 @@
 import 'dart:io';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
 import 'package:audio_service/audio_service.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:path_provider/path_provider.dart';
@@ -21,6 +23,30 @@ AudioLoadConfiguration _loadConfigFor(int bufferSize) {
       preferredForwardBufferDuration: Duration(seconds: seconds),
     ),
   );
+}
+
+Future<Uint8List?> _centerCropWide(Uint8List bytes) async {
+  try {
+    final codec = await ui.instantiateImageCodec(bytes);
+    final frame = await codec.getNextFrame();
+    final src = frame.image;
+    final w = src.width.toDouble();
+    final h = (w / 2.2).clamp(1.0, src.height.toDouble());
+    final dy = (src.height - h) / 2;
+    final recorder = ui.PictureRecorder();
+    final canvas = ui.Canvas(recorder);
+    canvas.drawImageRect(
+      src,
+      ui.Rect.fromLTWH(0, dy, w, h),
+      ui.Rect.fromLTWH(0, 0, w, h),
+      ui.Paint(),
+    );
+    final out = await recorder.endRecording().toImage(w.toInt(), h.toInt());
+    final data = await out.toByteData(format: ui.ImageByteFormat.png);
+    return data?.buffer.asUint8List();
+  } catch (_) {
+    return null;
+  }
 }
 
 class AudioPlayerService {
@@ -98,7 +124,9 @@ class AudioPlayerHandler extends BaseAudioHandler
         final tempDir = await getTemporaryDirectory();
         final artFile =
             File('${tempDir.path}/album_art_${track.id.hashCode}.jpg');
-        await artFile.writeAsBytes(track.albumArt!);
+        // notifications center fit so we crop wide
+        final wide = await _centerCropWide(track.albumArt!);
+        await artFile.writeAsBytes(wide ?? track.albumArt!);
         artUri = Uri.file(artFile.path);
       } catch (e) {
         print('Error saving album art to file: $e');
@@ -106,7 +134,8 @@ class AudioPlayerHandler extends BaseAudioHandler
     } else if (track.sourceUrl != null) {
       final videoId = Uri.tryParse(track.sourceUrl!)?.queryParameters['v'];
       if (videoId != null) {
-        artUri = Uri.parse('https://i.ytimg.com/vi/$videoId/hqdefault.jpg');
+        // hqdefault ships with black bars baked in
+        artUri = Uri.parse('https://i.ytimg.com/vi/$videoId/mqdefault.jpg');
       }
     }
 
@@ -116,7 +145,9 @@ class AudioPlayerHandler extends BaseAudioHandler
         title: track.title,
         artist: track.artist,
         album: track.album,
-        duration: track.duration,
+        duration: track.duration > Duration.zero
+            ? track.duration
+            : mediaItem.value?.duration,
         artUri: artUri,
       ),
     );
