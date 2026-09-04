@@ -3,14 +3,15 @@ import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart' hide RepeatMode;
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:share_plus/share_plus.dart';
 import '../providers/audio_provider.dart';
 import '../widgets/equalizer_widget.dart';
 import 'metadata_editor_screen.dart';
 import 'dart:ui';
-import 'dart:io';
-import 'package:audiotags/audiotags.dart';
-import 'package:http/http.dart' as http;
+import '../services/download_manager.dart';
+import '../services/lyrics_service.dart';
+import '../utils/toast.dart';
 
 import '../models/track.dart';
 import '../providers/library_provider.dart';
@@ -35,17 +36,181 @@ class NowPlayingScreen extends StatefulWidget {
 }
 
 class _NowPlayingScreenState extends State<NowPlayingScreen> {
-  // static so a reopened player picks the running download back up
-  static final ValueNotifier<double?> _downloadProgress = ValueNotifier(null);
   bool _findingArtist = false;
   double _doubleTapDx = 0;
-  int _seekFlash = 0;
+  int _seekFlash = 1;
+  bool _seekFlashOn = false;
+  bool _playDown = false;
   Timer? _seekFlashTimer;
+  bool _lyricsOpen = false;
+  LyricsResult? _lyrics;
+  String? _lyricsForId;
+  int _activeLyric = -1;
+  final _lyricsScroll = ScrollController();
+  final Map<int, GlobalKey> _lyricKeys = {};
 
   @override
   void dispose() {
     _seekFlashTimer?.cancel();
+    _lyricsScroll.dispose();
     super.dispose();
+  }
+
+  Future<void> _toggleLyrics(Track track) async {
+    if (_lyricsOpen) {
+      setState(() => _lyricsOpen = false);
+      return;
+    }
+    setState(() => _lyricsOpen = true);
+    if (_lyrics == null) {
+      final res = await LyricsService.fetch(track.title, track.artist);
+      if (!mounted) return;
+      setState(() => _lyrics = res);
+    }
+  }
+
+  Widget _lyricsPill(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final open = _lyricsOpen;
+    return Material(
+      color: open ? scheme.primaryContainer : scheme.surfaceContainerHigh,
+      borderRadius: BorderRadius.circular(999),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(999),
+        onTap: () {
+          final track = context.read<AudioProvider>().currentTrack;
+          if (track != null) _toggleLyrics(track);
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                open ? Icons.album_rounded : Icons.lyrics_rounded,
+                size: 16,
+                color: open
+                    ? scheme.onPrimaryContainer
+                    : scheme.onSurfaceVariant,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                open ? 'Art' : 'Lyrics',
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      fontSize: 12,
+                      color: open
+                          ? scheme.onPrimaryContainer
+                          : scheme.onSurfaceVariant,
+                    ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _miniArt(Track track) {
+    final scheme = Theme.of(context).colorScheme;
+    final fallback =
+        Icon(Icons.music_note, size: 16, color: scheme.onSurfaceVariant);
+    if (track.albumArt != null) {
+      return Image.memory(
+        track.albumArt!,
+        fit: BoxFit.cover,
+        gaplessPlayback: true,
+        errorBuilder: (_, __, ___) => fallback,
+      );
+    }
+    final id = _extractYouTubeId(track.sourceUrl ?? track.path);
+    if (id != null) {
+      return CachedNetworkImage(
+        imageUrl: 'https://i.ytimg.com/vi/$id/mqdefault.jpg',
+        fit: BoxFit.cover,
+        errorWidget: (_, __, ___) => fallback,
+      );
+    }
+    return fallback;
+  }
+
+  Widget _buildLyricsView(
+      BuildContext context, AudioProvider audio, Track track) {
+    final scheme = Theme.of(context).colorScheme;
+    final res = _lyrics;
+    if (res == null) {
+      return const Center(child: KashouLoader());
+    }
+    if (res.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(
+            'No lyrics found',
+            style: Theme.of(context)
+                .textTheme
+                .titleMedium
+                ?.copyWith(color: scheme.onSurfaceVariant),
+          ),
+        ),
+      );
+    }
+    if (res.lines.isEmpty) {
+      return SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Text(
+          res.plain,
+          style: Theme.of(context).textTheme.bodyLarge?.copyWith(height: 1.6),
+        ),
+      );
+    }
+    final pos = audio.position;
+    var active = -1;
+    for (var i = 0; i < res.lines.length; i++) {
+      if (res.lines[i].time <= pos) {
+        active = i;
+      } else {
+        break;
+      }
+    }
+    if (active != _activeLyric) {
+      _activeLyric = active;
+      if (active >= 0) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          final ctx = _lyricKeys[active]?.currentContext;
+          if (ctx != null) {
+            Scrollable.ensureVisible(
+              ctx,
+              alignment: 0.5,
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeInOut,
+            );
+          }
+        });
+      }
+    }
+    return ListView.builder(
+      controller: _lyricsScroll,
+      padding: const EdgeInsets.fromLTRB(24, 40, 24, 40),
+      itemCount: res.lines.length,
+      itemBuilder: (context, i) {
+        final line = res.lines[i];
+        final isActive = i == active;
+        return Container(
+          key: _lyricKeys.putIfAbsent(i, () => GlobalKey()),
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          child: AnimatedDefaultTextStyle(
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeOut,
+            style: Theme.of(context).textTheme.titleMedium!.copyWith(
+                  fontWeight: isActive ? FontWeight.w800 : FontWeight.w500,
+                  fontSize: isActive ? 22 : 17,
+                  color: isActive ? scheme.primary : scheme.onSurfaceVariant,
+                ),
+            child: Text(line.text),
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _openArtist(Track track) async {
@@ -71,217 +236,24 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
   }
 
   Future<void> _downloadTrack(BuildContext context, Track track) async {
-    if (_downloadProgress.value != null) return;
-    _downloadProgress.value = 0;
-
-    final isOnlineTrack = track.path.contains('youtube.com') ||
-        track.path.contains('youtu.be') ||
-        track.album == 'YouTube';
+    final isOnlineTrack = (track.sourceUrl ?? track.path).startsWith('http');
 
     if (!isOnlineTrack) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Only online tracks can be downloaded')),
-        );
-      }
-      _downloadProgress.value = null;
+      showToast('Only online tracks can be downloaded');
       return;
     }
 
-    try {
-      final settings = Provider.of<SettingsProvider>(context, listen: false);
-      if (!settings.enableYouTubeIntegration) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('YouTube integration is disabled')),
-          );
-        }
-        _downloadProgress.value = null;
-        return;
-      }
-
-      const ytdlService = YtdlWrapperService();
-      final details =
-          await ytdlService.fetchAudioDetails(track.sourceUrl ?? track.path);
-
-      if (details == null) {
-        throw Exception('Failed to extract audio stream');
-      }
-
-      String? downloadUrl;
-      final audio = details['audio'];
-
-      if (audio is Map<String, dynamic>) {
-        downloadUrl = audio['download_url'] as String?;
-      } else if (audio is String) {
-        downloadUrl = audio;
-      }
-
-      downloadUrl ??= details['download_url'] as String?;
-      downloadUrl ??= details['audio_url'] as String?;
-
-      if (downloadUrl == null) {
-        throw Exception('No audio stream available');
-      }
-
-      final safeTitle = (details['title'] as String? ?? track.title)
-          .replaceAll(RegExp(r'[<>:"/\\|?*]'), '_')
-          .trim();
-      final rawArtist = (details['channel'] as String? ?? '').trim();
-      final safeArtist = (rawArtist.isEmpty ? track.artist : rawArtist)
-          .replaceAll(RegExp(r'[<>:"/\\|?*]'), '_')
-          .trim();
-
-      final codec = details['codec'] as String? ?? 'mp3';
-      final extension = _getFileExtension(codec);
-      final filename = '$safeTitle - $safeArtist$extension';
-
-      final downloadDir = await DownloadStore.dir();
-      final filePath = '${downloadDir.path}/$filename';
-      final file = File(filePath);
-
-      if (downloadUrl!.contains('.m3u8')) {
-        await _downloadHLSStream(downloadUrl!, file);
-      } else {
-        await _downloadDirectFile(downloadUrl!, file);
-      }
-
-      // tags and art so the file stands on its own offline
-      try {
-        final art = track.albumArt ??
-            await ytdlService.fetchVideoArt(details['id'] as String? ?? '',
-                preferred: details['thumbnail'] as String?);
-        await AudioTags.write(
-          filePath,
-          Tag(
-            title: details['title'] as String? ?? track.title,
-            trackArtist: safeArtist,
-            pictures: [
-              if (art != null)
-                Picture(
-                  bytes: art,
-                  mimeType: MimeType.jpeg,
-                  pictureType: PictureType.coverFront,
-                ),
-            ],
-          ),
-        );
-      } catch (e) {
-        debugPrint('[Download] tagging failed: $e');
-      }
-
-      _downloadProgress.value = null;
-      appMessenger.currentState?.showSnackBar(
-        SnackBar(
-          content: Text('Saved $filename'),
-          duration: const Duration(seconds: 5),
-        ),
-      );
-    } catch (e) {
-      _downloadProgress.value = null;
-      appMessenger.currentState?.showSnackBar(
-        SnackBar(
-          content: Text('Download failed: ${e.toString()}'),
-          duration: const Duration(seconds: 5),
-        ),
-      );
+    final settings = Provider.of<SettingsProvider>(context, listen: false);
+    if (!settings.enableYouTubeIntegration) {
+      showToast('YouTube integration is disabled');
+      return;
     }
-  }
 
-  Future<void> _downloadHLSStream(String playlistUrl, File outputFile) async {
-    final client = http.Client();
-    try {
-      final playlistResponse = await client.get(Uri.parse(playlistUrl));
-      if (playlistResponse.statusCode != 200) {
-        throw Exception('Failed to download playlist');
-      }
-
-      final segmentUrls = <String>[];
-      for (final line in playlistResponse.body.split('\n')) {
-        final trimmed = line.trim();
-        if (trimmed.isNotEmpty &&
-            !trimmed.startsWith('#') &&
-            (trimmed.endsWith('.ts') ||
-                trimmed.endsWith('.aac') ||
-                trimmed.endsWith('.mp4'))) {
-          segmentUrls.add(trimmed.startsWith('http')
-              ? trimmed
-              : Uri.parse(playlistUrl).resolve(trimmed).toString());
-        }
-      }
-      if (segmentUrls.isEmpty) {
-        throw Exception('No segments found in playlist');
-      }
-
-      final sink = outputFile.openWrite();
-      var done = 0;
-      try {
-        for (final segmentUrl in segmentUrls) {
-          final segment = await client.get(Uri.parse(segmentUrl));
-          if (segment.statusCode == 200) {
-            sink.add(segment.bodyBytes);
-          }
-          done++;
-          _downloadProgress.value = (done / segmentUrls.length).clamp(0.0, 1.0);
-        }
-      } finally {
-        await sink.close();
-      }
-    } finally {
-      client.close();
-    }
-  }
-
-  Future<void> _downloadDirectFile(String fileUrl, File outputFile) async {
-    final client = http.Client();
-    try {
-      final request = http.Request('GET', Uri.parse(fileUrl));
-      request.headers['User-Agent'] = 'Mozilla/5.0';
-      final response = await client.send(request);
-      if (response.statusCode != 200) {
-        throw Exception('Download failed: HTTP ${response.statusCode}');
-      }
-
-      final contentLength = response.contentLength ?? 0;
-      var downloadedBytes = 0;
-      final sink = outputFile.openWrite();
-      try {
-        await for (final chunk in response.stream) {
-          sink.add(chunk);
-          downloadedBytes += chunk.length;
-          if (contentLength > 0) {
-            _downloadProgress.value =
-                (downloadedBytes / contentLength).clamp(0.0, 1.0);
-          }
-        }
-      } finally {
-        await sink.close();
-      }
-    } finally {
-      client.close();
-    }
-  }
-
-  String _getFileExtension(String? codec) {
-    if (codec == null) return '.mp3';
-    final c = codec.toLowerCase();
-    if (c.startsWith('mp4a') || c.startsWith('m4a')) return '.m4a';
-
-    switch (c) {
-      case 'mp3':
-        return '.mp3';
-      case 'flac':
-        return '.flac';
-      case 'aac':
-      case 'm4a':
-        return '.m4a';
-      case 'ogg':
-        return '.ogg';
-      case 'wav':
-        return '.wav';
-      default:
-        return '.mp3';
-    }
+    DownloadManager.instance.enqueue(
+      track,
+      thumbUrl: _buildYoutubeThumbnailUrl(track),
+    );
+    showToast('Download started, see Downloads');
   }
 
   @override
@@ -294,6 +266,13 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
 
           if (track == null) {
             return const Center(child: Text('No track playing'));
+          }
+
+          if (_lyricsForId != track.id) {
+            _lyricsForId = track.id;
+            _lyrics = null;
+            _lyricsOpen = false;
+            _activeLyric = -1;
           }
 
           final mediaQuery = MediaQuery.of(context);
@@ -347,25 +326,29 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                               child: _buildTopBar(context, track),
                             ),
                             Expanded(
-                              child: LayoutBuilder(
-                                builder: (context, constraints) =>
-                                    SingleChildScrollView(
-                                  physics: const BouncingScrollPhysics(),
-                                  child: ConstrainedBox(
-                                    constraints: BoxConstraints(
-                                        minHeight: constraints.maxHeight),
-                                    child: Center(
-                                      child: Padding(
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 20),
-                                        child: RepaintBoundary(
-                                            child: _buildArtworkCard(
-                                                context, track, size)),
+                              child: _lyricsOpen
+                                  ? _buildLyricsView(context, audio, track)
+                                  : LayoutBuilder(
+                                      builder: (context, constraints) =>
+                                          SingleChildScrollView(
+                                        physics: const BouncingScrollPhysics(),
+                                        child: ConstrainedBox(
+                                          constraints: BoxConstraints(
+                                              minHeight:
+                                                  constraints.maxHeight),
+                                          child: Center(
+                                            child: Padding(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                      horizontal: 20),
+                                              child: RepaintBoundary(
+                                                  child: _buildArtworkCard(
+                                                      context, track, size)),
+                                            ),
+                                          ),
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                ),
-                              ),
                             ),
                             SafeArea(
                               top: false,
@@ -376,8 +359,14 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                 child: Column(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    _buildTrackMeta(context, track, audio),
-                                    const SizedBox(height: 16),
+                                    if (!_lyricsOpen) ...[
+                                      GestureDetector(
+                                        onTap: () => _toggleLyrics(track),
+                                        child: _buildTrackMeta(
+                                            context, track, audio),
+                                      ),
+                                      const SizedBox(height: 16),
+                                    ],
                                     RepaintBoundary(
                                         child:
                                             _buildProgressStrip(context, audio)),
@@ -424,17 +413,39 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           onPressed: () => _showEqualizerSheet(context),
         ),
         Expanded(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Text(
-                'Now Playing',
-                textAlign: TextAlign.center,
-                style: theme.textTheme.titleMedium
-                    ?.copyWith(fontWeight: FontWeight.w600),
-              ),
-            ],
+          child: GestureDetector(
+            onTap: () => _toggleLyrics(track),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                AnimatedSwitcher(
+                  duration: EMotion.medium,
+                  transitionBuilder: (child, anim) => FadeTransition(
+                    opacity: anim,
+                    child: ScaleTransition(scale: anim, child: child),
+                  ),
+                  child: _lyricsOpen
+                      ? ClipRRect(
+                          key: const ValueKey('lyr_art'),
+                          borderRadius: BorderRadius.circular(8),
+                          child: SizedBox(
+                            width: 28,
+                            height: 28,
+                            child: _miniArt(track),
+                          ),
+                        )
+                      : const SizedBox.shrink(key: ValueKey('no_art')),
+                ),
+                if (_lyricsOpen) const SizedBox(width: 8),
+                Text(
+                  'Now Playing',
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w600),
+                ),
+              ],
+            ),
           ),
         ),
         _buildSurfaceIconButton(
@@ -489,6 +500,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           track.albumArt!,
           fit: BoxFit.cover,
           gaplessPlayback: true,
+          cacheWidth: 1200,
           filterQuality: FilterQuality.medium,
         );
       }
@@ -543,9 +555,12 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
 
   void _triggerSeekFlash(bool left) {
     _seekFlashTimer?.cancel();
-    setState(() => _seekFlash = left ? 1 : 2);
+    setState(() {
+      _seekFlash = left ? 1 : 2;
+      _seekFlashOn = true;
+    });
     _seekFlashTimer = Timer(const Duration(milliseconds: 550), () {
-      if (mounted) setState(() => _seekFlash = 0);
+      if (mounted) setState(() => _seekFlashOn = false);
     });
   }
 
@@ -555,7 +570,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       child: IgnorePointer(
         child: AnimatedOpacity(
           duration: const Duration(milliseconds: 220),
-          opacity: _seekFlash == 0 ? 0 : 1,
+          opacity: _seekFlashOn ? 1 : 0,
           child: Align(
             alignment: _seekFlash == 1
                 ? Alignment.centerLeft
@@ -765,13 +780,23 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SquigglySlider(
-          value: position.clamp(0, duration),
-          max: duration,
-          animate: audio.isPlaying && !isLoading,
-          onChanged: isLoading
-              ? null
-              : (value) => audio.seek(Duration(milliseconds: value.toInt())),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Expanded(
+              child: SquigglySlider(
+                value: position.clamp(0, duration),
+                max: duration,
+                animate: audio.isPlaying && !isLoading,
+                onChanged: isLoading
+                    ? null
+                    : (value) =>
+                        audio.seek(Duration(milliseconds: value.toInt())),
+              ),
+            ),
+            const SizedBox(width: 8),
+            _lyricsPill(context),
+          ],
         ),
         const SizedBox(height: 4),
         Row(
@@ -846,14 +871,19 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     final isLoading = audio.isLoadingTrack;
     final isPlaying = audio.isPlaying;
 
-    return Material(
-      color: colorScheme.primary,
-      borderRadius: BorderRadius.circular(24),
+    return AnimatedContainer(
+      duration: EMotion.fast,
+      curve: EMotion.standard,
+      decoration: BoxDecoration(
+        color: colorScheme.primary,
+        borderRadius: BorderRadius.circular(_playDown ? 37 : 24),
+      ),
       child: InkWell(
-        borderRadius: BorderRadius.circular(24),
+        onHighlightChanged: (v) => setState(() => _playDown = v),
+        borderRadius: BorderRadius.circular(_playDown ? 37 : 24),
         onTap: isLoading ? null : audio.togglePlayPause,
         child: SizedBox(
-          width: 96,
+          width: 88,
           height: 74,
           child: Center(
             child: AnimatedSwitcher(
@@ -889,9 +919,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     final isRepeatActive = audio.repeatMode != RepeatMode.off;
     final isFavorite = library.isTrackFavorite(audio.currentTrack?.id ?? '');
     final isOnlineTrack = audio.currentTrack != null &&
-        (audio.currentTrack!.path.contains('youtube.com') ||
-            audio.currentTrack!.path.contains('youtu.be') ||
-            audio.currentTrack!.album == 'YouTube');
+        (audio.currentTrack!.sourceUrl ?? audio.currentTrack!.path)
+            .startsWith('http');
 
     final colorScheme = Theme.of(context).colorScheme;
     return Center(
@@ -952,52 +981,28 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           icon: Icons.queue_music_rounded,
           tooltip: 'View queue',
           active: false,
+          tileShape: isOnlineTrack
+              ? null
+              : BorderRadius.horizontal(
+                  left: const Radius.circular(20),
+                  right: const Radius.circular(30),
+                ),
           onTap: () => _showQueueSheet(context),
         ),
         if (isOnlineTrack)
-          ValueListenableBuilder<double?>(
-            valueListenable: _downloadProgress,
-            builder: (context, progress, _) => AnimatedSwitcher(
-              duration: const Duration(milliseconds: 240),
-              switchInCurve: Curves.easeOutCubic,
-              transitionBuilder: (child, anim) => FadeTransition(
-                opacity: anim,
-                child: ScaleTransition(scale: anim, child: child),
-              ),
-              child: progress != null
-                  ? Tooltip(
-                      key: const ValueKey('dl_ring'),
-                      message: 'Downloading',
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2.5,
-                            value: progress > 0 ? progress : null,
-                          ),
-                        ),
-                      ),
-                    )
-                  : KeyedSubtree(
-                      key: const ValueKey('dl_idle'),
-                      child: _buildSecondaryIconButton(
-                        context,
-                        icon: Icons.download,
-                        tooltip: 'Download track',
-                        tileShape: BorderRadius.horizontal(
-                          left: const Radius.circular(20),
-                          right: const Radius.circular(30),
-                        ),
-                        onTap: () {
-                          if (audio.currentTrack != null) {
-                            _downloadTrack(context, audio.currentTrack!);
-                          }
-                        },
-                      ),
-                    ),
+          _buildSecondaryIconButton(
+            context,
+            icon: Icons.download,
+            tooltip: 'Download track',
+            tileShape: BorderRadius.horizontal(
+              left: const Radius.circular(20),
+              right: const Radius.circular(30),
             ),
+            onTap: () {
+              if (audio.currentTrack != null) {
+                _downloadTrack(context, audio.currentTrack!);
+              }
+            },
           ),
               ],
             ),
@@ -1226,7 +1231,13 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     return showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('New playlist'),
+        title: Text(
+              'New playlist',
+              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.5,
+                  ),
+            ),
         content: TextField(
           controller: controller,
           autofocus: true,
@@ -1286,7 +1297,13 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                 ),
                 ListTile(
                   leading: const Icon(Icons.add_rounded),
-                  title: const Text('New playlist'),
+                  title: Text(
+              'New playlist',
+              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.5,
+                  ),
+            ),
                   onTap: () async {
                     final name = await _promptPlaylistName(sheetContext);
                     if (name == null || name.trim().isEmpty) return;
@@ -1395,7 +1412,13 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                         ),
                         ListTile(
                           leading: const Icon(Icons.info_outline),
-                          title: const Text('Track Info'),
+                          title: Text(
+              'Track Info',
+              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.5,
+                  ),
+            ),
                           onTap: () {
                             Navigator.pop(sheetContext);
                             _showTrackInfo(rootContext, current);
@@ -1582,10 +1605,12 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
 
   void _showTrackInfo(BuildContext context, Track track) {
     final isStream = (track.sourceUrl ?? track.path).startsWith('http');
+    final ytId = isStream ? _extractYouTubeId(track.sourceUrl ?? track.path) : null;
     final rows = <MapEntry<String, String>>[
       MapEntry('Title', track.title),
       MapEntry('Artist', track.artist),
-      if (track.album.isNotEmpty) MapEntry('Album', track.album),
+      if (track.album.isNotEmpty && track.album != 'YouTube')
+        MapEntry('Album', track.album),
       if (track.duration > Duration.zero)
         MapEntry('Duration', _formatDuration(track.duration)),
       if (track.genre != null && track.genre!.isNotEmpty)
@@ -1598,7 +1623,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       if (track.loudnessDb != null)
         MapEntry('Loudness', '${track.loudnessDb!.toStringAsFixed(1)} dB'),
       MapEntry('Source', isStream ? 'YouTube' : 'Local file'),
-      MapEntry(isStream ? 'Link' : 'Path', track.sourceUrl ?? track.path),
+      if (isStream && ytId != null)
+        MapEntry('Link', 'https://youtube.com/watch?v=$ytId'),
+      if (!isStream) MapEntry('Path', track.path),
     ];
 
     showModalBottomSheet(
