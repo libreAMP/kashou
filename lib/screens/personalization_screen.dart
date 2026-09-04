@@ -4,6 +4,7 @@ import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import '../providers/theme_provider.dart';
 import '../providers/settings_provider.dart';
 import '../theme/app_theme.dart';
+import '../widgets/back_chip.dart';
 import '../widgets/settings_tiles.dart';
 
 class PersonalizationScreen extends StatelessWidget {
@@ -14,7 +15,14 @@ class PersonalizationScreen extends StatelessWidget {
     return Scaffold(
       body: CustomScrollView(
         slivers: [
-          const SliverAppBar.large(title: Text('Personalization')),
+          SliverAppBar.large(
+            title: const Text('Personalization'),
+            backgroundColor: Theme.of(context).colorScheme.surface,
+            surfaceTintColor: Colors.transparent,
+            elevation: 0,
+            scrolledUnderElevation: 0,
+            leading: const BackChip(),
+          ),
           SliverList(
             delegate: SliverChildListDelegate([
               SettingsSection(
@@ -57,14 +65,24 @@ class PersonalizationScreen extends StatelessWidget {
                 builder: (context, theme, child) => SettingsSection(
                   title: 'Colors',
                   children: [
-                    SettingsSwitchTile(
-                      icon: Icons.palette_outlined,
-                      title: 'Dynamic theming',
-                      subtitle: 'Colors from your system theme',
-                      value: theme.useMaterialYou,
-                      onChanged: theme.setUseMaterialYou,
-                    ),
-                    if (!theme.useMaterialYou)
+                    for (final m in const [
+                      ['system', 'System', 'Colors from your system theme'],
+                      ['accent', 'Accent', 'Pick your own seed color'],
+                      ['art', 'Now playing', 'Dominant color of the album art'],
+                    ])
+                      RadioListTile<String>(
+                        secondary: Icon(m[0] == 'system'
+                            ? Icons.brightness_auto
+                            : m[0] == 'accent'
+                                ? Icons.palette_outlined
+                                : Icons.disc_full_rounded),
+                        title: Text(m[1]),
+                        subtitle: Text(m[2]),
+                        value: m[0],
+                        groupValue: theme.themeSource,
+                        onChanged: (v) => theme.setThemeSource(v!),
+                      ),
+                    if (theme.themeSource == 'accent')
                       Padding(
                         padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
                         child: SizedBox(
@@ -228,7 +246,13 @@ class PersonalizationScreen extends StatelessWidget {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text('Pick a color'),
+          title: Text(
+              'Pick a color',
+              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.5,
+                  ),
+            ),
           content: SingleChildScrollView(
             child: ColorPicker(
               pickerColor: pickerColor,
@@ -256,3 +280,4 @@ class PersonalizationScreen extends StatelessWidget {
     );
   }
 }
+

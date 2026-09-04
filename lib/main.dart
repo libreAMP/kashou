@@ -3,19 +3,27 @@ import 'package:flutter/material.dart';
 import 'package:flutter_displaymode/flutter_displaymode.dart';
 
 import 'utils/app_messenger.dart';
+import 'utils/toast.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:dynamic_color/dynamic_color.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_chrome_cast/flutter_chrome_cast.dart';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
+import 'dart:typed_data';
+
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
+import 'models/track.dart';
 import 'providers/audio_provider.dart';
 import 'providers/theme_provider.dart';
 import 'providers/library_provider.dart';
 import 'providers/settings_provider.dart';
 import 'providers/recommendation_provider.dart';
 import 'services/youtube/youtube_service.dart';
+import 'services/ytmusic_service.dart';
 import 'screens/splash_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/library_screen.dart';
@@ -92,14 +100,19 @@ class KashouApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => LibraryProvider()),
         ChangeNotifierProvider(create: (_) => RecommendationProvider()),
       ],
-      child: Consumer2<ThemeProvider, SettingsProvider>(
+      child: _ArtSeedWatcher(
+        child: Consumer2<ThemeProvider, SettingsProvider>(
         builder: (context, themeProvider, settingsProvider, child) {
           return DynamicColorBuilder(
             builder: (ColorScheme? lightDynamic, ColorScheme? darkDynamic) {
               ColorScheme lightColorScheme;
               ColorScheme darkColorScheme;
 
-              if (themeProvider.useMaterialYou &&
+              final artSeed = themeProvider.artSeed;
+              final seed = themeProvider.themeSource == 'art' && artSeed != null
+                  ? artSeed
+                  : themeProvider.accentColor;
+              if (themeProvider.themeSource == 'system' &&
                   lightDynamic != null &&
                   darkDynamic != null) {
                 // reseed, the os scheme ships flat surfaces
@@ -113,11 +126,11 @@ class KashouApp extends StatelessWidget {
                 );
               } else {
                 lightColorScheme = ColorScheme.fromSeed(
-                  seedColor: themeProvider.accentColor,
+                  seedColor: seed,
                   brightness: Brightness.light,
                 );
                 darkColorScheme = ColorScheme.fromSeed(
-                  seedColor: themeProvider.accentColor,
+                  seedColor: seed,
                   brightness: Brightness.dark,
                 );
               }
@@ -183,6 +196,7 @@ class KashouApp extends StatelessWidget {
 
               return MaterialApp(
                 title: 'Kashou',
+                navigatorKey: toastNavigatorKey,
                 scaffoldMessengerKey: appMessenger,
                 debugShowCheckedModeBanner: false,
                 themeMode: themeProvider.themeMode,
@@ -205,8 +219,42 @@ class KashouApp extends StatelessWidget {
             },
           );
         },
+        ),
       ),
     );
+  }
+}
+
+class _ArtSeedWatcher extends StatefulWidget {
+  const _ArtSeedWatcher({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_ArtSeedWatcher> createState() => _ArtSeedWatcherState();
+}
+
+class _ArtSeedWatcherState extends State<_ArtSeedWatcher> {
+  Uint8List? _last;
+
+  @override
+  Widget build(BuildContext context) {
+    final art = context
+        .select<AudioProvider, Uint8List?>((p) => p.currentTrack?.albumArt);
+    final source =
+        context.select<ThemeProvider, String>((p) => p.themeSource);
+    if (source == 'art' && art != null && !identical(art, _last)) {
+      _last = art;
+      _compute(art);
+    }
+    return widget.child;
+  }
+
+  Future<void> _compute(Uint8List bytes) async {
+    final color = await dominantColor(bytes);
+    if (color != null && mounted) {
+      context.read<ThemeProvider>().setArtSeed(color);
+    }
   }
 }
 
@@ -234,6 +282,106 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       final audioProvider = Provider.of<AudioProvider>(context, listen: false);
       audioProvider.addListener(_onAudioProviderChange);
     });
+    const channel = MethodChannel('com.libreamp.kashou/intent');
+    channel.setMethodCallHandler((call) async {
+      if (call.method == 'link' && call.arguments is String) {
+        _handleLink(call.arguments as String);
+      }
+      return null;
+    });
+    channel.invokeMethod<String>('consumeLink').then((link) {
+      if (link != null && mounted) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => _handleLink(link));
+      }
+    });
+    _askAllFilesAccess();
+  }
+
+  // mediastore locks our own downloads down once indexed, tags need raw write
+  Future<void> _askAllFilesAccess() async {
+    if (!Platform.isAndroid) return;
+    const channel = MethodChannel('com.libreamp.kashou/equalizer');
+    final granted =
+        await channel.invokeMethod<bool>('isAllFilesAccess') ?? false;
+    if (granted) return;
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool('all_files_asked') == true) return;
+    await prefs.setBool('all_files_asked', true);
+    showToast('Grant all files access so tags and art can be saved');
+    try {
+      await channel.invokeMethod('openAllFilesSettings');
+    } catch (_) {}
+  }
+
+  void _handleLink(String url) {
+    final uri = Uri.tryParse(url);
+    if (uri == null) return;
+    final id = uri.queryParameters['v'] ?? (uri.host.contains('youtu.be') && uri.pathSegments.isNotEmpty ? uri.pathSegments.first : null);
+    final list = uri.queryParameters['list'];
+    if (id != null && id.isNotEmpty) {
+      setState(() => _selectedIndex = 0);
+      final watch = 'https://www.youtube.com/watch?v=$id';
+      Provider.of<AudioProvider>(context, listen: false).playTrack(Track(
+        id: id,
+        title: '',
+        artist: '',
+        album: '',
+        path: watch,
+        sourceUrl: watch,
+        duration: Duration.zero,
+      ));
+      _fillLinkMeta(id, watch);
+    } else if (list != null && list.isNotEmpty) {
+      _importPlaylistLink(list);
+    }
+  }
+
+  // player endpoint has no author, oembed gives it without any key
+  Future<void> _fillLinkMeta(String id, String watch) async {
+    try {
+      final resp = await http.get(Uri.parse(
+          'https://www.youtube.com/oembed?url=${Uri.encodeComponent(watch)}&format=json'));
+      if (resp.statusCode != 200 || !mounted) return;
+      final j = jsonDecode(resp.body) as Map<String, dynamic>;
+      final author = j['author_name'] as String? ?? '';
+      final title = j['title'] as String? ?? '';
+      if (author.isEmpty && title.isEmpty) return;
+      final audio = Provider.of<AudioProvider>(context, listen: false);
+      final current = audio.currentTrack;
+      if (current == null || current.id != id) return;
+      audio.updateTrackMetadata(current.copyWith(
+        artist: author.isEmpty ? current.artist : author,
+        title: title.isEmpty ? current.title : title,
+      ));
+    } catch (_) {}
+  }
+
+  Future<void> _importPlaylistLink(String list) async {
+    const ytm = YtMusicService();
+    final songs = await ytm.getPlaylistSongs(list);
+    if (songs.isEmpty || !mounted) return;
+    final name = await ytm.getPlaylistTitle(list) ?? 'YouTube import';
+    final cover = await ytm.getPlaylistThumb(list);
+    if (!mounted) return;
+    await Provider.of<LibraryProvider>(context, listen: false).importPlaylist(
+      name,
+      [
+        for (final s in songs)
+          Track(
+            id: s['id'] as String? ?? '',
+            title: s['title'] as String? ?? 'Unknown',
+            artist: s['channel'] as String? ?? 'Unknown',
+            album: '',
+            path: s['url'] as String? ?? 'https://www.youtube.com/watch?v=${s['id']}',
+            sourceUrl: s['url'] as String? ?? 'https://www.youtube.com/watch?v=${s['id']}',
+            duration: Duration.zero,
+          ),
+      ],
+      coverImage: cover,
+    );
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Imported $name')),
+    );
   }
 
   @override
@@ -364,141 +512,3 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   }
 }
 
-class BottomNavDestination {
-  const BottomNavDestination({
-    required this.icon,
-    required this.selectedIcon,
-    required this.label,
-  });
-
-  final IconData icon;
-  final IconData selectedIcon;
-  final String label;
-}
-
-class AnimatedBottomNavBar extends StatefulWidget {
-  const AnimatedBottomNavBar({
-    super.key,
-    required this.selectedIndex,
-    required this.onDestinationSelected,
-    required this.destinations,
-  });
-
-  final int selectedIndex;
-  final ValueChanged<int> onDestinationSelected;
-  final List<BottomNavDestination> destinations;
-
-  @override
-  State<AnimatedBottomNavBar> createState() => _AnimatedBottomNavBarState();
-}
-
-class _AnimatedBottomNavBarState extends State<AnimatedBottomNavBar>
-    with TickerProviderStateMixin {
-  late List<AnimationController> _controllers;
-  late List<Animation<double>> _scales;
-
-  @override
-  void initState() {
-    super.initState();
-    _controllers = List.generate(
-      widget.destinations.length,
-      (index) => AnimationController(
-        duration: const Duration(milliseconds: 100),
-        vsync: this,
-      ),
-    );
-    _scales = _controllers
-        .map((controller) => Tween<double>(begin: 1.0, end: 1.08).animate(
-              CurvedAnimation(parent: controller, curve: Curves.easeOut),
-            ))
-        .toList();
-  }
-
-  @override
-  void dispose() {
-    for (final controller in _controllers) {
-      controller.dispose();
-    }
-    super.dispose();
-  }
-
-  void _onTap(int index) {
-    _controllers[index].forward().then((_) {
-      _controllers[index].reverse();
-    });
-    widget.onDestinationSelected(index);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
-    return Container(
-      height: 80,
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainer,
-        border: Border(
-          top: BorderSide(
-              color: colorScheme.outlineVariant.withOpacity(0.2), width: 1),
-        ),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: List.generate(widget.destinations.length, (index) {
-          final destination = widget.destinations[index];
-          final isSelected = index == widget.selectedIndex;
-
-          return Expanded(
-            child: InkWell(
-              onTap: () => _onTap(index),
-              borderRadius: BorderRadius.circular(16),
-              child: AnimatedBuilder(
-                animation: _scales[index],
-                builder: (context, child) => Transform.scale(
-                  scale: _scales[index].value,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    alignment: Alignment.center,
-                    decoration: isSelected
-                        ? BoxDecoration(
-                            color:
-                                colorScheme.secondaryContainer.withOpacity(0.3),
-                            borderRadius: BorderRadius.circular(16),
-                          )
-                        : null,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          isSelected
-                              ? destination.selectedIcon
-                              : destination.icon,
-                          color: isSelected
-                              ? colorScheme.onSecondaryContainer
-                              : colorScheme.onSurfaceVariant,
-                          size: 24,
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          destination.label,
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: isSelected
-                                ? colorScheme.onSecondaryContainer
-                                : colorScheme.onSurfaceVariant,
-                            fontWeight:
-                                isSelected ? FontWeight.w600 : FontWeight.w400,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          );
-        }),
-      ),
-    );
-  }
-}
