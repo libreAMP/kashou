@@ -425,7 +425,6 @@ class HomeScreen extends StatelessWidget {
   }
 
   Widget _buildHeroHeader(BuildContext context, LibraryProvider library) {
-    final colorScheme = Theme.of(context).colorScheme;
     final trackCount = library.allTracks.length;
     final albumCount = library.albums.length;
     final artistCount = library.artists.length;

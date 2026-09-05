@@ -44,8 +44,7 @@ class DownloadsScreen extends StatelessWidget {
                 delegate: SliverChildBuilderDelegate(
                   (context, index) {
                     final job = jobs[index];
-                    final busy =
-                        job.status == 'downloading' || job.status == 'queued';
+    final busy = job.status == 'downloading' || job.status == 'queued';
                     final subtitle = job.status == 'done'
                         ? (job.artFailed ? 'Saved without album art' : 'Saved')
                         : 'Failed, tap to retry';

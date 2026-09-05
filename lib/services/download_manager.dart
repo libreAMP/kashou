@@ -202,7 +202,6 @@ class DownloadManager extends ChangeNotifier {
       final contentLength = response.contentLength ?? 0;
       var downloadedBytes = 0;
       final sink = outputFile.openWrite();
-      // partial files stay, retry overwrites them
       try {
         await for (final chunk in response.stream) {
           sink.add(chunk);

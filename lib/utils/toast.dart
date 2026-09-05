@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 final toastNavigatorKey = GlobalKey<NavigatorState>();
 
-// floats above everything, snackbars get buried under sheets and nav bars
+// snackbars get buried under sheets so this floats above everything
 void showToast(String message) {
   final overlay = toastNavigatorKey.currentState?.overlay;
   if (overlay == null) return;

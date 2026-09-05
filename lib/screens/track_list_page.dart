@@ -68,8 +68,7 @@ class _TrackListPageState extends State<TrackListPage> {
   }
 
   String _totalMinutes() {
-    final mins =
-        widget.tracks.fold<int>(0, (sum, t) => sum + t.duration.inMinutes);
+    final mins = widget.tracks.fold<int>(0, (sum, t) => sum + t.duration.inMinutes);
     return '$mins min';
   }
 
@@ -215,9 +214,7 @@ class _TrackListPageState extends State<TrackListPage> {
                           onPressed: widget.tracks.isEmpty
                               ? null
                               : () {
-                                  final shuffled =
-                                      List<Track>.from(widget.tracks)
-                                        ..shuffle();
+    final shuffled = List<Track>.from(widget.tracks)..shuffle();
                                   context.read<AudioProvider>().playTrack(
                                         shuffled.first,
                                         playlist: shuffled,

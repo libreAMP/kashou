@@ -455,11 +455,10 @@ class _LibraryScreenState extends State<LibraryScreen>
       );
     }
 
-    // resolved stream urls live in path, the source url keeps the origin
+    // resolved stream urls live in path while sourceUrl keeps the origin
     bool isOnline(Track track) =>
         (track.sourceUrl ?? track.path).startsWith('http');
-    final localTracks =
-        favoriteTracks.where((track) => !isOnline(track)).toList();
+    final localTracks = favoriteTracks.where((track) => !isOnline(track)).toList();
     final onlineTracks = favoriteTracks.where(isOnline).toList();
 
     return ListView(
@@ -1034,7 +1033,6 @@ class _LibraryScreenState extends State<LibraryScreen>
     showDialog(
       context: context,
       builder: (dialogContext) {
-        final scheme = Theme.of(context).colorScheme;
         return StatefulBuilder(
           builder: (context, setState) => AlertDialog(
             title: Text(
@@ -1243,13 +1241,7 @@ class _LibraryScreenState extends State<LibraryScreen>
                     children: [
                       ListTile(
                         leading: const Icon(Icons.edit_rounded),
-                        title: Text(
-              'Rename Playlist',
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.5,
-                  ),
-            ),
+                        title: const Text('Rename Playlist'),
                         onTap: () {
                           Navigator.pop(context);
                           final current = Provider.of<LibraryProvider>(

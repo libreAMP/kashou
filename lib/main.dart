@@ -239,10 +239,8 @@ class _ArtSeedWatcherState extends State<_ArtSeedWatcher> {
 
   @override
   Widget build(BuildContext context) {
-    final art = context
-        .select<AudioProvider, Uint8List?>((p) => p.currentTrack?.albumArt);
-    final source =
-        context.select<ThemeProvider, String>((p) => p.themeSource);
+    final art = context.select<AudioProvider, Uint8List?>((p) => p.currentTrack?.albumArt);
+    final source = context.select<ThemeProvider, String>((p) => p.themeSource);
     if (source == 'art' && art != null && !identical(art, _last)) {
       _last = art;
       _compute(art);
@@ -297,12 +295,11 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     _askAllFilesAccess();
   }
 
-  // mediastore locks our own downloads down once indexed, tags need raw write
+  // mediastore locks our downloads once indexed so tags need raw write
   Future<void> _askAllFilesAccess() async {
     if (!Platform.isAndroid) return;
     const channel = MethodChannel('com.libreamp.kashou/equalizer');
-    final granted =
-        await channel.invokeMethod<bool>('isAllFilesAccess') ?? false;
+    final granted = await channel.invokeMethod<bool>('isAllFilesAccess') ?? false;
     if (granted) return;
     final prefs = await SharedPreferences.getInstance();
     if (prefs.getBool('all_files_asked') == true) return;
@@ -336,7 +333,6 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     }
   }
 
-  // player endpoint has no author, oembed gives it without any key
   Future<void> _fillLinkMeta(String id, String watch) async {
     try {
       final resp = await http.get(Uri.parse(

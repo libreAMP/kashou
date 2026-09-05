@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart' hide RepeatMode;
 import 'package:provider/provider.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:share_plus/share_plus.dart';
 import '../providers/audio_provider.dart';
 import '../widgets/equalizer_widget.dart';
@@ -22,9 +21,7 @@ import '../widgets/pressable.dart';
 import '../widgets/scrolling_text.dart';
 import '../widgets/squiggly_slider.dart';
 import '../providers/settings_provider.dart';
-import '../services/ytdl_service.dart';
 import '../services/ytmusic_service.dart';
-import '../services/download_store.dart';
 import '../utils/app_messenger.dart';
 import 'artist_screen.dart';
 
@@ -112,8 +109,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
 
   Widget _miniArt(Track track) {
     final scheme = Theme.of(context).colorScheme;
-    final fallback =
-        Icon(Icons.music_note, size: 16, color: scheme.onSurfaceVariant);
+    final fallback = Icon(Icons.music_note, size: 16, color: scheme.onSurfaceVariant);
     if (track.albumArt != null) {
       return Image.memory(
         track.albumArt!,
@@ -279,7 +275,6 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           final size = mediaQuery.size;
           final theme = Theme.of(context);
           final colorScheme = theme.colorScheme;
-          final bottomInset = mediaQuery.padding.bottom;
 
           return Container(
             decoration: BoxDecoration(
@@ -326,29 +321,56 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                               child: _buildTopBar(context, track),
                             ),
                             Expanded(
-                              child: _lyricsOpen
-                                  ? _buildLyricsView(context, audio, track)
-                                  : LayoutBuilder(
-                                      builder: (context, constraints) =>
-                                          SingleChildScrollView(
-                                        physics: const BouncingScrollPhysics(),
-                                        child: ConstrainedBox(
-                                          constraints: BoxConstraints(
-                                              minHeight:
-                                                  constraints.maxHeight),
-                                          child: Center(
-                                            child: Padding(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                      horizontal: 20),
-                                              child: RepaintBoundary(
-                                                  child: _buildArtworkCard(
-                                                      context, track, size)),
+                              child: AnimatedSwitcher(
+                                duration: EMotion.medium,
+                                switchInCurve: Curves.easeOutCubic,
+                                switchOutCurve: Curves.easeInCubic,
+                                transitionBuilder: (child, anim) =>
+                                    FadeTransition(
+                                  opacity: anim,
+                                  child: ScaleTransition(
+                                    scale: Tween<double>(begin: 0.9, end: 1).animate(anim),
+                                    child: child,
+                                  ),
+                                ),
+                                layoutBuilder: (current, previous) => Stack(
+                                  alignment: Alignment.center,
+                                  children: [
+                                    ...previous,
+                                    if (current != null) current,
+                                  ],
+                                ),
+                                child: _lyricsOpen
+                                    ? KeyedSubtree(
+                                        key: const ValueKey('lyrics'),
+                                        child: _buildLyricsView(
+                                            context, audio, track),
+                                      )
+                                    : KeyedSubtree(
+                                        key: const ValueKey('art'),
+                                        child: LayoutBuilder(
+                                          builder: (context, constraints) =>
+                                              SingleChildScrollView(
+                                            physics:
+                                                const BouncingScrollPhysics(),
+                                            child: ConstrainedBox(
+                                              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                                              child: Center(
+                                                child: Padding(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                                                  child: RepaintBoundary(
+                                                      child:
+                                                          _buildArtworkCard(
+                                                              context,
+                                                              track,
+                                                              size)),
+                                                ),
+                                              ),
                                             ),
                                           ),
                                         ),
                                       ),
-                                    ),
+                              ),
                             ),
                             SafeArea(
                               top: false,
@@ -359,14 +381,25 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                 child: Column(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    if (!_lyricsOpen) ...[
-                                      GestureDetector(
-                                        onTap: () => _toggleLyrics(track),
-                                        child: _buildTrackMeta(
-                                            context, track, audio),
-                                      ),
-                                      const SizedBox(height: 16),
-                                    ],
+                                    AnimatedSize(
+                                      duration: EMotion.medium,
+                                      curve: Curves.easeInOutCubic,
+                                      alignment: Alignment.topCenter,
+                                      child: _lyricsOpen
+                                          ? const SizedBox.shrink()
+                                          : Column(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                GestureDetector(
+                                                  onTap: () =>
+                                                      _toggleLyrics(track),
+                                                  child: _buildTrackMeta(
+                                                      context, track, audio),
+                                                ),
+                                                const SizedBox(height: 16),
+                                              ],
+                                            ),
+                                    ),
                                     RepaintBoundary(
                                         child:
                                             _buildProgressStrip(context, audio)),
@@ -395,7 +428,6 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
 
   Widget _buildTopBar(BuildContext context, Track track) {
     final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
 
     return Row(
       children: [
@@ -419,25 +451,32 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               mainAxisSize: MainAxisSize.min,
               children: [
-                AnimatedSwitcher(
-                  duration: EMotion.medium,
-                  transitionBuilder: (child, anim) => FadeTransition(
-                    opacity: anim,
-                    child: ScaleTransition(scale: anim, child: child),
-                  ),
-                  child: _lyricsOpen
-                      ? ClipRRect(
-                          key: const ValueKey('lyr_art'),
+                ClipRect(
+                  child: TweenAnimationBuilder<double>(
+                    tween: Tween(end: _lyricsOpen ? 1 : 0),
+                    duration: EMotion.medium,
+                    curve: Curves.easeInOutCubic,
+                    builder: (context, v, child) => Opacity(
+                      opacity: v,
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        widthFactor: v,
+                        child: child,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        ClipRRect(
                           borderRadius: BorderRadius.circular(8),
                           child: SizedBox(
-                            width: 28,
-                            height: 28,
-                            child: _miniArt(track),
-                          ),
-                        )
-                      : const SizedBox.shrink(key: ValueKey('no_art')),
+                              width: 28, height: 28, child: _miniArt(track)),
+                        ),
+                        const SizedBox(width: 8),
+                      ],
+                    ),
+                  ),
                 ),
-                if (_lyricsOpen) const SizedBox(width: 8),
                 Text(
                   'Now Playing',
                   textAlign: TextAlign.center,
@@ -1297,13 +1336,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                 ),
                 ListTile(
                   leading: const Icon(Icons.add_rounded),
-                  title: Text(
-              'New playlist',
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.5,
-                  ),
-            ),
+                  title: const Text('New playlist'),
                   onTap: () async {
                     final name = await _promptPlaylistName(sheetContext);
                     if (name == null || name.trim().isEmpty) return;
@@ -1412,13 +1445,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                         ),
                         ListTile(
                           leading: const Icon(Icons.info_outline),
-                          title: Text(
-              'Track Info',
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.5,
-                  ),
-            ),
+                          title: const Text('Track Info'),
                           onTap: () {
                             Navigator.pop(sheetContext);
                             _showTrackInfo(rootContext, current);

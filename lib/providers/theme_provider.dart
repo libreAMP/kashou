@@ -7,8 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 // most saturated pixel makes a livelier seed than a plain average
 Future<Color?> dominantColor(Uint8List bytes) async {
   try {
-    final codec =
-        await ui.instantiateImageCodec(bytes, targetWidth: 24, targetHeight: 24);
+    final codec = await ui.instantiateImageCodec(bytes, targetWidth: 24, targetHeight: 24);
     final frame = await codec.getNextFrame();
     final data = await frame.image.toByteData();
     if (data == null) return null;
@@ -61,8 +60,7 @@ class ThemeProvider extends ChangeNotifier {
           ? ThemeMode.values[themeModeIndex] 
           : ThemeMode.system;
       _useMaterialYou = prefs.getBool('use_material_you') ?? true;
-      _themeSource =
-          prefs.getString('theme_source') ?? (_useMaterialYou ? 'system' : 'accent');
+      _themeSource = prefs.getString('theme_source') ?? (_useMaterialYou ? 'system' : 'accent');
       _accentColor = Color(
         prefs.getInt('accent_color') ?? Colors.deepPurple.value,
       );

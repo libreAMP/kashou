@@ -142,7 +142,6 @@ class AudioPlayerHandler extends BaseAudioHandler
 
     mediaItem.add(
       MediaItem(
-        // some notifications cache art per id so bump it
         id: '${track.id}${track.albumArt != null ? 1 : 0}',
         title: track.title,
         artist: track.artist,

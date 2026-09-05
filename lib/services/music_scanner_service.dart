@@ -33,7 +33,7 @@ class _ScanMusicParams {
   final Map<String, String> artIds;
 }
 
-// plugins dont work in the spawned isolate, hand the map over instead
+// plugins dont work in the spawned isolate so hand the map over
 Map<String, String> _isolateArtIds = {};
 
 Future<void> _scanMusicEntryPoint(_ScanMusicParams params) async {
@@ -98,8 +98,7 @@ Future<Map<String, dynamic>?> _parseTrackToMap(String path) async {
 
     Uint8List? albumArtBytes;
     if (tag?.pictures != null && tag!.pictures.isNotEmpty) {
-      albumArtBytes =
-          MusicScannerService._compressAlbumArt(tag.pictures.first.bytes);
+      albumArtBytes = MusicScannerService._compressAlbumArt(tag.pictures.first.bytes);
     }
     final vid = albumArtBytes == null ? _isolateArtIds[path] : null;
 
@@ -345,8 +344,7 @@ class MusicScannerService {
       }
 
       final resized = img.copyResize(image, width: 500);
-      final compressed =
-          Uint8List.fromList(img.encodeJpg(resized, quality: 85));
+    final compressed = Uint8List.fromList(img.encodeJpg(resized, quality: 85));
 
       return compressed;
     } catch (e) {

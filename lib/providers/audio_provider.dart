@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
@@ -10,7 +9,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/track.dart';
 import '../services/audio_service.dart' as audio_svc;
 import '../services/youtube/youtube_service.dart';
-import '../services/ytdl_service.dart';
 import '../providers/settings_provider.dart';
 import '../providers/library_provider.dart';
 import '../services/custom_equalizer.dart';

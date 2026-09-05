@@ -38,12 +38,11 @@ class DownloadStore {
   static Map<String, String> _artIds = {};
   static bool _artIdsLoaded = false;
 
-  // m4a picture tags dont survive the tagger, keep the video id around instead
+  // m4a picture tags dont survive the tagger so keep the video id
   static Future<void> _ensureArtIds() async {
     if (_artIdsLoaded) return;
     final prefs = await SharedPreferences.getInstance();
-    _artIds =
-        Map<String, String>.from(jsonDecode(prefs.getString('dl_art') ?? '{}'));
+    _artIds = Map<String, String>.from(jsonDecode(prefs.getString('dl_art') ?? '{}'));
     _artIdsLoaded = true;
   }
 
