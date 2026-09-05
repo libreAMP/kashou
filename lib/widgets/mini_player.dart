@@ -681,8 +681,9 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
                 children: [
                   Text(
                     'Cast to Device',
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w700,
+                    style: theme.textTheme.headlineMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.5,
                     ),
                   ),
                   const SizedBox(height: 12),

@@ -9,6 +9,7 @@ import 'package:image/image.dart' as img;
 import '../models/track.dart';
 import '../models/album.dart';
 import '../models/artist.dart';
+import 'download_store.dart';
 
 class ScanProgress {
   final int current;
@@ -23,14 +24,20 @@ class _ScanMusicParams {
     required this.sendPort,
     required this.directoryPaths,
     required this.supportedExtensions,
+    required this.artIds,
   });
 
   final SendPort sendPort;
   final List<String> directoryPaths;
   final List<String> supportedExtensions;
+  final Map<String, String> artIds;
 }
 
+// plugins dont work in the spawned isolate, hand the map over instead
+Map<String, String> _isolateArtIds = {};
+
 Future<void> _scanMusicEntryPoint(_ScanMusicParams params) async {
+  _isolateArtIds = params.artIds;
   final sendPort = params.sendPort;
   try {
     final supportedExtensions = params.supportedExtensions.toSet();
@@ -40,7 +47,8 @@ Future<void> _scanMusicEntryPoint(_ScanMusicParams params) async {
       final directory = Directory(path);
       if (!await directory.exists()) continue;
 
-      await for (final entity in directory.list(recursive: true, followLinks: false)) {
+      await for (final entity
+          in directory.list(recursive: true, followLinks: false)) {
         if (entity is File) {
           final ext = entity.path.split('.').last.toLowerCase();
           if (supportedExtensions.contains(ext)) {
@@ -90,8 +98,10 @@ Future<Map<String, dynamic>?> _parseTrackToMap(String path) async {
 
     Uint8List? albumArtBytes;
     if (tag?.pictures != null && tag!.pictures.isNotEmpty) {
-      albumArtBytes = MusicScannerService._compressAlbumArt(tag.pictures.first.bytes);
+      albumArtBytes =
+          MusicScannerService._compressAlbumArt(tag.pictures.first.bytes);
     }
+    final vid = albumArtBytes == null ? _isolateArtIds[path] : null;
 
     String? codec;
     final ext = file.path.split('.').last.toLowerCase();
@@ -134,11 +144,18 @@ Future<Map<String, dynamic>?> _parseTrackToMap(String path) async {
     final track = Track(
       id: file.path.hashCode.toString(),
       title: tag?.title?.isNotEmpty == true ? tag!.title! : titleWithExt,
-      artist: tag?.trackArtist?.isNotEmpty == true ? tag!.trackArtist! : 'Unknown Artist',
+      artist: tag?.trackArtist?.isNotEmpty == true
+          ? tag!.trackArtist!
+          : 'Unknown Artist',
       album: tag?.album?.isNotEmpty == true ? tag!.album! : 'Unknown Album',
       path: file.path,
-      duration: tag?.duration != null ? Duration(seconds: tag!.duration!) : Duration.zero,
+      duration: tag?.duration != null
+          ? Duration(seconds: tag!.duration!)
+          : Duration.zero,
       albumArt: albumArtBytes,
+      sourceUrl: albumArtBytes == null && vid != null
+          ? 'https://www.youtube.com/watch?v=$vid'
+          : null,
       year: tag?.year,
       trackNumber: tag?.trackNumber,
       genre: tag?.genre,
@@ -188,6 +205,7 @@ class MusicScannerService {
           sendPort: receivePort.sendPort,
           directoryPaths: directoryPaths,
           supportedExtensions: supportedExtensions,
+          artIds: await DownloadStore.loadArtIds(),
         ),
       );
 
@@ -227,7 +245,7 @@ class MusicScannerService {
       // Load custom directories from preferences
       final prefs = await SharedPreferences.getInstance();
       final customPaths = prefs.getStringList('custom_music_paths') ?? [];
-      
+
       for (var path in customPaths) {
         uniquePaths.add(path);
       }
@@ -327,8 +345,9 @@ class MusicScannerService {
       }
 
       final resized = img.copyResize(image, width: 500);
-      final compressed = Uint8List.fromList(img.encodeJpg(resized, quality: 85));
-      
+      final compressed =
+          Uint8List.fromList(img.encodeJpg(resized, quality: 85));
+
       return compressed;
     } catch (e) {
       debugPrint('Error compressing album art: $e');

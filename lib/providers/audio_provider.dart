@@ -84,7 +84,12 @@ class AudioProvider extends ChangeNotifier {
     if (url.contains('googlevideo')) return null;
     final uri = Uri.tryParse(url);
     if (uri == null) return null;
-    return uri.queryParameters['v'] ?? uri.pathSegments.lastOrNull;
+    final v = uri.queryParameters['v'];
+    if (v != null) return v;
+    if (uri.host.contains('youtu.be') && uri.pathSegments.isNotEmpty) {
+      return uri.pathSegments.first;
+    }
+    return null;
   }
 
   Track? get currentTrack => _pendingTrack ?? _currentTrack;
@@ -549,6 +554,7 @@ class AudioProvider extends ChangeNotifier {
       return track.copyWith(
         path: stream.url,
         loudnessDb: streamInfo.loudnessDb,
+        title: track.title.isEmpty ? streamInfo.title : track.title,
       );
     } catch (e) {
       debugPrint('[Audio] watch url resolve failed: $e');

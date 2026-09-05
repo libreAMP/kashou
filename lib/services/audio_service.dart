@@ -61,7 +61,8 @@ class AudioPlayerService {
     _isInitializing = true;
     final prefs = await SharedPreferences.getInstance();
     final bufferSize = prefs.getInt('buffer_size') ?? 2048;
-    _audioPlayer = AudioPlayer(audioLoadConfiguration: _loadConfigFor(bufferSize));
+    _audioPlayer =
+        AudioPlayer(audioLoadConfiguration: _loadConfigFor(bufferSize));
 
     try {
       _audioHandler = await AudioService.init(

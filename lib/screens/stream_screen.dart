@@ -16,6 +16,7 @@ import '../widgets/square_art.dart';
 import '../widgets/loading_indicator.dart';
 import '../widgets/fade_rise.dart';
 import 'artist_screen.dart';
+import 'downloads_screen.dart';
 import 'mood_category_screen.dart';
 import 'section_page.dart';
 import 'youtube_history_screen.dart';
@@ -243,7 +244,7 @@ class _StreamScreenState extends State<StreamScreen>
       id: videoId,
       title: video['title'] as String? ?? 'Unknown',
       artist: video['channel'] as String? ?? 'Unknown',
-      album: 'YouTube',
+      album: '',
       path: videoUrl,
       duration: Duration(seconds: durationSeconds),
       sourceUrl: videoUrl,
@@ -421,6 +422,14 @@ class _StreamScreenState extends State<StreamScreen>
           ),
           ...[
             const SizedBox(width: 4),
+            IconButton(
+              icon: const Icon(Icons.download_rounded),
+              tooltip: 'Downloads',
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const DownloadsScreen()),
+              ),
+            ),
             Consumer<SettingsProvider>(
               builder: (context, settings, _) {
                 if (!settings.enableYouTubeIntegration) {
@@ -839,7 +848,7 @@ class _StreamScreenState extends State<StreamScreen>
     final channel = video['channel'] as String? ?? '';
     final views = video['views'] as String?;
     if (views == null || views.isEmpty) return channel;
-    return '$channel · $views';
+    return '$channel Â· $views';
   }
 
   Widget _buildSongRow(Map<String, dynamic> video) {
@@ -1033,3 +1042,4 @@ class _StreamScreenState extends State<StreamScreen>
     return safe + mini;
   }
 }
+

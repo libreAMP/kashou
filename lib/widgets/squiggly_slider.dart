@@ -25,6 +25,7 @@ class _SquigglySliderState extends State<SquigglySlider>
     with TickerProviderStateMixin {
   late final AnimationController _phase;
   late final AnimationController _amplitude;
+  late final AnimationController _squeeze;
   double? _dragValue;
 
   bool get _wavy => widget.animate && _dragValue == null;
@@ -41,6 +42,10 @@ class _SquigglySliderState extends State<SquigglySlider>
       duration: const Duration(milliseconds: 320),
       value: widget.animate ? 1 : 0,
     );
+    _squeeze = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 160),
+    );
     _sync();
   }
 
@@ -48,10 +53,12 @@ class _SquigglySliderState extends State<SquigglySlider>
     if (_wavy) {
       if (!_phase.isAnimating) _phase.repeat();
       _amplitude.forward();
+      _squeeze.reverse();
     } else {
       _amplitude.reverse().whenComplete(() {
         if (!_wavy && _phase.isAnimating) _phase.stop();
       });
+      if (_dragValue != null) _squeeze.forward();
     }
   }
 
@@ -65,6 +72,7 @@ class _SquigglySliderState extends State<SquigglySlider>
   void dispose() {
     _phase.dispose();
     _amplitude.dispose();
+    _squeeze.dispose();
     super.dispose();
   }
 
@@ -109,6 +117,7 @@ class _SquigglySliderState extends State<SquigglySlider>
                     fraction: value / max,
                     phase: _phase.value * 2 * pi,
                     amplitude: Curves.easeInOut.transform(_amplitude.value),
+                    squeeze: Curves.easeOut.transform(_squeeze.value),
                     waveColor: scheme.primary,
                     trackColor: scheme.onSurfaceVariant.withValues(alpha: 0.28),
                   ),
@@ -126,6 +135,7 @@ class _SquigglyPainter extends CustomPainter {
   final double fraction;
   final double phase;
   final double amplitude;
+  final double squeeze;
   final Color waveColor;
   final Color trackColor;
 
@@ -138,6 +148,7 @@ class _SquigglyPainter extends CustomPainter {
     required this.fraction,
     required this.phase,
     required this.amplitude,
+    required this.squeeze,
     required this.waveColor,
     required this.trackColor,
   });
@@ -191,8 +202,12 @@ class _SquigglyPainter extends CustomPainter {
         Offset(size.width - 2, midY), 2.4, Paint()..color = trackColor);
 
     final handle = RRect.fromRectAndRadius(
-      Rect.fromCenter(center: Offset(splitX, midY), width: 5, height: 22),
-      const Radius.circular(3),
+      Rect.fromCenter(
+        center: Offset(splitX, midY),
+        width: 5 - 2 * squeeze,
+        height: 22,
+      ),
+      Radius.circular(3 - squeeze),
     );
     canvas.drawRRect(handle, Paint()..color = waveColor);
   }
@@ -201,5 +216,6 @@ class _SquigglyPainter extends CustomPainter {
   bool shouldRepaint(_SquigglyPainter old) =>
       old.fraction != fraction ||
       old.phase != phase ||
-      old.amplitude != amplitude;
+      old.amplitude != amplitude ||
+      old.squeeze != squeeze;
 }

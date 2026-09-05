@@ -6,6 +6,7 @@ import '../providers/audio_provider.dart';
 import '../services/ytmusic_service.dart';
 import '../theme/radii.dart';
 import '../widgets/art_card.dart';
+import '../widgets/back_chip.dart';
 import '../widgets/loading_indicator.dart';
 import '../widgets/square_art.dart';
 import 'section_page.dart';
@@ -66,7 +67,13 @@ class _ArtistScreenState extends State<ArtistScreen> {
     // creators without a real artist page give us nothing to show
     if (!_loading && songs.isEmpty && shelves.isEmpty) {
       return Scaffold(
-        appBar: AppBar(title: Text(name)),
+        appBar: AppBar(
+          title: Text(name),
+          backgroundColor: scheme.surface,
+          surfaceTintColor: Colors.transparent,
+          elevation: 0,
+          leading: const BackChip(),
+        ),
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(32),
@@ -105,6 +112,11 @@ class _ArtistScreenState extends State<ArtistScreen> {
                 SliverAppBar.large(
                   expandedHeight: 260,
                   pinned: true,
+                  backgroundColor: Colors.transparent,
+                  surfaceTintColor: Colors.transparent,
+                  elevation: 0,
+                  scrolledUnderElevation: 0,
+                  leading: const BackChip(),
                   flexibleSpace: FlexibleSpaceBar(
                     title: Text(name,
                         style: const TextStyle(fontWeight: FontWeight.w800)),
@@ -160,7 +172,7 @@ class _ArtistScreenState extends State<ArtistScreen> {
       id: song['id'] as String? ?? '',
       title: song['title'] as String? ?? 'Unknown',
       artist: song['channel'] as String? ?? '',
-      album: 'YouTube',
+      album: '',
       path: url,
       duration: Duration.zero,
       sourceUrl: url,
@@ -223,3 +235,4 @@ class _ArtistScreenState extends State<ArtistScreen> {
     );
   }
 }
+

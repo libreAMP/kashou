@@ -558,6 +558,7 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
     final tracks = _tracks;
 
     audioProvider.playTrack(tracks[index], playlist: tracks);
+    Navigator.pop(context);
   }
 
   void _showOptions(BuildContext context) {

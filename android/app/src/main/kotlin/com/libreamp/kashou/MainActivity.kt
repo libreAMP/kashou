@@ -10,12 +10,38 @@ import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : AudioServiceActivity() {
     private val EQUALIZER_CHANNEL = "com.libreamp.kashou/equalizer"
+    private val INTENT_CHANNEL = "com.libreamp.kashou/intent"
     private var equalizer: Equalizer? = null
     private var bassBoost: BassBoost? = null
     private var virtualizer: Virtualizer? = null
+    private var pendingLink: String? = null
+    private var intentChannel: MethodChannel? = null
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        pendingLink = intent?.data?.toString()
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        intent.data?.toString()?.let {
+            pendingLink = it
+            intentChannel?.invokeMethod("link", it)
+        }
+    }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+
+        intentChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, INTENT_CHANNEL)
+        intentChannel?.setMethodCallHandler { call, result ->
+            if (call.method == "consumeLink") {
+                result.success(pendingLink)
+                pendingLink = null
+            } else {
+                result.notImplemented()
+            }
+        }
 
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, EQUALIZER_CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
@@ -65,6 +91,17 @@ class MainActivity : AudioServiceActivity() {
                 }
                 "releaseEqualizer" -> {
                     releaseEqualizer()
+                    result.success(null)
+                }
+                "isAllFilesAccess" -> {
+                    result.success(android.os.Environment.isExternalStorageManager())
+                }
+                "openAllFilesSettings" -> {
+                    val intent = android.content.Intent(
+                        android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                        android.net.Uri.parse("package:$packageName")
+                    )
+                    startActivity(intent)
                     result.success(null)
                 }
                 "setBassBoost" -> {

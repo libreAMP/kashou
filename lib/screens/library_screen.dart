@@ -5,6 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/playlist.dart';
 import '../models/track.dart';
 import '../providers/library_provider.dart';
@@ -34,11 +35,74 @@ class _LibraryScreenState extends State<LibraryScreen>
   final TextEditingController _searchController = TextEditingController();
   final _chipKeys = List.generate(6, (_) => GlobalKey());
   int _lastChip = 0;
+  String _sortMode = 'added';
+  List<String> _tabOrder = List.of(_defaultTabs);
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 6, vsync: this);
+    SharedPreferences.getInstance().then((prefs) {
+      if (mounted) {
+        setState(() {
+          _sortMode = prefs.getString('library_sort') ?? 'added';
+          final saved = prefs.getStringList('library_tab_order');
+          if (saved != null &&
+              saved.length == 6 &&
+              saved.toSet().length == 6) {
+            _tabOrder = saved;
+          }
+        });
+      }
+    });
+  }
+
+  Widget _tabFor(
+      String label, LibraryProvider library, double bottomPadding) {
+    switch (label) {
+      case 'Liked':
+        return _buildLikedTab(library, bottomPadding);
+      case 'Songs':
+        return _buildSongsTab(library, bottomPadding);
+      case 'Albums':
+        return _buildAlbumsTab(library, bottomPadding);
+      case 'Artists':
+        return _buildArtistsTab(library, bottomPadding);
+      case 'Playlists':
+        return _buildPlaylistsTab(library, bottomPadding);
+      default:
+        return _buildDownloadsTab(bottomPadding);
+    }
+  }
+
+  List<Track> _sorted(List<Track> tracks) {
+    if (_sortMode == 'added') return tracks;
+    final out = List<Track>.from(tracks);
+    switch (_sortMode) {
+      case 'title':
+        out.sort(
+            (a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
+        break;
+      case 'artist':
+        out.sort(
+            (a, b) => a.artist.toLowerCase().compareTo(b.artist.toLowerCase()));
+        break;
+      case 'duration':
+        out.sort((a, b) => a.duration.compareTo(b.duration));
+        break;
+    }
+    return out;
+  }
+
+  List<Track> _filtered(List<Track> tracks) {
+    final q = _searchController.text.trim().toLowerCase();
+    if (q.isEmpty) return tracks;
+    return tracks
+        .where((t) =>
+            t.title.toLowerCase().contains(q) ||
+            t.artist.toLowerCase().contains(q) ||
+            t.album.toLowerCase().contains(q))
+        .toList();
   }
 
   @override
@@ -61,23 +125,25 @@ class _LibraryScreenState extends State<LibraryScreen>
     );
   }
 
+  static const _defaultTabs = [
+    'Liked',
+    'Songs',
+    'Albums',
+    'Artists',
+    'Playlists',
+    'Downloads',
+  ];
+  static const _tabIcons = {
+    'Liked': Icons.favorite_rounded,
+    'Songs': Icons.music_note_rounded,
+    'Albums': Icons.album_rounded,
+    'Artists': Icons.person_rounded,
+    'Playlists': Icons.playlist_play_rounded,
+    'Downloads': Icons.download_done_rounded,
+  };
+
   PreferredSizeWidget _buildChipTabs() {
-    const labels = [
-      'Liked',
-      'Songs',
-      'Albums',
-      'Artists',
-      'Playlists',
-      'Downloads',
-    ];
-    const icons = [
-      Icons.favorite_rounded,
-      Icons.music_note_rounded,
-      Icons.album_rounded,
-      Icons.person_rounded,
-      Icons.playlist_play_rounded,
-      Icons.download_done_rounded,
-    ];
+    final labels = _tabOrder;
     return PreferredSize(
       preferredSize: const Size.fromHeight(64),
       child: AnimatedBuilder(
@@ -85,8 +151,7 @@ class _LibraryScreenState extends State<LibraryScreen>
         builder: (context, _) {
           final scheme = Theme.of(context).colorScheme;
           final sel = _tabController.animation!.value.round();
-          WidgetsBinding.instance
-              .addPostFrameCallback((_) => _revealChip(sel));
+          WidgetsBinding.instance.addPostFrameCallback((_) => _revealChip(sel));
           return SizedBox(
             height: 64,
             child: SingleChildScrollView(
@@ -100,8 +165,9 @@ class _LibraryScreenState extends State<LibraryScreen>
                     if (i > 0) const SizedBox(width: 8),
                     Material(
                       key: _chipKeys[i],
-                      color:
-                          i == sel ? scheme.primary : scheme.surfaceContainerHigh,
+                      color: i == sel
+                          ? scheme.primary
+                          : scheme.surfaceContainerHigh,
                       borderRadius: BorderRadius.circular(24),
                       child: InkWell(
                         borderRadius: BorderRadius.circular(24),
@@ -110,7 +176,7 @@ class _LibraryScreenState extends State<LibraryScreen>
                           padding: const EdgeInsets.symmetric(horizontal: 16),
                           child: Row(
                             children: [
-                              Icon(icons[i],
+                              Icon(_tabIcons[labels[i]]!,
                                   size: 18,
                                   color: i == sel
                                       ? scheme.onPrimary
@@ -321,12 +387,8 @@ class _LibraryScreenState extends State<LibraryScreen>
                             child: TabBarView(
                               controller: _tabController,
                               children: [
-                                _buildLikedTab(library, bottomPadding),
-                                _buildSongsTab(library, bottomPadding),
-                                _buildAlbumsTab(library, bottomPadding),
-                                _buildArtistsTab(library, bottomPadding),
-                                _buildPlaylistsTab(library, bottomPadding),
-                                _buildDownloadsTab(bottomPadding),
+                                for (final label in _tabOrder)
+                                  _tabFor(label, library, bottomPadding),
                               ],
                             ),
                           ),
@@ -344,7 +406,7 @@ class _LibraryScreenState extends State<LibraryScreen>
   }
 
   Widget _buildLikedTab(LibraryProvider library, double bottomPadding) {
-    final favoriteTracks = library.favoriteTracks;
+    final favoriteTracks = _sorted(_filtered(library.favoriteTracks));
 
     if (favoriteTracks.isEmpty) {
       return Center(
@@ -393,18 +455,12 @@ class _LibraryScreenState extends State<LibraryScreen>
       );
     }
 
-    // Separate local and online tracks
-    final localTracks = favoriteTracks.where((track) {
-      return !track.path.contains('youtube.com') &&
-          !track.path.contains('youtu.be') &&
-          track.album != 'YouTube';
-    }).toList();
-
-    final onlineTracks = favoriteTracks.where((track) {
-      return track.path.contains('youtube.com') ||
-          track.path.contains('youtu.be') ||
-          track.album == 'YouTube';
-    }).toList();
+    // resolved stream urls live in path, the source url keeps the origin
+    bool isOnline(Track track) =>
+        (track.sourceUrl ?? track.path).startsWith('http');
+    final localTracks =
+        favoriteTracks.where((track) => !isOnline(track)).toList();
+    final onlineTracks = favoriteTracks.where(isOnline).toList();
 
     return ListView(
       padding: EdgeInsets.fromLTRB(16, 16, 16, bottomPadding),
@@ -482,9 +538,7 @@ class _LibraryScreenState extends State<LibraryScreen>
   }
 
   Widget _buildSongsTab(LibraryProvider library, double bottomPadding) {
-    final tracks = _searchController.text.isEmpty
-        ? library.allTracks
-        : library.searchTracks(_searchController.text);
+    final tracks = _sorted(_searchController.text.isEmpty ? library.allTracks : library.searchTracks(_searchController.text));
 
     if (tracks.isEmpty) {
       return Center(
@@ -633,7 +687,7 @@ class _LibraryScreenState extends State<LibraryScreen>
         if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
-        final tracks = snapshot.data!;
+        final tracks = _sorted(_filtered(snapshot.data!));
         if (tracks.isEmpty) {
           return Center(
             child: Column(
@@ -663,15 +717,16 @@ class _LibraryScreenState extends State<LibraryScreen>
         return ListView.builder(
           padding: EdgeInsets.fromLTRB(16, 8, 16, bottomPadding),
           itemCount: tracks.length,
-          itemBuilder: (context, index) =>
-              TrackListItem(track: tracks[index]),
+          itemBuilder: (context, index) => TrackListItem(track: tracks[index]),
         );
       },
     );
   }
 
   Widget _buildPlaylistsTab(LibraryProvider library, double bottomPadding) {
-    if (library.playlists.isEmpty) {
+    final q = _searchController.text.trim().toLowerCase();
+    final playlists = q.isEmpty ? library.playlists : library.playlists.where((p) => p.name.toLowerCase().contains(q)).toList();
+    if (playlists.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -708,16 +763,22 @@ class _LibraryScreenState extends State<LibraryScreen>
 
     return ListView.builder(
       padding: EdgeInsets.fromLTRB(16, 16, 16, bottomPadding),
-      itemCount: library.playlists.length,
+      itemCount: playlists.length,
       itemBuilder: (context, index) {
-        final playlist = library.playlists[index];
+        final playlist = playlists[index];
         return ListTile(
           title: Text(playlist.name),
           subtitle: Text('${playlist.tracks.length} songs'),
           leading: _playlistArt(playlist, Theme.of(context).colorScheme),
           onTap: () => Navigator.of(context).push(MaterialPageRoute(
-            builder: (_) => TrackListPage(
-                title: playlist.name, tracks: playlist.tracks),
+            builder: (_) =>
+                TrackListPage(
+                  title: playlist.name,
+                  tracks: playlist.tracks,
+                  cover: playlist.coverImage,
+                  onOptions: () =>
+                      _showPlaylistOptions(context, playlist.id),
+                ),
           )),
           onLongPress: () => _showPlaylistOptions(context, playlist.id),
         );
@@ -774,9 +835,8 @@ class _LibraryScreenState extends State<LibraryScreen>
                   decoration: InputDecoration(
                     hintText: 'Name here',
                     filled: true,
-                    fillColor: Theme.of(context)
-                        .colorScheme
-                        .surfaceContainerHighest,
+                    fillColor:
+                        Theme.of(context).colorScheme.surfaceContainerHighest,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(rMd),
                       borderSide: BorderSide.none,
@@ -818,27 +878,26 @@ class _LibraryScreenState extends State<LibraryScreen>
     }
 
     const ytm = YtMusicService();
-    final name = useYtName
-        ? (await ytm.getPlaylistTitle(id) ?? 'YouTube import')
-        : nameController.text.trim().isEmpty
-            ? 'YouTube import'
-            : nameController.text.trim();
+    final name = useYtName ? (await ytm.getPlaylistTitle(id) ?? 'YouTube import') : nameController.text.trim().isEmpty ? 'YouTube import' : nameController.text.trim();
     final cover = await ytm.getPlaylistThumb(id);
-    await library.importPlaylist(name, [
-      for (final song in songs)
-        Track(
-          id: song['id'] as String? ?? '',
-          title: song['title'] as String? ?? 'Unknown',
-          artist: song['channel'] as String? ?? '',
-          album: 'YouTube',
-          path: song['url'] as String? ??
-              'https://www.youtube.com/watch?v=${song['id']}',
-          duration: Duration.zero,
-          sourceUrl: song['url'] as String? ??
-              'https://www.youtube.com/watch?v=${song['id']}',
-          artistId: song['artistId'] as String?,
-        ),
-    ], coverImage: cover);
+    await library.importPlaylist(
+        name,
+        [
+          for (final song in songs)
+            Track(
+              id: song['id'] as String? ?? '',
+              title: song['title'] as String? ?? 'Unknown',
+              artist: song['channel'] as String? ?? '',
+              album: '',
+              path: song['url'] as String? ??
+                  'https://www.youtube.com/watch?v=${song['id']}',
+              duration: Duration.zero,
+              sourceUrl: song['url'] as String? ??
+                  'https://www.youtube.com/watch?v=${song['id']}',
+              artistId: song['artistId'] as String?,
+            ),
+        ],
+        coverImage: cover);
     appMessenger.currentState?.showSnackBar(
         SnackBar(content: Text('Imported ${songs.length} songs into $name')));
   }
@@ -884,8 +943,7 @@ class _LibraryScreenState extends State<LibraryScreen>
                       Divider(
                           height: 1,
                           indent: 56,
-                          color:
-                              scheme.outlineVariant.withValues(alpha: 0.4)),
+                          color: scheme.outlineVariant.withValues(alpha: 0.4)),
                       ListTile(
                         leading: const Icon(Icons.link_rounded),
                         title: const Text('Import from YouTube'),
@@ -897,8 +955,7 @@ class _LibraryScreenState extends State<LibraryScreen>
                       Divider(
                           height: 1,
                           indent: 56,
-                          color:
-                              scheme.outlineVariant.withValues(alpha: 0.4)),
+                          color: scheme.outlineVariant.withValues(alpha: 0.4)),
                       ListTile(
                         leading: const Icon(Icons.refresh),
                         title: const Text('Rescan Library'),
@@ -914,13 +971,26 @@ class _LibraryScreenState extends State<LibraryScreen>
                       Divider(
                           height: 1,
                           indent: 56,
-                          color:
-                              scheme.outlineVariant.withValues(alpha: 0.4)),
+                          color: scheme.outlineVariant.withValues(alpha: 0.4)),
                       ListTile(
                         leading: const Icon(Icons.sort),
                         title: const Text('Sort Options'),
                         onTap: () {
                           Navigator.pop(context);
+                          _showSortDialog(context);
+                        },
+                      ),
+                      Divider(
+                          height: 1,
+                          indent: 56,
+                          color:
+                              scheme.outlineVariant.withValues(alpha: 0.4)),
+                      ListTile(
+                        leading: const Icon(Icons.reorder_rounded),
+                        title: const Text('Reorder Tabs'),
+                        onTap: () {
+                          Navigator.pop(context);
+                          _showTabOrderDialog(context);
                         },
                       ),
                     ],
@@ -937,9 +1007,8 @@ class _LibraryScreenState extends State<LibraryScreen>
   Widget _playlistArt(Playlist playlist, ColorScheme scheme) {
     final fallback = CircleAvatar(
       backgroundColor: scheme.surfaceContainerHighest,
-      child: Text(playlist.name.isNotEmpty
-          ? playlist.name[0].toUpperCase()
-          : '?'),
+      child:
+          Text(playlist.name.isNotEmpty ? playlist.name[0].toUpperCase() : '?'),
     );
     final cover = playlist.coverImage;
     if (cover == null || cover.isEmpty) return fallback;
@@ -960,15 +1029,116 @@ class _LibraryScreenState extends State<LibraryScreen>
     );
   }
 
+  void _showTabOrderDialog(BuildContext context) {
+    final refresh = () => setState(() {});
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        final scheme = Theme.of(context).colorScheme;
+        return StatefulBuilder(
+          builder: (context, setState) => AlertDialog(
+            title: Text(
+              'Reorder Tabs',
+              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.5,
+                  ),
+            ),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: ReorderableListView(
+                shrinkWrap: true,
+                onReorder: (old, neu) {
+                  setState(() {
+                    var to = neu;
+                    if (to > old) to--;
+                    final moved = _tabOrder.removeAt(old);
+                    _tabOrder.insert(to, moved);
+                  });
+                },
+                children: [
+                  for (final label in _tabOrder)
+                    ListTile(
+                      key: ValueKey(label),
+                      leading: Icon(_tabIcons[label]),
+                      title: Text(label),
+                      trailing: const Icon(Icons.drag_handle_rounded),
+                    ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () async {
+                  final prefs = await SharedPreferences.getInstance();
+                  await prefs.setStringList('library_tab_order', _tabOrder);
+                  if (context.mounted) Navigator.pop(context);
+                  refresh();
+                },
+                child: const Text('Save'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showSortDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(
+              'Sort Songs',
+              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.5,
+                  ),
+            ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final m in const [
+              ['added', 'Date added'],
+              ['title', 'Title'],
+              ['artist', 'Artist'],
+              ['duration', 'Duration'],
+            ])
+              RadioListTile<String>(
+                title: Text(m[1]),
+                value: m[0],
+                groupValue: _sortMode,
+                onChanged: (v) async {
+                  setState(() => _sortMode = v!);
+                  final prefs = await SharedPreferences.getInstance();
+                  await prefs.setString('library_sort', v!);
+                  if (context.mounted) Navigator.pop(context);
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _showRenameDialog(
       BuildContext context, String playlistId, String current) {
     final controller = TextEditingController(text: current);
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        insetPadding:
-            const EdgeInsets.symmetric(horizontal: 12, vertical: 24),
-        title: const Text('Rename Playlist'),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 24),
+        title: Text(
+              'Rename Playlist',
+              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.5,
+                  ),
+            ),
         content: TextField(
           controller: controller,
           autofocus: true,
@@ -1006,7 +1176,13 @@ class _LibraryScreenState extends State<LibraryScreen>
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text('New Playlist'),
+          title: Text(
+              'New Playlist',
+              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.5,
+                  ),
+            ),
           content: TextField(
             controller: controller,
             decoration: const InputDecoration(
@@ -1067,21 +1243,29 @@ class _LibraryScreenState extends State<LibraryScreen>
                     children: [
                       ListTile(
                         leading: const Icon(Icons.edit_rounded),
-                        title: const Text('Rename Playlist'),
+                        title: Text(
+              'Rename Playlist',
+              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.5,
+                  ),
+            ),
                         onTap: () {
                           Navigator.pop(context);
                           final current = Provider.of<LibraryProvider>(
                             context,
                             listen: false,
-                          ).playlists.firstWhere((p) => p.id == playlistId).name;
+                          )
+                              .playlists
+                              .firstWhere((p) => p.id == playlistId)
+                              .name;
                           _showRenameDialog(context, playlistId, current);
                         },
                       ),
                       Divider(
                           height: 1,
                           indent: 56,
-                          color:
-                              scheme.outlineVariant.withValues(alpha: 0.4)),
+                          color: scheme.outlineVariant.withValues(alpha: 0.4)),
                       ListTile(
                         leading: const Icon(Icons.image_outlined),
                         title: const Text('Change Cover'),
@@ -1091,14 +1275,12 @@ class _LibraryScreenState extends State<LibraryScreen>
                               .pickFiles(type: FileType.image);
                           final src = picked?.files.single.path;
                           if (src == null) return;
-                          final dir =
-                              await getApplicationDocumentsDirectory();
+                          final dir = await getApplicationDocumentsDirectory();
                           final f =
                               File('${dir.path}/playlist_$playlistId.jpg');
                           await f.writeAsBytes(await File(src).readAsBytes());
                           if (context.mounted) {
-                            Provider.of<LibraryProvider>(context,
-                                    listen: false)
+                            Provider.of<LibraryProvider>(context, listen: false)
                                 .setPlaylistCover(playlistId, f.path);
                           }
                         },
@@ -1106,8 +1288,7 @@ class _LibraryScreenState extends State<LibraryScreen>
                       Divider(
                           height: 1,
                           indent: 56,
-                          color:
-                              scheme.outlineVariant.withValues(alpha: 0.4)),
+                          color: scheme.outlineVariant.withValues(alpha: 0.4)),
                       ListTile(
                         leading: const Icon(Icons.delete),
                         title: const Text('Delete Playlist'),
@@ -1123,7 +1304,14 @@ class _LibraryScreenState extends State<LibraryScreen>
                           final remove = await showDialog<bool>(
                             context: context,
                             builder: (dialogContext) => AlertDialog(
-                              title: Text('Delete $name?'),
+                              title: Text(
+              'Delete playlist?',
+              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.5,
+                  ),
+            ),
+                              content: Text(name),
                               actions: [
                                 TextButton(
                                   onPressed: () =>
@@ -1154,3 +1342,4 @@ class _LibraryScreenState extends State<LibraryScreen>
     );
   }
 }
+

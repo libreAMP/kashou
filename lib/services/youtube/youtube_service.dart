@@ -22,6 +22,11 @@ class YoutubeService {
     String videoId, {
     bool forceRefresh = false,
   }) async {
+    // garbage ids (local file names) wreck the token webview for later calls
+    if (!RegExp(r'^[A-Za-z0-9_-]{11}$').hasMatch(videoId)) {
+      debugPrint('[YoutubeService] skip invalid id: $videoId');
+      return null;
+    }
     if (!forceRefresh) {
       final cached = _getCachedStreams(videoId);
       if (cached != null) {

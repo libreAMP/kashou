@@ -215,7 +215,7 @@ class RecommendationProvider extends ChangeNotifier {
         id: videoId,
         title: video['title'] as String? ?? 'Unknown',
         artist: video['channel'] as String? ?? 'Unknown',
-        album: 'YouTube',
+        album: '',
         path: videoUrl,
         duration: Duration(seconds: durationSeconds),
         sourceUrl: videoUrl,
@@ -281,3 +281,4 @@ class RecommendationProvider extends ChangeNotifier {
     return uri.queryParameters['v'];
   }
 }
+

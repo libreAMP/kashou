@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/settings_provider.dart';
 import '../screens/personalization_screen.dart';
 import '../theme/app_theme.dart';
+import '../widgets/back_chip.dart';
 import '../widgets/settings_tiles.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -16,7 +17,14 @@ class SettingsScreen extends StatelessWidget {
     return Scaffold(
       body: CustomScrollView(
         slivers: [
-          const SliverAppBar.large(title: Text('Settings')),
+          SliverAppBar.large(
+            title: const Text('Settings'),
+            backgroundColor: Theme.of(context).colorScheme.surface,
+            surfaceTintColor: Colors.transparent,
+            elevation: 0,
+            scrolledUnderElevation: 0,
+            leading: const BackChip(),
+          ),
           SliverList(
             delegate: SliverChildListDelegate([
               SettingsSection(
@@ -290,3 +298,4 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 }
+

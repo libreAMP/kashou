@@ -6,6 +6,7 @@ import '../widgets/track_list_item.dart';
 import '../widgets/album_card.dart';
 import 'track_list_page.dart';
 import '../models/track.dart';
+import '../theme/app_theme.dart';
 import '../theme/radii.dart';
 import 'search_screen.dart';
 
@@ -135,11 +136,8 @@ class HomeScreen extends StatelessWidget {
         Row(
           children: [
             Expanded(
-              child: _buildActionCard(
-                context,
-                icon: Icons.shuffle,
-                label: 'Shuffle all',
-                onTap: () {
+              child: FilledButton.tonalIcon(
+                onPressed: () {
                   final library = Provider.of<LibraryProvider>(
                     context,
                     listen: false,
@@ -155,15 +153,20 @@ class HomeScreen extends StatelessWidget {
                     audio.playTrack(shuffled.first, playlist: shuffled);
                   }
                 },
+                icon: const Icon(Icons.shuffle_rounded),
+                label: const Text('Shuffle all'),
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: EShape.radius(EShape.xl),
+                  ),
+                ),
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: _buildActionCard(
-                context,
-                icon: Icons.play_circle_outline,
-                label: 'Play library',
-                onTap: () {
+              child: FilledButton.icon(
+                onPressed: () {
                   final library = Provider.of<LibraryProvider>(
                     context,
                     listen: false,
@@ -180,6 +183,14 @@ class HomeScreen extends StatelessWidget {
                     );
                   }
                 },
+                icon: const Icon(Icons.play_arrow_rounded),
+                label: const Text('Play library'),
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: EShape.radius(EShape.xl),
+                  ),
+                ),
               ),
             ),
           ],
@@ -188,49 +199,7 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildActionCard(
-    BuildContext context, {
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-  }) {
-    final colorScheme = Theme.of(context).colorScheme;
 
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(18),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(18),
-        splashColor: colorScheme.primary.withValues(alpha: 0.1),
-        highlightColor: colorScheme.primary.withValues(alpha: 0.05),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
-          decoration: BoxDecoration(
-            color: colorScheme.primaryContainer,
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Row(
-            children: [
-              Icon(icon, size: 22, color: colorScheme.onPrimaryContainer),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  label,
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        color: colorScheme.onPrimaryContainer,
-                        fontWeight: FontWeight.w600,
-                      ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 
   Widget _buildRecentlyPlayed(BuildContext context) {
     return Consumer2<LibraryProvider, AudioProvider>(
@@ -471,14 +440,41 @@ class HomeScreen extends StatelessWidget {
                 letterSpacing: -0.5,
               ),
         ),
-        const SizedBox(height: 4),
-        Text(
-          '$trackCount tracks, $albumCount albums, $artistCount artists',
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-              ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            _chip(context, Icons.music_note_rounded, '$trackCount songs'),
+            const SizedBox(width: 8),
+            _chip(context, Icons.album_rounded, '$albumCount albums'),
+            const SizedBox(width: 8),
+            _chip(context, Icons.person_rounded, '$artistCount artists'),
+          ],
         ),
       ],
+    );
+  }
+
+  Widget _chip(BuildContext context, IconData icon, String label) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerHigh,
+        borderRadius: EShape.radius(EShape.sm),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: scheme.onSurfaceVariant),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                ),
+          ),
+        ],
+      ),
     );
   }
 

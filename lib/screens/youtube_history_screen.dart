@@ -7,6 +7,7 @@ import '../providers/audio_provider.dart';
 import '../providers/settings_provider.dart';
 import '../services/youtube/youtube_service.dart';
 import '../theme/radii.dart';
+import '../widgets/back_chip.dart';
 import '../widgets/loading_indicator.dart';
 import '../widgets/square_art.dart';
 
@@ -96,7 +97,13 @@ class _YoutubeHistoryScreenState extends State<YoutubeHistoryScreen> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text('Clear history?'),
+          title: Text(
+              'Clear history?',
+              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.5,
+                  ),
+            ),
           content: const Text('This will remove all YouTube stream history.'),
           actions: [
             TextButton(
@@ -134,6 +141,11 @@ class _YoutubeHistoryScreenState extends State<YoutubeHistoryScreen> {
         slivers: [
           SliverAppBar.large(
             title: const Text('History'),
+            backgroundColor: Theme.of(context).colorScheme.surface,
+            surfaceTintColor: Colors.transparent,
+            elevation: 0,
+            scrolledUnderElevation: 0,
+            leading: const BackChip(),
             actions: [
               Consumer<AudioProvider>(
                 builder: (context, audioProvider, _) {
@@ -225,52 +237,95 @@ class _YoutubeHistoryScreenState extends State<YoutubeHistoryScreen> {
               .read<AudioProvider>()
               .removeFromStreamHistory(track.sourceUrl ?? track.path);
         },
-        child: Material(
-          color: colorScheme.surfaceContainerHigh,
-          borderRadius: BorderRadius.circular(rMd),
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            onTap: isLoading ? null : () => _playEntry(entry),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 10, 16, 10),
-              child: Row(
-                children: [
-                  _buildAlbumArt(track, colorScheme),
-                  const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
+        child: Consumer<AudioProvider>(
+          builder: (context, audio, _) {
+            final isCurrent = audio.currentTrack?.id == track.id;
+            final playing = isCurrent && audio.isPlaying;
+            return Material(
+              color: isCurrent
+                  ? colorScheme.primary.withValues(alpha: 0.12)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(rMd),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(rMd),
+                onTap: isLoading
+                    ? null
+                    : () =>
+                        isCurrent ? audio.togglePlayPause() : _playEntry(entry),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Row(
                     children: [
-                      Text(
-                        track.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(rSm),
+                        child: SizedBox(
+                          width: 56,
+                          height: 56,
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              _buildAlbumArt(track, colorScheme),
+                              if (playing)
+                                Container(
+                                  color: Colors.black.withValues(alpha: 0.4),
+                                  child: Icon(Icons.graphic_eq,
+                                      color: Colors.white, size: 22),
+                                ),
+                            ],
+                          ),
                         ),
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '${track.artist} · ${_formatTimestamp(entry.timestamp)}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              track.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.titleSmall?.copyWith(
+                                color: isCurrent
+                                    ? colorScheme.primary
+                                    : colorScheme.onSurface,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              '${track.artist} Â· ${_formatTimestamp(entry.timestamp)}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
+                      const SizedBox(width: 8),
+                      isLoading
+                          ? KashouLoader(size: 26, color: colorScheme.primary)
+                          : IconButton(
+                              icon: Icon(
+                                playing
+                                    ? Icons.pause_rounded
+                                    : Icons.play_arrow_rounded,
+                                color: isCurrent
+                                    ? colorScheme.primary
+                                    : colorScheme.onSurfaceVariant,
+                              ),
+                              onPressed: () => isCurrent
+                                  ? audio.togglePlayPause()
+                                  : _playEntry(entry),
+                            ),
                     ],
                   ),
                 ),
-                const SizedBox(width: 8),
-                  isLoading
-                      ? KashouLoader(size: 26, color: colorScheme.primary)
-                      : Icon(Icons.play_arrow_rounded,
-                          color: colorScheme.onSurfaceVariant),
-                ],
               ),
-            ),
-          ),
+            );
+          },
         ),
       ),
     );
@@ -333,3 +388,4 @@ class _YoutubeHistoryScreenState extends State<YoutubeHistoryScreen> {
     }
   }
 }
+

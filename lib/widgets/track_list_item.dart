@@ -8,8 +8,9 @@ import '../theme/radii.dart';
 
 class TrackListItem extends StatelessWidget {
   final Track track;
+  final int? index;
 
-  const TrackListItem({super.key, required this.track});
+  const TrackListItem({super.key, required this.track, this.index});
 
   @override
   Widget build(BuildContext context) {
@@ -45,6 +46,18 @@ class TrackListItem extends StatelessWidget {
                   ),
                 child: Row(
                   children: [
+                    if (index != null) ...[
+                      SizedBox(
+                        width: 24,
+                        child: Text(
+                          '$index',
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(color: colorScheme.onSurfaceVariant),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                    ],
                     ClipRRect(
                       borderRadius: BorderRadius.circular(rSm),
                       child: Container(
@@ -87,7 +100,7 @@ class TrackListItem extends StatelessWidget {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            '${track.artist} • ${track.album}',
+                            _subtitle(track),
                             style: Theme.of(context).textTheme.bodySmall?.copyWith(
                               color: colorScheme.onSurfaceVariant,
                               fontSize: 12,
@@ -233,7 +246,8 @@ class TrackListItem extends StatelessWidget {
             children: [
               _buildInfoRow('Title', track.title),
               _buildInfoRow('Artist', track.artist),
-              _buildInfoRow('Album', track.album),
+              if (track.album.isNotEmpty && track.album != 'YouTube')
+                _buildInfoRow('Album', track.album),
               if (track.year != null)
                 _buildInfoRow('Year', track.year.toString()),
               if (track.genre != null) _buildInfoRow('Genre', track.genre!),
@@ -242,7 +256,11 @@ class TrackListItem extends StatelessWidget {
               if (track.sampleRate != null)
                 _buildInfoRow('Sample Rate', '${track.sampleRate} Hz'),
               if (track.codec != null) _buildInfoRow('Format', track.codec!),
-              _buildInfoRow('Path', track.path),
+              if (_ytId(track) != null)
+                _buildInfoRow(
+                    'Link', 'https://youtube.com/watch?v=${_ytId(track)}'),
+              if (!(track.sourceUrl ?? track.path).startsWith('http'))
+                _buildInfoRow('Path', track.path),
             ],
           ),
           actions: [
@@ -254,6 +272,22 @@ class TrackListItem extends StatelessWidget {
         );
       },
     );
+  }
+
+  String _subtitle(Track track) {
+    final online = (track.sourceUrl ?? track.path).startsWith('http');
+    final tail = online ? 'YouTube' : track.album;
+    return tail.isEmpty ? track.artist : '${track.artist} • $tail';
+  }
+
+  String? _ytId(Track track) {
+    final uri = Uri.tryParse(track.sourceUrl ?? track.path);
+    return uri?.queryParameters['v'] ??
+        (uri != null &&
+                uri.host.contains('youtu.be') &&
+                uri.pathSegments.isNotEmpty
+            ? uri.pathSegments.first
+            : null);
   }
 
   Widget _artFor(Track track, ColorScheme colorScheme) {
@@ -269,13 +303,7 @@ class TrackListItem extends StatelessWidget {
         ),
       );
     }
-    final uri = Uri.tryParse(track.sourceUrl ?? track.path);
-    final id = uri?.queryParameters['v'] ??
-        (uri != null &&
-                uri.host.contains('youtu.be') &&
-                uri.pathSegments.isNotEmpty
-            ? uri.pathSegments.first
-            : null);
+    final id = _ytId(track);
     if (id != null) {
       return CachedNetworkImage(
         imageUrl: 'https://i.ytimg.com/vi/$id/mqdefault.jpg',

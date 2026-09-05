@@ -85,10 +85,10 @@ ThemeData buildKashouTheme(ColorScheme scheme, TextTheme text) {
     splashFactory: InkSparkle.splashFactory,
     dialogTheme: DialogThemeData(
       shape: RoundedRectangleBorder(borderRadius: EShape.radius(EShape.lg)),
-      titleTextStyle: boldText.headlineSmall?.copyWith(
+      titleTextStyle: boldText.headlineMedium?.copyWith(
         color: scheme.onSurface,
         fontWeight: FontWeight.w800,
-        letterSpacing: -0.3,
+        letterSpacing: -0.5,
       ),
       contentTextStyle: boldText.bodyMedium?.copyWith(
         color: scheme.onSurfaceVariant,

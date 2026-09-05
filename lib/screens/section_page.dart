@@ -47,7 +47,7 @@ class _SectionPageState extends State<SectionPage> {
       id: videoId,
       title: video['title'] as String? ?? 'Unknown',
       artist: video['channel'] as String? ?? 'Unknown',
-      album: 'YouTube',
+      album: '',
       path: videoUrl,
       duration: Duration(seconds: _asInt(video['duration'])),
       sourceUrl: videoUrl,
@@ -597,3 +597,4 @@ class _SectionPageState extends State<SectionPage> {
       );
   }
 }
+
