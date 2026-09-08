@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:audio_session/audio_session.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
 import '../models/track.dart';
 import '../services/audio_service.dart' as audio_svc;
 import '../services/youtube/youtube_service.dart';
@@ -560,9 +562,41 @@ class AudioProvider extends ChangeNotifier {
     }
   }
 
+  static final Map<String, Uint8List> _artCache = {};
+
+  Future<void> _hydrateArt(Track track) async {
+    if (track.albumArt != null) return;
+    final id = _extractVideoId(track.sourceUrl ?? track.path);
+    if (id == null) return;
+    final cached = _artCache[id];
+    Uint8List bytes;
+    if (cached != null) {
+      bytes = cached;
+    } else {
+      try {
+        final resp =
+            await http.get(Uri.parse('https://i.ytimg.com/vi/$id/mqdefault.jpg'));
+        if (resp.statusCode != 200 || resp.bodyBytes.isEmpty) return;
+        bytes = resp.bodyBytes;
+        _artCache[id] = bytes;
+      } catch (_) {
+        return;
+      }
+    }
+    final withArt = track.copyWith(albumArt: bytes);
+    final qi = _queue.indexWhere((t) => t.id == track.id);
+    if (qi != -1) _queue[qi] = withArt;
+    if (_currentTrack?.id == track.id) _currentTrack = withArt;
+    if (_pendingTrack?.id == track.id) _pendingTrack = withArt;
+    if (_lastCommittedTrack?.id == track.id) _lastCommittedTrack = withArt;
+    notifyListeners();
+    await _audioHandler?.setTrackMediaItem(withArt);
+  }
+
   Future<void> playTrack(Track track, {List<Track>? playlist}) async {
     // two plays can overlap on the resolve await, the newer one wins
     final seq = ++_playSeq;
+    _audioHandler?.setTrackMediaItem(track);
     if (_isRemotePath(track.path) &&
         (_isWatchUrl(track.path) || _isStaleStreamUrl(track.path))) {
       final pendingAlready =
@@ -633,9 +667,7 @@ class AudioProvider extends ChangeNotifier {
 
     if (seq != _playSeq) return;
     try {
-      if (_audioHandler != null) {
-        await _audioHandler!.setTrackMediaItem(track);
-      }
+      _hydrateArt(track);
 
       final enableGapless = _settingsProvider?.enableGapless ?? false;
       final enableCrossfade = _settingsProvider?.enableCrossfade ?? false;
@@ -748,6 +780,7 @@ class AudioProvider extends ChangeNotifier {
         if (_audioHandler != null) {
           _audioHandler!.setTrackMediaItem(_queue[index]);
         }
+        _hydrateArt(_queue[index]);
         notifyListeners();
       }
     });

@@ -152,6 +152,8 @@ class AudioPlayerHandler extends BaseAudioHandler
         artUri: artUri,
       ),
     );
+    // some system ui caches the notification until the state changes
+    playbackState.add(playbackState.value);
   }
 
   PlaybackState _transformEvent(PlaybackEvent event) {
