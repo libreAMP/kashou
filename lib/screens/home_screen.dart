@@ -37,7 +37,7 @@ class HomeScreen extends StatelessWidget {
                   return RefreshIndicator(
                     onRefresh: () => library.scanLibrary(force: true),
                     child: ListView(
-                      padding: EdgeInsets.fromLTRB(20, 12, 20,
+                      padding: EdgeInsets.fromLTRB(20, 4, 20,
                           showMiniPlayer ? safeArea + 96 : safeArea + 24),
                       children: [
                         _buildHeroHeader(context, library),
@@ -432,14 +432,16 @@ class HomeScreen extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Local',
-          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                fontWeight: FontWeight.w800,
-                letterSpacing: -0.5,
-              ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(0, 4, 0, 12),
+          child: Text(
+            'Local',
+            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.5,
+                ),
+          ),
         ),
-        const SizedBox(height: 10),
         Row(
           children: [
             _chip(context, Icons.music_note_rounded, '$trackCount songs'),

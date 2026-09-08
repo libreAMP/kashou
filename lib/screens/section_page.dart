@@ -38,12 +38,10 @@ class _SectionPageState extends State<SectionPage> {
   final TextEditingController _searchController = TextEditingController();
   List<Map<String, dynamic>> _items = [];
   List<Map<String, dynamic>> _filteredItems = [];
-  Future<void> _playVideo(Map<String, dynamic> video) async {
-    final audioProvider = Provider.of<AudioProvider>(context, listen: false);
+  Track _trackFor(Map<String, dynamic> video) {
     final videoId = video['id']?.toString() ?? UniqueKey().toString();
     final videoUrl = video['url'] ?? 'https://www.youtube.com/watch?v=$videoId';
-
-    final placeholderTrack = Track(
+    return Track(
       id: videoId,
       title: video['title'] as String? ?? 'Unknown',
       artist: video['channel'] as String? ?? 'Unknown',
@@ -52,13 +50,25 @@ class _SectionPageState extends State<SectionPage> {
       duration: Duration(seconds: _asInt(video['duration'])),
       sourceUrl: videoUrl,
     );
+  }
 
-    await audioProvider.prepareTrackLoad(placeholderTrack);
+  Future<void> _playVideo(Map<String, dynamic> video,
+      [List<Map<String, dynamic>>? order]) async {
+    final audioProvider = Provider.of<AudioProvider>(context, listen: false);
+    final tracks = (order ?? _filteredItems).map(_trackFor).toList();
+    final id = video['id']?.toString();
+    final placeholderTrack = tracks.firstWhere(
+      (t) => t.id == id,
+      orElse: () => _trackFor(video),
+    );
+
+    await audioProvider.prepareTrackLoad(placeholderTrack, playlist: tracks);
 
     try {
-      final streamInfo = await YoutubeService.instance.fetchStreams(videoId);
+      final streamInfo =
+          await YoutubeService.instance.fetchStreams(placeholderTrack.id);
       if (streamInfo == null || streamInfo.audioStreams.isEmpty) {
-        audioProvider.cancelPendingTrack(videoId);
+        audioProvider.cancelPendingTrack(placeholderTrack.id);
         _showSnackBar('Unable to load audio stream.');
         return;
       }
@@ -73,10 +83,10 @@ class _SectionPageState extends State<SectionPage> {
         path: stream.url,
       );
 
-      await audioProvider.playTrack(finalTrack);
+      await audioProvider.playTrack(finalTrack, playlist: tracks);
 
       final thumb = video['thumbnail'] as String? ??
-          'https://i.ytimg.com/vi/$videoId/hqdefault.jpg';
+          'https://i.ytimg.com/vi/${placeholderTrack.id}/hqdefault.jpg';
       http.get(Uri.parse(thumb)).then((resp) {
         if (resp.statusCode == 200) {
           audioProvider.updateTrackMetadata(
@@ -84,7 +94,7 @@ class _SectionPageState extends State<SectionPage> {
         }
       });
     } catch (e) {
-      audioProvider.cancelPendingTrack(videoId);
+      audioProvider.cancelPendingTrack(placeholderTrack.id);
       _showSnackBar('Error loading audio: $e');
     }
   }
@@ -154,7 +164,7 @@ class _SectionPageState extends State<SectionPage> {
   Future<void> _shufflePlay() async {
     if (_filteredItems.isEmpty) return;
     final shuffled = List<Map<String, dynamic>>.from(_filteredItems)..shuffle();
-    await _playVideo(shuffled.first);
+    await _playVideo(shuffled.first, shuffled);
   }
 
   @override
