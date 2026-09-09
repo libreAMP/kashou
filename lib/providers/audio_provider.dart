@@ -12,6 +12,7 @@ import '../models/track.dart';
 import '../services/audio_service.dart' as audio_svc;
 import '../services/youtube/youtube_service.dart';
 import '../providers/settings_provider.dart';
+import '../providers/recommendation_provider.dart';
 import '../providers/library_provider.dart';
 import '../services/custom_equalizer.dart';
 import '../models/stream_history_entry.dart';
@@ -24,6 +25,7 @@ class AudioProvider extends ChangeNotifier {
   AudioPlayer? _audioPlayer;
   audio_svc.AudioPlayerHandler? _audioHandler;
   SettingsProvider? _settingsProvider;
+  RecommendationProvider? _recProvider;
   ConcatenatingAudioSource? _playlist;
 
   final List<StreamSubscription> _playerSubs = [];
@@ -151,6 +153,10 @@ class AudioProvider extends ChangeNotifier {
     _initializeAudioService();
     _loadRecentTracks();
     _loadStreamHistory();
+  }
+
+  void updateRecommendationProvider(RecommendationProvider rec) {
+    _recProvider = rec;
   }
 
   void updateSettings(SettingsProvider settings) {
@@ -689,6 +695,10 @@ class AudioProvider extends ChangeNotifier {
           await _loadTrackIntoPlayer(track);
           await audioPlayer.play();
         }
+      }
+
+      if (playlist == null && _isRemotePath(track.path)) {
+        _recProvider?.queueRadioFor(track, this);
       }
 
       if (seq != _playSeq) return;

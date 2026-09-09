@@ -176,6 +176,31 @@ class RecommendationProvider extends ChangeNotifier {
         track.sourceUrl?.contains('youtube') == true;
   }
 
+  final Map<String, List<Map<String, dynamic>>> _radioCache = {};
+  String? _lastQueuedVideoId;
+
+  Future<void> queueRadioFor(Track track, AudioProvider audioProvider) async {
+    if (!_autoQueueRecommendations) return;
+    final videoId = _extractVideoId(track);
+    if (videoId == null || videoId == _lastQueuedVideoId) return;
+    _lastQueuedVideoId = videoId;
+    try {
+      var radio = _radioCache[videoId];
+      if (radio == null) {
+        radio = await _ytm.getSongRadio(videoId);
+        _radioCache[videoId] = radio;
+      }
+      final tracks = <Track>[];
+      for (final video in radio.where((v) => v['id'] != videoId).take(8)) {
+        final t = await _convertVideoToTrack(video);
+        if (t != null) tracks.add(t);
+      }
+      if (tracks.isNotEmpty) audioProvider.addTracksToQueue(tracks);
+    } catch (e) {
+      debugPrint('Error queuing radio: $e');
+    }
+  }
+
   Future<void> _queueRecommendations(AudioProvider audioProvider) async {
     try {
       final tracksToQueue = <Map<String, dynamic>>[

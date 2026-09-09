@@ -98,7 +98,13 @@ class KashouApp extends StatelessWidget {
           },
         ),
         ChangeNotifierProvider(create: (_) => LibraryProvider()),
-        ChangeNotifierProvider(create: (_) => RecommendationProvider()),
+        ChangeNotifierProvider(
+          create: (context) {
+            final rec = RecommendationProvider();
+            context.read<AudioProvider>().updateRecommendationProvider(rec);
+            return rec;
+          },
+        ),
       ],
       child: _ArtSeedWatcher(
         child: Consumer2<ThemeProvider, SettingsProvider>(
@@ -292,22 +298,6 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         WidgetsBinding.instance.addPostFrameCallback((_) => _handleLink(link));
       }
     });
-    _askAllFilesAccess();
-  }
-
-  // mediastore locks our downloads once indexed so tags need raw write
-  Future<void> _askAllFilesAccess() async {
-    if (!Platform.isAndroid) return;
-    const channel = MethodChannel('com.libreamp.kashou/equalizer');
-    final granted = await channel.invokeMethod<bool>('isAllFilesAccess') ?? false;
-    if (granted) return;
-    final prefs = await SharedPreferences.getInstance();
-    if (prefs.getBool('all_files_asked') == true) return;
-    await prefs.setBool('all_files_asked', true);
-    showToast('Grant all files access so tags and art can be saved');
-    try {
-      await channel.invokeMethod('openAllFilesSettings');
-    } catch (_) {}
   }
 
   void _handleLink(String url) {

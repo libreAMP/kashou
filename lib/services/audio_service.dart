@@ -30,14 +30,17 @@ Future<Uint8List?> _centerCropWide(Uint8List bytes) async {
     final codec = await ui.instantiateImageCodec(bytes);
     final frame = await codec.getNextFrame();
     final src = frame.image;
-    final w = src.width.toDouble();
+    final insets = await _sideBarInsets(src);
+    final left = src.width * insets[0];
+    final w = (src.width * (1 - insets[0] - insets[1]))
+        .clamp(1.0, src.width.toDouble());
     final h = (w / 2.2).clamp(1.0, src.height.toDouble());
     final dy = (src.height - h) / 2;
     final recorder = ui.PictureRecorder();
     final canvas = ui.Canvas(recorder);
     canvas.drawImageRect(
       src,
-      ui.Rect.fromLTWH(0, dy, w, h),
+      ui.Rect.fromLTWH(left, dy, w, h),
       ui.Rect.fromLTWH(0, 0, w, h),
       ui.Paint(),
     );
@@ -47,6 +50,43 @@ Future<Uint8List?> _centerCropWide(Uint8List bytes) async {
   } catch (_) {
     return null;
   }
+}
+
+// square uploads ship dark side bars baked into the wide thumbs
+Future<List<double>> _sideBarInsets(ui.Image src) async {
+  const pw = 64;
+  const ph = 36;
+  final recorder = ui.PictureRecorder();
+  final canvas = ui.Canvas(recorder);
+  canvas.drawImageRect(
+    src,
+    ui.Rect.fromLTWH(0, 0, src.width.toDouble(), src.height.toDouble()),
+    ui.Rect.fromLTWH(0, 0, pw.toDouble(), ph.toDouble()),
+    ui.Paint(),
+  );
+  final probe = await recorder.endRecording().toImage(pw, ph);
+  final data = await probe.toByteData(format: ui.ImageByteFormat.rawRgba);
+  probe.dispose();
+  if (data == null) return const [0, 0];
+  final px = data.buffer.asUint8List();
+  double lum(int x) {
+    var sum = 0;
+    for (var y = 0; y < ph; y++) {
+      final i = (y * pw + x) * 4;
+      sum += (px[i] * 3 + px[i + 1] * 6 + px[i + 2] * 3) ~/ 12;
+    }
+    return sum / ph;
+  }
+  if (lum(0) > 24 || lum(pw - 1) > 24) return const [0, 0];
+  var first = 0;
+  while (first < pw ~/ 2 && lum(first) < 24) first++;
+  var last = pw - 1;
+  while (last > pw ~/ 2 && lum(last) < 24) last--;
+  if (first >= pw ~/ 2 || last <= pw ~/ 2) return const [0, 0];
+  final l = first / pw;
+  final r = (pw - 1 - last) / pw;
+  if (l > 0.35 || r > 0.35) return const [0, 0];
+  return [l, r];
 }
 
 class AudioPlayerService {
@@ -153,7 +193,7 @@ class AudioPlayerHandler extends BaseAudioHandler
       ),
     );
     // some system ui caches the notification until the state changes
-    playbackState.add(playbackState.value);
+    playbackState.add(_transformEvent(_player.playbackEvent));
   }
 
   PlaybackState _transformEvent(PlaybackEvent event) {
