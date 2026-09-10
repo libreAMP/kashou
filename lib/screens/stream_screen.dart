@@ -15,6 +15,7 @@ import '../widgets/art_card.dart';
 import '../widgets/square_art.dart';
 import '../widgets/loading_indicator.dart';
 import '../widgets/fade_rise.dart';
+import '../widgets/sheet_handle.dart';
 import 'artist_screen.dart';
 import 'downloads_screen.dart';
 import 'mood_category_screen.dart';
@@ -402,7 +403,12 @@ class _StreamScreenState extends State<StreamScreen>
                 style: Theme.of(context).textTheme.bodyLarge,
                 decoration: InputDecoration(
                   hintText: 'Search songs, artists',
-                  prefixIcon: const Icon(Icons.search_rounded),
+                  prefixIcon: const Padding(
+                    padding: EdgeInsets.fromLTRB(14, 0, 12, 0),
+                    child: Icon(Icons.search_rounded),
+                  ),
+                  prefixIconConstraints:
+                      const BoxConstraints(minWidth: 0, minHeight: 0),
                   suffixIcon: searching
                       ? IconButton(
                           icon: const Icon(Icons.close_rounded),
@@ -706,6 +712,62 @@ class _StreamScreenState extends State<StreamScreen>
     );
   }
 
+  Widget _quickPicksSkeleton(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final bar = BoxDecoration(
+      color: scheme.surfaceContainerHigh,
+      borderRadius: BorderRadius.circular(6),
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+          child: Container(width: 96, height: 18, decoration: bar),
+        ),
+        for (var i = 0; i < 4; i++)
+          SizedBox(
+            height: 72,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                children: [
+                  Container(
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      color: scheme.surfaceContainerHigh,
+                      borderRadius: BorderRadius.circular(rSm),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(width: 140, height: 14, decoration: bar),
+                        const SizedBox(height: 8),
+                        Container(
+                          width: 90,
+                          height: 12,
+                          decoration: BoxDecoration(
+                            color: scheme.surfaceContainerHigh
+                                .withValues(alpha: 0.6),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
   Widget _buildDiscover(BuildContext context) {
     if (_isLoading) return const Center(child: KashouLoader());
     if (_error != null) {
@@ -733,6 +795,8 @@ class _StreamScreenState extends State<StreamScreen>
             builder: (context, rec, _) => Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                if (rec.recommendations.isEmpty && rec.isLoading)
+                  _quickPicksSkeleton(context),
                 if (rec.recommendations.isNotEmpty)
                   _buildQuickPicks(
                       {'title': 'Quick picks', 'items': rec.recommendations}),
@@ -952,11 +1016,11 @@ class _StreamScreenState extends State<StreamScreen>
     final channel = video['channel'] as String? ?? '';
     showModalBottomSheet(
       context: context,
-      showDragHandle: true,
       builder: (sheetContext) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            sheetHandle(sheetContext),
             ListTile(
               leading: SquareArt(url: _videoThumb(video), size: 44, radius: rSm),
               title: Text(video['title'] as String? ?? '',

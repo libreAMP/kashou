@@ -19,6 +19,7 @@ import '../theme/app_theme.dart';
 import '../widgets/loading_indicator.dart';
 import '../widgets/pressable.dart';
 import '../widgets/scrolling_text.dart';
+import '../widgets/sheet_handle.dart';
 import '../widgets/squiggly_slider.dart';
 import '../providers/settings_provider.dart';
 import '../services/ytmusic_service.dart';
@@ -79,22 +80,22 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           if (track != null) _toggleLyrics(track);
         },
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
                 open ? Icons.album_rounded : Icons.lyrics_rounded,
-                size: 16,
+                size: 17,
                 color: open
                     ? scheme.onPrimaryContainer
                     : scheme.onSurfaceVariant,
               ),
-              const SizedBox(width: 6),
+              const SizedBox(width: 7),
               Text(
                 open ? 'Art' : 'Lyrics',
                 style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                      fontSize: 12,
+                      fontSize: 13,
                       color: open
                           ? scheme.onPrimaryContainer
                           : scheme.onSurfaceVariant,
@@ -834,7 +835,13 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
               ),
             ),
             const SizedBox(width: 8),
-            _lyricsPill(context),
+            Flexible(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerRight,
+                child: _lyricsPill(context),
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 4),
@@ -1300,7 +1307,6 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
   void _showAddToPlaylist(BuildContext context, Track track) {
     showModalBottomSheet(
       context: context,
-      showDragHandle: true,
       builder: (sheetContext) => SafeArea(
         child: Consumer<LibraryProvider>(
           builder: (context, library, _) {
@@ -1321,6 +1327,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
             return Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                sheetHandle(sheetContext),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
                   child: Align(
@@ -1657,7 +1664,6 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
 
     showModalBottomSheet(
       context: context,
-      showDragHandle: true,
       isScrollControlled: true,
       builder: (sheetContext) {
         final scheme = Theme.of(sheetContext).colorScheme;
@@ -1670,6 +1676,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                sheetHandle(sheetContext),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
                   child: Text(
