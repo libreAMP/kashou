@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -320,13 +321,42 @@ class _PermissionsPage extends StatefulWidget {
   State<_PermissionsPage> createState() => _PermissionsPageState();
 }
 
-class _PermissionsPageState extends State<_PermissionsPage> {
+class _PermissionsPageState extends State<_PermissionsPage>
+    with WidgetsBindingObserver {
+  bool _allFiles = false;
+  static const _channel = MethodChannel('com.libreamp.kashou/equalizer');
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _refreshAllFiles();
+  }
+
+  Future<void> _refreshAllFiles() async {
+    final granted =
+        await _channel.invokeMethod<bool>('isAllFilesAccess') ?? false;
+    if (mounted) setState(() => _allFiles = granted);
+  }
+
+  Future<void> _openAllFiles() async {
+    try {
+      await _channel.invokeMethod('openAllFilesSettings');
+    } catch (_) {}
+  }
+
   final _granted = <Permission, bool>{};
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _refresh();
+    _refreshAllFiles();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
   }
 
   // Permission.audio only exists on android 13+, older devices use storage
@@ -450,6 +480,50 @@ class _PermissionsPageState extends State<_PermissionsPage> {
                 ),
               ),
             ),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Material(
+              color: scheme.surfaceContainerHigh,
+              borderRadius: BorderRadius.circular(rMd),
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Row(
+                  children: [
+                    Icon(Icons.folder_zip_outlined,
+                        color: scheme.onSurfaceVariant, size: 22),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('all files access',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleSmall
+                                  ?.copyWith(fontWeight: FontWeight.w600)),
+                          const SizedBox(height: 2),
+                          Text('write tags and art into your music files',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(color: scheme.onSurfaceVariant)),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    _allFiles
+                        ? Icon(Icons.check_circle_rounded,
+                            color: scheme.primary, size: 26)
+                        : FilledButton.tonal(
+                            onPressed: _openAllFiles,
+                            child: const Text('allow'),
+                          ),
+                  ],
+                ),
+              ),
+            ),
+          ),
           const Spacer(flex: 2),
         ],
       ),
