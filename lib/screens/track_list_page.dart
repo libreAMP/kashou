@@ -19,6 +19,7 @@ class TrackListPage extends StatefulWidget {
   final String? subtitle;
   final List<Track> tracks;
   final String? cover;
+  final String? playlistId;
   final VoidCallback? onOptions;
 
   const TrackListPage({
@@ -27,6 +28,7 @@ class TrackListPage extends StatefulWidget {
     required this.tracks,
     this.subtitle,
     this.cover,
+    this.playlistId,
     this.onOptions,
   });
 
@@ -258,8 +260,12 @@ class _TrackListPageState extends State<TrackListPage> {
           else
             SliverList(
               delegate: SliverChildBuilderDelegate(
-                (context, index) =>
-                    TrackListItem(track: widget.tracks[index], index: index + 1),
+                (context, index) => TrackListItem(
+                  track: widget.tracks[index],
+                  index: index + 1,
+                  playlist: widget.tracks,
+                  playlistId: widget.playlistId,
+                ),
                 childCount: widget.tracks.length,
               ),
             ),

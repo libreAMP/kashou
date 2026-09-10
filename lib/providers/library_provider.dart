@@ -271,7 +271,14 @@ class LibraryProvider extends ChangeNotifier {
   Future<void> removeFromPlaylist(String playlistId, Track track) async {
     final index = _playlists.indexWhere((p) => p.id == playlistId);
     if (index != -1) {
-      _playlists[index].tracks.remove(track);
+      final p = _playlists[index];
+      _playlists[index] = Playlist(
+        id: p.id,
+        name: p.name,
+        tracks: p.tracks.where((t) => t.id != track.id).toList(),
+        createdAt: p.createdAt,
+        coverImage: p.coverImage,
+      );
       notifyListeners();
       await _savePlaylists();
     }

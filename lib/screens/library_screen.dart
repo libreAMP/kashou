@@ -775,6 +775,7 @@ class _LibraryScreenState extends State<LibraryScreen>
                   title: playlist.name,
                   tracks: playlist.tracks,
                   cover: playlist.coverImage,
+                  playlistId: playlist.id,
                   onOptions: () =>
                       _showPlaylistOptions(context, playlist.id),
                 ),
