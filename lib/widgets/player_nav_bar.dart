@@ -192,6 +192,8 @@ class _BubbleNavBar extends StatelessWidget {
             _BubbleNavItem(
               item: items[i],
               selected: i == selectedIndex,
+              first: i == 0,
+              last: i == items.length - 1,
               onTap: () => onSelected(i),
             ),
           ],
@@ -205,11 +207,15 @@ class _BubbleNavItem extends StatelessWidget {
   const _BubbleNavItem({
     required this.item,
     required this.selected,
+    required this.first,
+    required this.last,
     required this.onTap,
   });
 
   final NavItem item;
   final bool selected;
+  final bool first;
+  final bool last;
   final VoidCallback onTap;
 
   @override
@@ -227,8 +233,13 @@ class _BubbleNavItem extends StatelessWidget {
           vertical: 15,
         ),
         decoration: BoxDecoration(
-          color: selected ? scheme.primaryContainer : Colors.transparent,
-          borderRadius: BorderRadius.circular(EShape.xl),
+          color: selected
+              ? scheme.primaryContainer
+              : scheme.surfaceContainerHighest.withValues(alpha: 0.5),
+          borderRadius: BorderRadius.horizontal(
+            left: Radius.circular(first ? 24 : 14),
+            right: Radius.circular(last ? 24 : 14),
+          ),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,

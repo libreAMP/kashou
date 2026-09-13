@@ -432,18 +432,21 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
 
     return Row(
       children: [
-        _buildSurfaceIconButton(
+        _buildBarPair(
           context,
-          icon: Icons.keyboard_arrow_down_rounded,
-          tooltip: 'Collapse player',
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        const SizedBox(width: 8),
-        _buildSurfaceIconButton(
-          context,
-          icon: Icons.equalizer,
-          tooltip: 'Equalizer',
-          onPressed: () => _showEqualizerSheet(context),
+          left: true,
+          actions: [
+            (
+              Icons.keyboard_arrow_down_rounded,
+              'Collapse player',
+              () => Navigator.of(context).pop()
+            ),
+            (
+              Icons.equalizer,
+              'Equalizer',
+              () => _showEqualizerSheet(context)
+            ),
+          ],
         ),
         Expanded(
           child: GestureDetector(
@@ -488,20 +491,56 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
             ),
           ),
         ),
-        _buildSurfaceIconButton(
+        _buildBarPair(
           context,
-          icon: Icons.share,
-          tooltip: 'Share',
-          onPressed: () => _shareTrack(context, track),
-        ),
-        const SizedBox(width: 8),
-        _buildSurfaceIconButton(
-          context,
-          icon: Icons.more_vert,
-          tooltip: 'More options',
-          onPressed: () => _showMoreOptions(context),
+          left: false,
+          actions: [
+            (Icons.share, 'Share', () => _shareTrack(context, track)),
+            (Icons.more_vert, 'More options', () => _showMoreOptions(context)),
+          ],
         ),
       ],
+    );
+  }
+
+  Widget _buildBarPair(BuildContext context,
+      {required bool left,
+      required List<(IconData, String, VoidCallback)> actions}) {
+    final scheme = Theme.of(context).colorScheme;
+    const outer = Radius.circular(20);
+    const inner = Radius.circular(12);
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerHigh,
+        borderRadius: BorderRadius.horizontal(
+          left: left ? outer : inner,
+          right: left ? inner : outer,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (var i = 0; i < actions.length; i++)
+            Tooltip(
+              message: actions[i].$2,
+              child: InkWell(
+                borderRadius: BorderRadius.horizontal(
+                  left: Radius.circular(left && i == 0 ? 16 : 10),
+                  right: Radius.circular(
+                      !left && i == actions.length - 1 ? 16 : 10),
+                ),
+                onTap: actions[i].$3,
+                child: SizedBox(
+                  width: 40,
+                  height: 40,
+                  child: Icon(actions[i].$1,
+                      size: 20, color: scheme.onSurfaceVariant),
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 
@@ -835,13 +874,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
               ),
             ),
             const SizedBox(width: 8),
-            Flexible(
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.centerRight,
-                child: _lyricsPill(context),
-              ),
-            ),
+            _lyricsPill(context),
           ],
         ),
         const SizedBox(height: 4),
@@ -873,41 +906,47 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         PressableScale(
-          child: _buildCircleIconButton(
+          child: _buildSeekButton(
             context,
             icon: Icons.skip_previous_outlined,
             onTap: audio.skipPrevious,
+            left: true,
           ),
         ),
         const SizedBox(width: 18),
         PressableScale(child: _buildPlayButton(context, audio)),
         const SizedBox(width: 18),
         PressableScale(
-          child: _buildCircleIconButton(
+          child: _buildSeekButton(
             context,
             icon: Icons.skip_next_outlined,
             onTap: audio.skipNext,
+            left: false,
           ),
         ),
       ],
     );
   }
 
-  Widget _buildCircleIconButton(BuildContext context,
-      {required IconData icon, required VoidCallback onTap}) {
+  Widget _buildSeekButton(BuildContext context,
+      {required IconData icon, required VoidCallback onTap, required bool left}) {
     final colorScheme = Theme.of(context).colorScheme;
+    final radius = BorderRadius.horizontal(
+      left: Radius.circular(left ? 26 : 14),
+      right: Radius.circular(left ? 14 : 26),
+    );
 
     return Material(
       color: colorScheme.surfaceContainerHigh,
-      shape: const CircleBorder(),
+      borderRadius: radius,
       child: InkWell(
-        customBorder: const CircleBorder(),
+        borderRadius: radius,
         onTap: onTap,
-          child: SizedBox(
-            width: 72,
-            height: 72,
-            child: Icon(icon, size: 32, color: colorScheme.onSurface),
-          ),
+        child: SizedBox(
+          width: 72,
+          height: 72,
+          child: Icon(icon, size: 30, color: colorScheme.onSurface),
+        ),
       ),
     );
   }
@@ -922,14 +961,14 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       curve: EMotion.standard,
       decoration: BoxDecoration(
         color: colorScheme.primary,
-        borderRadius: BorderRadius.circular(_playDown ? 37 : 24),
+        borderRadius: BorderRadius.circular(_playDown ? 32 : 26),
       ),
       child: InkWell(
         onHighlightChanged: (v) => setState(() => _playDown = v),
-        borderRadius: BorderRadius.circular(_playDown ? 37 : 24),
+        borderRadius: BorderRadius.circular(_playDown ? 32 : 26),
         onTap: isLoading ? null : audio.togglePlayPause,
         child: SizedBox(
-          width: 88,
+          width: 104,
           height: 74,
           child: Center(
             child: AnimatedSwitcher(
@@ -1051,35 +1090,6 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
             },
           ),
               ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSurfaceIconButton(
-    BuildContext context, {
-    required IconData icon,
-    required String tooltip,
-    required VoidCallback onPressed,
-  }) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Tooltip(
-      message: tooltip,
-      child: Material(
-        shape: const CircleBorder(),
-        color: colorScheme.surfaceContainerHigh,
-        child: InkWell(
-          customBorder: const CircleBorder(),
-          onTap: onPressed,
-          child: Padding(
-            padding: const EdgeInsets.all(10),
-            child: Icon(
-              icon,
-              size: 22,
-              color: colorScheme.onSurface,
             ),
           ),
         ),
