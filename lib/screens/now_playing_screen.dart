@@ -906,46 +906,40 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         PressableScale(
-          child: _buildSeekButton(
+          child: _buildCircleIconButton(
             context,
             icon: Icons.skip_previous_outlined,
             onTap: audio.skipPrevious,
-            left: true,
           ),
         ),
         const SizedBox(width: 18),
         PressableScale(child: _buildPlayButton(context, audio)),
         const SizedBox(width: 18),
         PressableScale(
-          child: _buildSeekButton(
+          child: _buildCircleIconButton(
             context,
             icon: Icons.skip_next_outlined,
             onTap: audio.skipNext,
-            left: false,
           ),
         ),
       ],
     );
   }
 
-  Widget _buildSeekButton(BuildContext context,
-      {required IconData icon, required VoidCallback onTap, required bool left}) {
+  Widget _buildCircleIconButton(BuildContext context,
+      {required IconData icon, required VoidCallback onTap}) {
     final colorScheme = Theme.of(context).colorScheme;
-    final radius = BorderRadius.horizontal(
-      left: Radius.circular(left ? 26 : 14),
-      right: Radius.circular(left ? 14 : 26),
-    );
 
     return Material(
       color: colorScheme.surfaceContainerHigh,
-      borderRadius: radius,
+      shape: const CircleBorder(),
       child: InkWell(
-        borderRadius: radius,
+        customBorder: const CircleBorder(),
         onTap: onTap,
         child: SizedBox(
           width: 72,
           height: 72,
-          child: Icon(icon, size: 30, color: colorScheme.onSurface),
+          child: Icon(icon, size: 32, color: colorScheme.onSurface),
         ),
       ),
     );
@@ -961,14 +955,14 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       curve: EMotion.standard,
       decoration: BoxDecoration(
         color: colorScheme.primary,
-        borderRadius: BorderRadius.circular(_playDown ? 32 : 26),
+        borderRadius: BorderRadius.circular(_playDown ? 37 : 24),
       ),
       child: InkWell(
         onHighlightChanged: (v) => setState(() => _playDown = v),
-        borderRadius: BorderRadius.circular(_playDown ? 32 : 26),
+        borderRadius: BorderRadius.circular(_playDown ? 37 : 24),
         onTap: isLoading ? null : audio.togglePlayPause,
         child: SizedBox(
-          width: 104,
+          width: 88,
           height: 74,
           child: Center(
             child: AnimatedSwitcher(
