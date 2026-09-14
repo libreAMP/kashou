@@ -407,8 +407,12 @@ class _StreamScreenState extends State<StreamScreen>
                     padding: EdgeInsets.fromLTRB(14, 0, 12, 0),
                     child: Icon(Icons.search_rounded),
                   ),
-                  prefixIconConstraints:
-                      const BoxConstraints(minWidth: 0, minHeight: 0),
+                  prefixIconConstraints: const BoxConstraints(
+                      minWidth: 50, maxWidth: 50, minHeight: 0),
+                  hintStyle: Theme.of(context)
+                      .textTheme
+                      .bodyLarge
+                      ?.copyWith(color: scheme.onSurfaceVariant),
                   suffixIcon: searching
                       ? IconButton(
                           icon: const Icon(Icons.close_rounded),

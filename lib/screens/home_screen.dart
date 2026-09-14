@@ -4,6 +4,7 @@ import '../providers/library_provider.dart';
 import '../providers/audio_provider.dart';
 import '../widgets/track_list_item.dart';
 import '../widgets/album_card.dart';
+import '../widgets/pressable.dart';
 import 'track_list_page.dart';
 import '../models/track.dart';
 import '../theme/app_theme.dart';
@@ -225,7 +226,7 @@ class HomeScreen extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             SizedBox(
-              height: 160,
+              height: 186,
               child: ListView.builder(
                 scrollDirection: Axis.horizontal,
                 itemCount: recentTracks.length,
@@ -267,7 +268,7 @@ class HomeScreen extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             SizedBox(
-              height: 160,
+              height: 186,
               child: ListView.builder(
                 scrollDirection: Axis.horizontal,
                 itemCount: recentTracks.length,
@@ -348,7 +349,7 @@ class HomeScreen extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             SizedBox(
-              height: 160,
+              height: 186,
               child: ListView.builder(
                 scrollDirection: Axis.horizontal,
                 itemCount: albums.length,
@@ -377,48 +378,58 @@ class HomeScreen extends StatelessWidget {
           child: Icon(Icons.music_note, color: scheme.onSurfaceVariant),
         );
 
-    return InkWell(
-      onTap: () {
-        final audio = Provider.of<AudioProvider>(context, listen: false);
-        audio.playTrack(track);
-      },
-      borderRadius: BorderRadius.circular(rMd),
-      child: SizedBox(
-        width: 118,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(rMd),
-              child: AspectRatio(
-                aspectRatio: 1,
-                child: track.albumArt != null
-                    ? Image.memory(
-                        track.albumArt!,
-                        fit: BoxFit.cover,
-                        gaplessPlayback: true,
-                        errorBuilder: (_, __, ___) => fallback(),
-                      )
-                    : fallback(),
+    final radius = BorderRadius.circular(22);
+    return PressableScale(
+      child: Material(
+        color: scheme.surfaceContainerHigh,
+        borderRadius: radius,
+        child: InkWell(
+          onTap: () {
+            final audio = Provider.of<AudioProvider>(context, listen: false);
+            audio.playTrack(track);
+          },
+          borderRadius: radius,
+          child: Padding(
+            padding: const EdgeInsets.all(6),
+            child: SizedBox(
+              width: 128,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: AspectRatio(
+                      aspectRatio: 1,
+                      child: track.albumArt != null
+                          ? Image.memory(
+                              track.albumArt!,
+                              fit: BoxFit.cover,
+                              gaplessPlayback: true,
+                              errorBuilder: (_, __, ___) => fallback(),
+                            )
+                          : fallback(),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    track.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodyMedium
+                        ?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    track.artist,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: scheme.onSurfaceVariant),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 6),
-            Text(
-              track.title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodySmall
-                  ?.copyWith(fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              track.artist,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodySmall
-                  ?.copyWith(color: scheme.onSurfaceVariant),
-            ),
-          ],
+          ),
         ),
       ),
     );
