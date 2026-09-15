@@ -16,6 +16,7 @@ import '../widgets/square_art.dart';
 import '../widgets/loading_indicator.dart';
 import '../widgets/fade_rise.dart';
 import '../widgets/sheet_handle.dart';
+import '../widgets/scrolling_text.dart';
 import 'artist_screen.dart';
 import 'downloads_screen.dart';
 import 'mood_category_screen.dart';
@@ -86,6 +87,7 @@ class _StreamScreenState extends State<StreamScreen>
         rec.updateRecommendations(audioProvider.currentTrack,
             audioProvider: audioProvider);
       }
+      rec.fetchPersonalShelves(audioProvider.streamHistoryEntries);
 
       _audioListener = () {
         final current = audioProvider.currentTrack;
@@ -98,6 +100,7 @@ class _StreamScreenState extends State<StreamScreen>
         }
         _lastRecFetch = DateTime.now();
         rec.updateRecommendations(current, audioProvider: audioProvider);
+        rec.fetchPersonalShelves(audioProvider.streamHistoryEntries);
       };
       audioProvider.addListener(_audioListener!);
     });
@@ -807,14 +810,21 @@ class _StreamScreenState extends State<StreamScreen>
                 if (rec.relatedVideos.isNotEmpty)
                   _buildRecCarousel(
                       'More like what you played', rec.relatedVideos),
+                for (var i = 0; i < rec.personalShelves.length; i++)
+                  FadeRise(
+                    index: i,
+                    child: _buildPlaylistShelf(rec.personalShelves[i]),
+                  ),
+                for (var i = 0; i < _homeShelves.length; i++)
+                  if (rec.personalShelves.isEmpty ||
+                      _homeShelves[i]['title'] == 'New albums')
+                    FadeRise(
+                      index: i,
+                      child: _buildPlaylistShelf(_homeShelves[i]),
+                    ),
               ],
             ),
           ),
-          for (var i = 0; i < _homeShelves.length; i++)
-            FadeRise(
-              index: i,
-              child: _buildPlaylistShelf(_homeShelves[i]),
-            ),
         ],
       ),
     );
@@ -942,13 +952,13 @@ class _StreamScreenState extends State<StreamScreen>
                 children: [
                   Stack(
                     children: [
-                      SquareArt(url: thumb, size: 56, radius: rSm),
+                      SquareArt(url: thumb, size: 56, radius: 16),
                       if (playing)
                         SizedBox(
                           width: 56,
                           height: 56,
                           child: ClipRRect(
-                            borderRadius: BorderRadius.circular(rSm),
+                            borderRadius: BorderRadius.circular(16),
                             child: ColoredBox(
                               color: Colors.black.withValues(alpha: 0.4),
                               child: Icon(Icons.graphic_eq_rounded,
@@ -964,10 +974,8 @@ class _StreamScreenState extends State<StreamScreen>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text(
-                          video['title'] as String? ?? 'Unknown',
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
+                        ScrollingText(
+                          text: video['title'] as String? ?? 'Unknown',
                           style: Theme.of(context)
                               .textTheme
                               .bodyMedium
