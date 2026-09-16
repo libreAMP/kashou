@@ -194,6 +194,9 @@ class AudioPlayerHandler extends BaseAudioHandler
     );
     // some system ui caches the notification until the state changes
     playbackState.add(_transformEvent(_player.playbackEvent));
+    Future.delayed(const Duration(milliseconds: 500), () {
+      playbackState.add(_transformEvent(_player.playbackEvent));
+    });
   }
 
   PlaybackState _transformEvent(PlaybackEvent event) {
