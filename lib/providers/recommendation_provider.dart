@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../models/stream_history_entry.dart';
 import '../models/track.dart';
 import '../services/ytmusic_service.dart';
 import 'audio_provider.dart';
@@ -179,34 +178,6 @@ class RecommendationProvider extends ChangeNotifier {
 
   final Map<String, List<Map<String, dynamic>>> _radioCache = {};
   String? _lastQueuedVideoId;
-
-  List<Map<String, dynamic>> _personalShelves = [];
-  List<Map<String, dynamic>> get personalShelves => _personalShelves;
-
-  Future<void> fetchPersonalShelves(List<StreamHistoryEntry> history) async {
-    final counts = <String, int>{};
-    for (final e in history.where((e) => e.isYouTube)) {
-      counts[e.track.artist] = (counts[e.track.artist] ?? 0) + 1;
-    }
-    final top = (counts.entries.toList()
-          ..sort((a, b) => b.value.compareTo(a.value)))
-        .take(2)
-        .map((e) => e.key)
-        .toList();
-    final shelves = <Map<String, dynamic>>[];
-    for (final artist in top) {
-      try {
-        final songs = await _ytm.searchSongs(artist, limit: 12);
-        if (songs.isNotEmpty) {
-          shelves.add({'title': artist, 'items': songs, 'kind': 'songs'});
-        }
-      } catch (e) {
-        debugPrint('Error fetching personal shelf: $e');
-      }
-    }
-    _personalShelves = shelves;
-    notifyListeners();
-  }
 
   Future<void> queueRadioFor(Track track, AudioProvider audioProvider) async {
     if (!_autoQueueRecommendations) return;

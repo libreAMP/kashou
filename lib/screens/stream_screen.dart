@@ -87,8 +87,6 @@ class _StreamScreenState extends State<StreamScreen>
         rec.updateRecommendations(audioProvider.currentTrack,
             audioProvider: audioProvider);
       }
-      rec.fetchPersonalShelves(audioProvider.streamHistoryEntries);
-
       _audioListener = () {
         final current = audioProvider.currentTrack;
         if (current == null || current.id == _lastTrackId) return;
@@ -100,7 +98,6 @@ class _StreamScreenState extends State<StreamScreen>
         }
         _lastRecFetch = DateTime.now();
         rec.updateRecommendations(current, audioProvider: audioProvider);
-        rec.fetchPersonalShelves(audioProvider.streamHistoryEntries);
       };
       audioProvider.addListener(_audioListener!);
     });
@@ -810,18 +807,11 @@ class _StreamScreenState extends State<StreamScreen>
                 if (rec.relatedVideos.isNotEmpty)
                   _buildRecCarousel(
                       'More like what you played', rec.relatedVideos),
-                for (var i = 0; i < rec.personalShelves.length; i++)
+                for (var i = 0; i < _homeShelves.length; i++)
                   FadeRise(
                     index: i,
-                    child: _buildPlaylistShelf(rec.personalShelves[i]),
+                    child: _buildPlaylistShelf(_homeShelves[i]),
                   ),
-                for (var i = 0; i < _homeShelves.length; i++)
-                  if (rec.personalShelves.isEmpty ||
-                      _homeShelves[i]['title'] == 'New albums')
-                    FadeRise(
-                      index: i,
-                      child: _buildPlaylistShelf(_homeShelves[i]),
-                    ),
               ],
             ),
           ),
