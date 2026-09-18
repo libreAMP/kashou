@@ -227,10 +227,8 @@ class _BubbleNavItem extends StatelessWidget {
           vertical: 15,
         ),
         decoration: BoxDecoration(
-          color: selected
-              ? scheme.primaryContainer
-              : scheme.surfaceContainerHighest.withValues(alpha: 0.5),
-          borderRadius: BorderRadius.circular(24),
+          color: selected ? scheme.primaryContainer : Colors.transparent,
+          borderRadius: BorderRadius.circular(EShape.xl),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
