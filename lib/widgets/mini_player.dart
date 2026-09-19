@@ -12,6 +12,7 @@ import 'package:flutter_chrome_cast/flutter_chrome_cast.dart';
 
 import '../providers/audio_provider.dart';
 import '../providers/settings_provider.dart';
+import '../theme/app_theme.dart';
 import '../services/local_media_server.dart';
 import '../utils/hero_transitions.dart';
 import '../models/track.dart';
@@ -564,14 +565,22 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
                             ],
                           ),
                         ),
-                        LinearProgressIndicator(
-                          value: isLoading ? null : progress,
-                          minHeight: 3,
-                          backgroundColor: colorScheme.surfaceContainerHighest
-                              .withOpacity(0.4),
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            colorScheme.primary,
-                          ),
+                        AnimatedSize(
+                          duration: EMotion.medium,
+                          curve: Curves.easeOutCubic,
+                          alignment: Alignment.bottomCenter,
+                          child: totalMillis > 0 && !isLoading
+                              ? LinearProgressIndicator(
+                                  value: progress,
+                                  minHeight: 3,
+                                  backgroundColor: colorScheme
+                                      .surfaceContainerHighest
+                                      .withOpacity(0.4),
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    colorScheme.primary,
+                                  ),
+                                )
+                              : const SizedBox.shrink(),
                         ),
                       ],
                     ),
