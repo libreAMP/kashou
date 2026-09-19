@@ -436,12 +436,15 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           context,
           icon: Icons.keyboard_arrow_down_rounded,
           tooltip: 'Collapse player',
+          first: true,
           onTap: () => Navigator.of(context).pop(),
         ),
+        const SizedBox(width: 4),
         _buildBarIcon(
           context,
           icon: Icons.equalizer,
           tooltip: 'Equalizer',
+          first: false,
           onTap: () => _showEqualizerSheet(context),
         ),
         Expanded(
@@ -491,12 +494,15 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           context,
           icon: Icons.share,
           tooltip: 'Share',
+          first: true,
           onTap: () => _shareTrack(context, track),
         ),
+        const SizedBox(width: 4),
         _buildBarIcon(
           context,
           icon: Icons.more_vert,
           tooltip: 'More options',
+          first: false,
           onTap: () => _showMoreOptions(context),
         ),
       ],
@@ -506,17 +512,28 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
   Widget _buildBarIcon(BuildContext context,
       {required IconData icon,
       required String tooltip,
+      required bool first,
       required VoidCallback onTap}) {
     final scheme = Theme.of(context).colorScheme;
-    return Tooltip(
-      message: tooltip,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(22),
-        onTap: onTap,
-        child: SizedBox(
-          width: 44,
-          height: 44,
-          child: Icon(icon, size: 22, color: scheme.onSurfaceVariant),
+    final radius = BorderRadius.horizontal(
+      left: Radius.circular(first ? 18 : 10),
+      right: Radius.circular(first ? 10 : 18),
+    );
+    return PressableScale(
+      child: Tooltip(
+        message: tooltip,
+        child: Material(
+          color: scheme.surfaceContainerHigh,
+          borderRadius: radius,
+          child: InkWell(
+            borderRadius: radius,
+            onTap: onTap,
+            child: SizedBox(
+              width: 46,
+              height: 44,
+              child: Icon(icon, size: 22, color: scheme.onSurfaceVariant),
+            ),
+          ),
         ),
       ),
     );
@@ -941,11 +958,11 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       curve: EMotion.standard,
       decoration: BoxDecoration(
         color: colorScheme.primary,
-        borderRadius: BorderRadius.circular(_playDown ? 40 : 30),
+        borderRadius: BorderRadius.circular(_playDown ? 36 : 26),
       ),
       child: InkWell(
         onHighlightChanged: (v) => setState(() => _playDown = v),
-        borderRadius: BorderRadius.circular(_playDown ? 40 : 30),
+        borderRadius: BorderRadius.circular(_playDown ? 36 : 26),
         onTap: isLoading ? null : audio.togglePlayPause,
         child: SizedBox(
           width: 116,
@@ -1556,9 +1573,11 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     }
 
     final url = _buildYoutubeMusicUrl(track);
+    const repo = 'https://github.com/libreAMP/kashou';
+    final by = track.artist.isNotEmpty ? ' by ${track.artist}' : '';
     final shareText = url != null
-        ? 'Listen to ${track.title}${track.artist.isNotEmpty ? ' by ${track.artist}' : ''} on YouTube Music:\n$url'
-        : 'Listen to ${track.title}${track.artist.isNotEmpty ? ' by ${track.artist}' : ''}.';
+        ? 'Listen to ${track.title}$by on Kashou:\n$url\n$repo'
+        : 'Listen to ${track.title}$by on Kashou.\n$repo';
 
     try {
       await Share.share(shareText, subject: 'Share ${track.title}');
