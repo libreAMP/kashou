@@ -62,12 +62,12 @@ class ThemeProvider extends ChangeNotifier {
       _useMaterialYou = prefs.getBool('use_material_you') ?? true;
       _themeSource = prefs.getString('theme_source') ?? (_useMaterialYou ? 'system' : 'accent');
       _accentColor = Color(
-        prefs.getInt('accent_color') ?? Colors.deepPurple.value,
+        prefs.getInt('accent_color') ?? Colors.deepPurple.toARGB32(),
       );
       _isLoaded = true;
       notifyListeners();
     } catch (e) {
-      print('Error loading theme preferences: $e');
+      debugPrint('Error loading theme preferences: $e');
       _isLoaded = true;
       notifyListeners();
     }
@@ -100,7 +100,7 @@ class ThemeProvider extends ChangeNotifier {
   Future<void> setAccentColor(Color color) async {
     _accentColor = color;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt('accent_color', color.value);
+    await prefs.setInt('accent_color', color.toARGB32());
     notifyListeners();
   }
 }

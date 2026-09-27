@@ -10,15 +10,17 @@ dependencies:
   flutter:
     sdk: flutter
   
-  flutter_displaymode: ^0.6.0
+  flutter_displaymode: ^0.7.0
   just_audio: ^0.10.5
+  just_audio_media_kit: ^2.1.0
+  media_kit_libs_linux: ^1.2.1
   just_audio_background: ^0.0.1-beta.10
   audio_service: ^0.18.12
   audio_session: ^0.2.2
   
   path_provider: ^2.1.1
-  permission_handler: ^12.0.1
-  file_picker: ^10.3.3
+  permission_handler: ^12.0.3
+  file_picker: ^13.1.0
   
   sqflite: ^2.3.0
   
@@ -26,23 +28,23 @@ dependencies:
   # on_audio_query: ^3.0.0-beta.0
   
   provider: ^6.1.1
-  get_it: ^8.2.0
+  get_it: ^9.3.0
   
   google_fonts: ^8.2.0
-  dynamic_color: ^1.7.0
+  dynamic_color: ^2.1.0
   flutter_colorpicker: ^1.0.3
-  cached_network_image: ^3.3.0
-  shimmer: ^3.0.0
+  cached_network_image: ^4.0.2
+  shimmer: ^4.0.0
   
   rxdart: ^0.28.0
   shared_preferences: ^2.2.2
-  package_info_plus: ^9.0.0
+  package_info_plus: ^10.2.1
   image: ^4.0.17
   http: ^1.2.1
-  youtube_explode_dart: ^3.0.2
+  youtube_explode_dart: ^3.1.0
   innertube_dart:
     path: packages/innertube_dart
-  share_plus: ^7.2.2
+  share_plus: ^13.3.0
   url_launcher: ^6.3.0
   
   flutter_chrome_cast: ^1.2.5

@@ -5,6 +5,7 @@ import '../models/album.dart';
 import '../models/playlist.dart';
 import '../models/track.dart';
 import '../providers/audio_provider.dart';
+import '../utils/platform.dart';
 
 enum CollectionType { album, playlist }
 
@@ -30,6 +31,9 @@ class AlbumDetailScreen extends StatefulWidget {
 }
 
 class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
+  // desktop: content is centered and capped at this width on wide windows
+  static const double _maxContentWidth = 900;
+
   final ScrollController _scrollController = ScrollController();
   double _headerOpacity = 0.0;
   bool _showFloatingButton = false;
@@ -81,7 +85,6 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
     final tracks = _tracks;
 
     return Scaffold(
@@ -91,136 +94,154 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
           if (_artwork != null) _buildBackgroundGradient(),
 
           // Main content
-          CustomScrollView(
-            controller: _scrollController,
-            physics: const BouncingScrollPhysics(),
-            slivers: [
-              // App bar
-              SliverAppBar(
-                expandedHeight: 400,
-                pinned: true,
-                stretch: true,
-                backgroundColor:
-                    colorScheme.surface.withValues(alpha: _headerOpacity),
-                leading: Container(
-                  margin: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: colorScheme.surface.withValues(alpha: 0.7),
-                    shape: BoxShape.circle,
-                  ),
-                  child: IconButton(
-                    icon: const Icon(Icons.arrow_back),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ),
-                actions: [
-                  Container(
-                    margin: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: colorScheme.surface.withValues(alpha: 0.7),
-                      shape: BoxShape.circle,
-                    ),
-                    child: IconButton(
-                      icon: const Icon(Icons.more_vert),
-                      onPressed: () => _showOptions(context),
-                    ),
-                  ),
-                ],
-                flexibleSpace: FlexibleSpaceBar(
-                  titlePadding: EdgeInsets.zero,
-                  title: AnimatedOpacity(
-                    duration: const Duration(milliseconds: 200),
-                    opacity: _headerOpacity,
-                    child: Container(
-                      padding: const EdgeInsets.fromLTRB(56, 0, 56, 16),
-                      alignment: Alignment.bottomLeft,
-                      child: Text(
-                        _title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ),
-                  background: _buildHeaderBackground(context),
+          if (isDesktop)
+            Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: _maxContentWidth),
+                child: Stack(
+                  children: [
+                    _buildScrollView(context, tracks),
+                    if (_showFloatingButton) _buildFloatingPlayButton(context),
+                  ],
                 ),
               ),
+            )
+          else ...[
+            _buildScrollView(context, tracks),
+            if (_showFloatingButton) _buildFloatingPlayButton(context),
+          ],
+        ],
+      ),
+    );
+  }
 
-              // Album/Playlist Info Section
-              SliverToBoxAdapter(
-                child: Container(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Title and metadata
-                      Text(
-                        _title,
-                        style: Theme.of(context)
-                            .textTheme
-                            .headlineMedium
-                            ?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: -0.5,
-                            ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        _subtitle,
-                        style: Theme.of(context)
-                            .textTheme
-                            .titleMedium
-                            ?.copyWith(
-                              color:
-                                  colorScheme.onSurface.withValues(alpha: 0.7),
-                            ),
-                      ),
-                      const SizedBox(height: 12),
-                      _buildMetadataRow(context),
-                      const SizedBox(height: 24),
-                      _buildActionButtons(context),
-                    ],
-                  ),
-                ),
-              ),
+  Widget _buildScrollView(BuildContext context, List<Track> tracks) {
+    final colorScheme = Theme.of(context).colorScheme;
 
-              // Track listing
-              SliverPadding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                sliver: SliverList(
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) {
-                      final track = tracks[index];
-                      return _buildTrackItem(context, track, index);
-                    },
-                    childCount: tracks.length,
-                  ),
-                ),
-              ),
-
-              // Bottom padding
-              const SliverToBoxAdapter(
-                child: SizedBox(height: 100),
-              ),
-            ],
+    return CustomScrollView(
+      controller: _scrollController,
+      physics: isDesktop
+          ? const ClampingScrollPhysics()
+          : const BouncingScrollPhysics(),
+      slivers: [
+        // App bar
+        SliverAppBar(
+          expandedHeight: 400,
+          pinned: true,
+          stretch: true,
+          backgroundColor:
+              colorScheme.surface.withValues(alpha: _headerOpacity),
+          leading: Container(
+            margin: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: colorScheme.surface.withValues(alpha: 0.7),
+              shape: BoxShape.circle,
+            ),
+            child: IconButton(
+              icon: const Icon(Icons.arrow_back),
+              tooltip: isDesktop ? 'Back' : null,
+              onPressed: () => Navigator.pop(context),
+            ),
           ),
-
-          // Floating play button
-          if (_showFloatingButton)
-            Positioned(
-              bottom: 16,
-              right: 16,
-              child: FloatingActionButton.extended(
-                onPressed: () => _playAll(context),
-                icon: const Icon(Icons.play_arrow),
-                label: const Text('Play'),
-                elevation: 8,
+          actions: [
+            Container(
+              margin: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: colorScheme.surface.withValues(alpha: 0.7),
+                shape: BoxShape.circle,
+              ),
+              child: IconButton(
+                icon: const Icon(Icons.more_vert),
+                tooltip: isDesktop ? 'More options' : null,
+                onPressed: () => _showOptions(context),
               ),
             ),
-        ],
+          ],
+          flexibleSpace: FlexibleSpaceBar(
+            titlePadding: EdgeInsets.zero,
+            title: AnimatedOpacity(
+              duration: const Duration(milliseconds: 200),
+              opacity: _headerOpacity,
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(56, 0, 56, 16),
+                alignment: Alignment.bottomLeft,
+                child: Text(
+                  _title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+            background: _buildHeaderBackground(context),
+          ),
+        ),
+
+        // Album/Playlist Info Section
+        SliverToBoxAdapter(
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Title and metadata
+                Text(
+                  _title,
+                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: -0.5,
+                      ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  _subtitle,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: colorScheme.onSurface.withValues(alpha: 0.7),
+                      ),
+                ),
+                const SizedBox(height: 12),
+                _buildMetadataRow(context),
+                const SizedBox(height: 24),
+                _buildActionButtons(context),
+              ],
+            ),
+          ),
+        ),
+
+        // Track listing
+        SliverPadding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          sliver: SliverList(
+            delegate: SliverChildBuilderDelegate(
+              (context, index) {
+                final track = tracks[index];
+                return _buildTrackItem(context, track, index);
+              },
+              childCount: tracks.length,
+            ),
+          ),
+        ),
+
+        // Bottom padding
+        const SliverToBoxAdapter(
+          child: SizedBox(height: 100),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFloatingPlayButton(BuildContext context) {
+    return Positioned(
+      bottom: 16,
+      right: 16,
+      child: FloatingActionButton.extended(
+        onPressed: () => _playAll(context),
+        icon: const Icon(Icons.play_arrow),
+        label: const Text('Play'),
+        elevation: 8,
       ),
     );
   }
@@ -427,6 +448,9 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
 
     return InkWell(
       onTap: () => _playTrack(context, index),
+      // desktop: right-click opens the same options as the trailing button
+      onSecondaryTap:
+          isDesktop ? () => _showTrackOptions(context, track) : null,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
         child: Row(
@@ -508,6 +532,7 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
             // More options
             IconButton(
               icon: const Icon(Icons.more_vert, size: 20),
+              tooltip: isDesktop ? 'More options' : null,
               onPressed: () => _showTrackOptions(context, track),
             ),
           ],
@@ -562,166 +587,219 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
   }
 
   void _showOptions(BuildContext context) {
+    // desktop: present the same options as a dialog instead of a bottom sheet
+    if (isDesktop) {
+      showDialog(
+        context: context,
+        builder: (context) => Dialog(
+          clipBehavior: Clip.antiAlias,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 400),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: _optionTiles(context),
+              ),
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: _optionTiles(context),
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _optionTiles(BuildContext context) {
+    return [
+      ListTile(
+        leading: const Icon(Icons.queue_music),
+        title: const Text('Add to queue'),
+        onTap: () {
+          Navigator.pop(context);
+          _addToQueue(context);
+        },
+      ),
+      ListTile(
+        leading: const Icon(Icons.playlist_add),
+        title: const Text('Add to playlist'),
+        onTap: () {
+          Navigator.pop(context);
+          // TODO: Implement add to playlist
+        },
+      ),
+      ListTile(
+        leading: const Icon(Icons.share),
+        title: const Text('Share'),
+        onTap: () {
+          Navigator.pop(context);
+          // TODO: Implement share
+        },
+      ),
+      if (widget.type == CollectionType.playlist)
+        ListTile(
+          leading: const Icon(Icons.edit),
+          title: const Text('Edit playlist'),
+          onTap: () {
+            Navigator.pop(context);
+            // TODO: Implement edit playlist
+          },
+        ),
+    ];
+  }
+
+  void _showTrackOptions(BuildContext context, Track track) {
+    // desktop: present the same options as a dialog instead of a bottom sheet
+    if (isDesktop) {
+      showDialog(
+        context: context,
+        builder: (context) => Dialog(
+          clipBehavior: Clip.antiAlias,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _trackOptionsHeader(context, track),
+                  const Divider(height: 1),
+                  ..._trackOptionTiles(context, track),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      return;
+    }
     showModalBottomSheet(
       context: context,
       builder: (context) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            ListTile(
-              leading: const Icon(Icons.queue_music),
-              title: const Text('Add to queue'),
-              onTap: () {
-                Navigator.pop(context);
-                _addToQueue(context);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.playlist_add),
-              title: const Text('Add to playlist'),
-              onTap: () {
-                Navigator.pop(context);
-                // TODO: Implement add to playlist
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.share),
-              title: const Text('Share'),
-              onTap: () {
-                Navigator.pop(context);
-                // TODO: Implement share
-              },
-            ),
-            if (widget.type == CollectionType.playlist)
-              ListTile(
-                leading: const Icon(Icons.edit),
-                title: const Text('Edit playlist'),
-                onTap: () {
-                  Navigator.pop(context);
-                  // TODO: Implement edit playlist
-                },
-              ),
+            _trackOptionsHeader(context, track),
+            const Divider(height: 1),
+            ..._trackOptionTiles(context, track),
           ],
         ),
       ),
     );
   }
 
-  void _showTrackOptions(BuildContext context, Track track) {
-    showModalBottomSheet(
-      context: context,
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  if (track.albumArt != null)
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
-                      child: Image.memory(
-                        track.albumArt!,
-                        width: 48,
-                        height: 48,
-                        fit: BoxFit.cover,
-                      ),
-                    )
-                  else
-                    Container(
-                      width: 48,
-                      height: 48,
-                      decoration: BoxDecoration(
+  Widget _trackOptionsHeader(BuildContext context, Track track) {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          if (track.albumArt != null)
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: Image.memory(
+                track.albumArt!,
+                width: 48,
+                height: 48,
+                fit: BoxFit.cover,
+              ),
+            )
+          else
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: const Icon(Icons.music_note, size: 24),
+            ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  track.title,
+                  style: Theme.of(context).textTheme.titleSmall,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  track.artist,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: Theme.of(context)
                             .colorScheme
-                            .surfaceContainerHighest,
-                        borderRadius: BorderRadius.circular(4),
+                            .onSurface
+                            .withValues(alpha: 0.6),
                       ),
-                      child: const Icon(Icons.music_note, size: 24),
-                    ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          track.title,
-                          style: Theme.of(context).textTheme.titleSmall,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        Text(
-                          track.artist,
-                          style:
-                              Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .onSurface
-                                        .withValues(alpha: 0.6),
-                                  ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
             ),
-            const Divider(height: 1),
-            ListTile(
-              leading: const Icon(Icons.queue_music),
-              title: const Text('Add to queue'),
-              onTap: () {
-                Navigator.pop(context);
-                final audioProvider =
-                    Provider.of<AudioProvider>(context, listen: false);
-                audioProvider.addTracksToQueue([track]);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Added to queue'),
-                    duration: Duration(seconds: 2),
-                  ),
-                );
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.playlist_add),
-              title: const Text('Add to playlist'),
-              onTap: () {
-                Navigator.pop(context);
-                // TODO: Implement add to playlist
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.album),
-              title: const Text('Go to album'),
-              onTap: () {
-                Navigator.pop(context);
-                // TODO: Implement go to album
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.person),
-              title: const Text('Go to artist'),
-              onTap: () {
-                Navigator.pop(context);
-                // TODO: Implement go to artist
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.share),
-              title: const Text('Share'),
-              onTap: () {
-                Navigator.pop(context);
-                // TODO: Implement share
-              },
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
+  }
+
+  List<Widget> _trackOptionTiles(BuildContext context, Track track) {
+    return [
+      ListTile(
+        leading: const Icon(Icons.queue_music),
+        title: const Text('Add to queue'),
+        onTap: () {
+          Navigator.pop(context);
+          final audioProvider =
+              Provider.of<AudioProvider>(context, listen: false);
+          audioProvider.addTracksToQueue([track]);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Added to queue'),
+              duration: Duration(seconds: 2),
+            ),
+          );
+        },
+      ),
+      ListTile(
+        leading: const Icon(Icons.playlist_add),
+        title: const Text('Add to playlist'),
+        onTap: () {
+          Navigator.pop(context);
+          // TODO: Implement add to playlist
+        },
+      ),
+      ListTile(
+        leading: const Icon(Icons.album),
+        title: const Text('Go to album'),
+        onTap: () {
+          Navigator.pop(context);
+          // TODO: Implement go to album
+        },
+      ),
+      ListTile(
+        leading: const Icon(Icons.person),
+        title: const Text('Go to artist'),
+        onTap: () {
+          Navigator.pop(context);
+          // TODO: Implement go to artist
+        },
+      ),
+      ListTile(
+        leading: const Icon(Icons.share),
+        title: const Text('Share'),
+        onTap: () {
+          Navigator.pop(context);
+          // TODO: Implement share
+        },
+      ),
+    ];
   }
 
   void _addToQueue(BuildContext context) {

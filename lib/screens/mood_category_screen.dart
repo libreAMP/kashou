@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/ytmusic_service.dart';
+import '../utils/platform.dart';
 import '../widgets/art_card.dart';
 import '../widgets/loading_indicator.dart';
 import 'section_page.dart';
@@ -63,15 +64,37 @@ class _MoodCategoryScreenState extends State<MoodCategoryScreen> {
               ? Center(
                   child: Text('Nothing here right now',
                       style: Theme.of(context).textTheme.bodyMedium))
-              : ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
-                  itemCount: _shelves.length,
-                  itemBuilder: (context, i) => _buildShelf(_shelves[i]),
-                ),
+              : isDesktop
+                  ? _buildDesktopBody()
+                  : ListView.builder(
+                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+                      itemCount: _shelves.length,
+                      itemBuilder: (context, i) => _buildShelf(_shelves[i]),
+                    ),
     );
   }
 
-  Widget _buildShelf(Map<String, dynamic> shelf) {
+  // on wide windows the shelves are centered in a max-width column and each
+  // shelf wraps its cards into as many columns as fit instead of scrolling
+  // sideways
+  Widget _buildDesktopBody() {
+    const maxContentWidth = 1200.0;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final horizontal = constraints.maxWidth > maxContentWidth + 40
+            ? (constraints.maxWidth - maxContentWidth) / 2
+            : 20.0;
+        return ListView.builder(
+          padding: EdgeInsets.fromLTRB(horizontal, 12, horizontal, 32),
+          itemCount: _shelves.length,
+          itemBuilder: (context, i) =>
+              _buildShelf(_shelves[i], wrapItems: true),
+        );
+      },
+    );
+  }
+
+  Widget _buildShelf(Map<String, dynamic> shelf, {bool wrapItems = false}) {
     final items = (shelf['items'] as List).cast<Map<String, dynamic>>();
     final title = shelf['title'] as String? ?? '';
 
@@ -88,20 +111,38 @@ class _MoodCategoryScreenState extends State<MoodCategoryScreen> {
           ),
           const SizedBox(height: 12),
         ],
-        SizedBox(
-          height: 214,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            itemCount: items.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 16),
-            itemBuilder: (_, i) => ArtCard(
-              thumbnail: items[i]['thumbnail'] as String?,
-              title: items[i]['title'] as String? ?? '',
-              subtitle: items[i]['subtitle'] as String?,
-              onTap: () => _openPlaylist(items[i]),
+        if (wrapItems)
+          Wrap(
+            spacing: 16,
+            runSpacing: 24,
+            children: [
+              for (final item in items)
+                MouseRegion(
+                  cursor: SystemMouseCursors.click,
+                  child: ArtCard(
+                    thumbnail: item['thumbnail'] as String?,
+                    title: item['title'] as String? ?? '',
+                    subtitle: item['subtitle'] as String?,
+                    onTap: () => _openPlaylist(item),
+                  ),
+                ),
+            ],
+          )
+        else
+          SizedBox(
+            height: 214,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: items.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 16),
+              itemBuilder: (_, i) => ArtCard(
+                thumbnail: items[i]['thumbnail'] as String?,
+                title: items[i]['title'] as String? ?? '',
+                subtitle: items[i]['subtitle'] as String?,
+                onTap: () => _openPlaylist(items[i]),
+              ),
             ),
           ),
-        ),
         const SizedBox(height: 24),
       ],
     );

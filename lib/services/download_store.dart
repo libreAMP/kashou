@@ -66,8 +66,11 @@ class DownloadStore {
     final files = d
         .listSync()
         .whereType<File>()
-        .where((f) => _audioExts
-            .contains(f.path.substring(f.path.lastIndexOf('.')).toLowerCase()))
+        .where((f) {
+          final dot = f.path.lastIndexOf('.');
+          return dot > 0 &&
+              _audioExts.contains(f.path.substring(dot).toLowerCase());
+        })
         .toList()
       ..sort((a, b) => b.statSync().modified.compareTo(a.statSync().modified));
 

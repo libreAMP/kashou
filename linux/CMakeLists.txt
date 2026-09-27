@@ -7,7 +7,7 @@ project(runner LANGUAGES CXX)
 set(BINARY_NAME "kashou")
 # The unique GTK application identifier for this application. See:
 # https://wiki.gnome.org/HowDoI/ChooseApplicationID
-set(APPLICATION_ID "com.example.kashou")
+set(APPLICATION_ID "com.libreamp.kashou")
 
 # Explicitly opt in to modern CMake behaviors to avoid warnings with recent
 # versions of CMake.
@@ -126,3 +126,11 @@ if(NOT CMAKE_BUILD_TYPE MATCHES "Debug")
   install(FILES "${AOT_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
     COMPONENT Runtime)
 endif()
+
+# Ship the desktop entry and app icon next to the bundle so packagers can
+# drop them into the xdg directories (fixes the generic Wayland icon).
+install(FILES "packaging/com.libreamp.kashou.desktop"
+  DESTINATION "${CMAKE_INSTALL_PREFIX}" COMPONENT Runtime)
+install(FILES "${CMAKE_SOURCE_DIR}/../assets/icons/icon.png"
+  DESTINATION "${CMAKE_INSTALL_PREFIX}"
+  RENAME "com.libreamp.kashou.png" COMPONENT Runtime)

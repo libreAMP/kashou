@@ -62,7 +62,7 @@ class SettingsProvider extends ChangeNotifier {
       _isLoaded = true;
       notifyListeners();
     } catch (e) {
-      print('Error loading settings: $e');
+      debugPrint('Error loading settings: $e');
       _isLoaded = true;
       notifyListeners();
     }

@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'dart:isolate';
-import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:audiotags/audiotags.dart';
@@ -98,7 +97,8 @@ Future<Map<String, dynamic>?> _parseTrackToMap(String path) async {
 
     Uint8List? albumArtBytes;
     if (tag?.pictures != null && tag!.pictures.isNotEmpty) {
-      albumArtBytes = MusicScannerService._compressAlbumArt(tag.pictures.first.bytes);
+      albumArtBytes =
+          MusicScannerService._compressAlbumArt(tag.pictures.first.bytes);
     }
     final vid = albumArtBytes == null ? _isolateArtIds[path] : null;
 
@@ -250,10 +250,18 @@ class MusicScannerService {
       }
 
       // Common music directories
-      uniquePaths.add('/storage/emulated/0/Music');
-      uniquePaths.add('/storage/emulated/0/Download');
-      uniquePaths.add('/storage/emulated/0/Podcasts');
-      uniquePaths.add('/storage/emulated/0/Audiobooks');
+      if (Platform.isAndroid) {
+        uniquePaths.add('/storage/emulated/0/Music');
+        uniquePaths.add('/storage/emulated/0/Download');
+        uniquePaths.add('/storage/emulated/0/Podcasts');
+        uniquePaths.add('/storage/emulated/0/Audiobooks');
+      } else if (Platform.isLinux) {
+        final home = Platform.environment['HOME'];
+        if (home != null) {
+          uniquePaths.add('$home/Music');
+          uniquePaths.add('$home/Downloads');
+        }
+      }
     } catch (e) {
       debugPrint('Error getting music directories: $e');
     }
@@ -344,7 +352,8 @@ class MusicScannerService {
       }
 
       final resized = img.copyResize(image, width: 500);
-    final compressed = Uint8List.fromList(img.encodeJpg(resized, quality: 85));
+      final compressed =
+          Uint8List.fromList(img.encodeJpg(resized, quality: 85));
 
       return compressed;
     } catch (e) {

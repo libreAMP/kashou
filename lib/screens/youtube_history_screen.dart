@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -5,11 +7,15 @@ import '../models/stream_history_entry.dart';
 import '../models/track.dart';
 import '../providers/audio_provider.dart';
 import '../providers/settings_provider.dart';
-import '../services/youtube/youtube_service.dart';
+import '../services/ytdl_service.dart';
 import '../theme/radii.dart';
+import '../utils/platform.dart';
 import '../widgets/back_chip.dart';
 import '../widgets/loading_indicator.dart';
 import '../widgets/square_art.dart';
+
+// max width of the history list on wide desktop windows
+const double _desktopMaxContentWidth = 900;
 
 class YoutubeHistoryScreen extends StatefulWidget {
   const YoutubeHistoryScreen({super.key});
@@ -47,14 +53,9 @@ class _YoutubeHistoryScreenState extends State<YoutubeHistoryScreen> {
     await audioProvider.prepareTrackLoad(placeholder);
 
     try {
-      final videoId = Uri.parse(sourceUrl).queryParameters['v'] ?? sourceUrl;
-      var streamInfo = await YoutubeService.instance.fetchStreams(videoId);
-      if (streamInfo == null || streamInfo.audioStreams.isEmpty) {
-        await Future.delayed(const Duration(milliseconds: 800));
-        streamInfo = await YoutubeService.instance
-            .fetchStreams(videoId, forceRefresh: true);
-      }
-      if (streamInfo == null || streamInfo.audioStreams.isEmpty) {
+      // youtube_explode leads on desktop, see resolveAudioStream
+      final stream = await YtdlWrapperService.resolveAudioStream(sourceUrl);
+      if (stream == null) {
         if (!mounted) return;
         audioProvider.cancelPendingTrack(entry.track.id);
         _showSnackBar('Unable to refresh YouTube stream.');
@@ -64,14 +65,8 @@ class _YoutubeHistoryScreenState extends State<YoutubeHistoryScreen> {
         return;
       }
 
-      final mp4 = streamInfo.audioStreams
-          .where((s) => s.mimeType.contains('mp4'))
-          .toList()
-        ..sort((a, b) => b.bitrate.compareTo(a.bitrate));
-      final stream = mp4.isNotEmpty ? mp4.first : streamInfo.audioStreams.first;
-
       final updatedTrack = placeholder.copyWith(
-        loudnessDb: streamInfo.loudnessDb,
+        loudnessDb: stream.loudnessDb,
         path: stream.url,
       );
 
@@ -173,7 +168,7 @@ class _YoutubeHistoryScreenState extends State<YoutubeHistoryScreen> {
                         Icon(Icons.history,
                             size: 48,
                             color:
-                                colorScheme.onSurfaceVariant.withOpacity(0.5)),
+                                colorScheme.onSurfaceVariant.withValues(alpha: 0.5)),
                         const SizedBox(height: 16),
                         Text(
                           'No history yet',
@@ -186,7 +181,7 @@ class _YoutubeHistoryScreenState extends State<YoutubeHistoryScreen> {
                           'What you play from Stream shows up here.',
                           style: theme.textTheme.bodyMedium?.copyWith(
                             color:
-                                colorScheme.onSurfaceVariant.withOpacity(0.7),
+                                colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
                           ),
                           textAlign: TextAlign.center,
                         ),
@@ -196,12 +191,30 @@ class _YoutubeHistoryScreenState extends State<YoutubeHistoryScreen> {
                 );
               }
 
-              return SliverList(
+              final sliverList = SliverList(
                 delegate: SliverChildBuilderDelegate(
                   (context, index) =>
                       _buildHistoryTile(context, entries[index], colorScheme),
                   childCount: entries.length,
                 ),
+              );
+
+              if (!isDesktop) {
+                return sliverList;
+              }
+
+              return SliverLayoutBuilder(
+                builder: (context, constraints) {
+                  final horizontalPadding = math.max(
+                    (constraints.crossAxisExtent - _desktopMaxContentWidth) / 2,
+                    0.0,
+                  );
+                  return SliverPadding(
+                    padding:
+                        EdgeInsets.symmetric(horizontal: horizontalPadding),
+                    sliver: sliverList,
+                  );
+                },
               );
             },
           ),
@@ -217,118 +230,172 @@ class _YoutubeHistoryScreenState extends State<YoutubeHistoryScreen> {
     final theme = Theme.of(context);
     final isLoading = _loadingEntryId == track.id;
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 3, 16, 3),
-      child: Dismissible(
-        key: ValueKey(track.sourceUrl ?? track.id),
-        direction: DismissDirection.endToStart,
-        background: Container(
-          alignment: Alignment.centerRight,
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          decoration: BoxDecoration(
-            color: colorScheme.errorContainer,
-            borderRadius: BorderRadius.circular(rMd),
-          ),
-          child: Icon(Icons.delete_outline,
-              color: colorScheme.onErrorContainer),
-        ),
-        onDismissed: (_) {
-          context
-              .read<AudioProvider>()
-              .removeFromStreamHistory(track.sourceUrl ?? track.path);
-        },
-        child: Consumer<AudioProvider>(
-          builder: (context, audio, _) {
-            final isCurrent = audio.currentTrack?.id == track.id;
-            final playing = isCurrent && audio.isPlaying;
-            return Material(
+    final tile = Consumer<AudioProvider>(
+      builder: (context, audio, _) {
+        final isCurrent = audio.currentTrack?.id == track.id;
+        final playing = isCurrent && audio.isPlaying;
+
+        Widget trailing;
+        if (isLoading) {
+          trailing = KashouLoader(size: 26, color: colorScheme.primary);
+        } else {
+          final playButton = IconButton(
+            tooltip: isDesktop ? (playing ? 'Pause' : 'Play') : null,
+            icon: Icon(
+              playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
               color: isCurrent
-                  ? colorScheme.primary.withValues(alpha: 0.12)
-                  : Colors.transparent,
-              borderRadius: BorderRadius.circular(rMd),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(rMd),
-                onTap: isLoading
-                    ? null
-                    : () =>
-                        isCurrent ? audio.togglePlayPause() : _playEntry(entry),
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Row(
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(rSm),
-                        child: SizedBox(
-                          width: 56,
-                          height: 56,
-                          child: Stack(
-                            fit: StackFit.expand,
-                            children: [
-                              _buildAlbumArt(track, colorScheme),
-                              if (playing)
-                                Container(
-                                  color: Colors.black.withValues(alpha: 0.4),
-                                  child: Icon(Icons.graphic_eq,
-                                      color: Colors.white, size: 22),
-                                ),
-                            ],
+                  ? colorScheme.primary
+                  : colorScheme.onSurfaceVariant,
+            ),
+            onPressed: () =>
+                isCurrent ? audio.togglePlayPause() : _playEntry(entry),
+          );
+          trailing = isDesktop
+              ? Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    playButton,
+                    // swipe-to-dismiss is touch-only, desktop gets a
+                    // visible remove button instead
+                    IconButton(
+                      tooltip: 'Remove from history',
+                      icon: Icon(
+                        Icons.delete_outline,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                      onPressed: () => audio.removeFromStreamHistory(
+                          track.sourceUrl ?? track.path),
+                    ),
+                  ],
+                )
+              : playButton;
+        }
+
+        return Material(
+          color: isCurrent
+              ? colorScheme.primary.withValues(alpha: 0.12)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(rMd),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(rMd),
+            onTap: isLoading
+                ? null
+                : () => isCurrent ? audio.togglePlayPause() : _playEntry(entry),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(rSm),
+                    child: SizedBox(
+                      width: 56,
+                      height: 56,
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          _buildAlbumArt(track, colorScheme),
+                          if (playing)
+                            Container(
+                              color: Colors.black.withValues(alpha: 0.4),
+                              child: Icon(Icons.graphic_eq,
+                                  color: Colors.white, size: 22),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          track.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            color: isCurrent
+                                ? colorScheme.primary
+                                : colorScheme.onSurface,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              track.title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: theme.textTheme.titleSmall?.copyWith(
-                                color: isCurrent
-                                    ? colorScheme.primary
-                                    : colorScheme.onSurface,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              '${track.artist} Â· ${_formatTimestamp(entry.timestamp)}',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: colorScheme.onSurfaceVariant,
-                              ),
-                            ),
-                          ],
+                        const SizedBox(height: 2),
+                        Text(
+                          '${track.artist} Â· ${_formatTimestamp(entry.timestamp)}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: colorScheme.onSurfaceVariant,
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      isLoading
-                          ? KashouLoader(size: 26, color: colorScheme.primary)
-                          : IconButton(
-                              icon: Icon(
-                                playing
-                                    ? Icons.pause_rounded
-                                    : Icons.play_arrow_rounded,
-                                color: isCurrent
-                                    ? colorScheme.primary
-                                    : colorScheme.onSurfaceVariant,
-                              ),
-                              onPressed: () => isCurrent
-                                  ? audio.togglePlayPause()
-                                  : _playEntry(entry),
-                            ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
+                  const SizedBox(width: 8),
+                  trailing,
+                ],
               ),
-            );
-          },
-        ),
-      ),
+            ),
+          ),
+        );
+      },
     );
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 3, 16, 3),
+      child: isDesktop
+          ? GestureDetector(
+              // right-click mirrors the swipe-to-dismiss on touch devices
+              onSecondaryTapUp: (details) =>
+                  _showRemoveMenu(details.globalPosition, track),
+              child: tile,
+            )
+          : Dismissible(
+              key: ValueKey(track.sourceUrl ?? track.id),
+              direction: DismissDirection.endToStart,
+              background: Container(
+                alignment: Alignment.centerRight,
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                decoration: BoxDecoration(
+                  color: colorScheme.errorContainer,
+                  borderRadius: BorderRadius.circular(rMd),
+                ),
+                child: Icon(Icons.delete_outline,
+                    color: colorScheme.onErrorContainer),
+              ),
+              onDismissed: (_) {
+                context
+                    .read<AudioProvider>()
+                    .removeFromStreamHistory(track.sourceUrl ?? track.path);
+              },
+              child: tile,
+            ),
+    );
+  }
+
+  void _showRemoveMenu(Offset position, Track track) {
+    final audioProvider = context.read<AudioProvider>();
+    final overlay =
+        Overlay.of(context).context.findRenderObject()! as RenderBox;
+    showMenu<String>(
+      context: context,
+      position: RelativeRect.fromRect(
+        position & const Size(1, 1),
+        Offset.zero & overlay.size,
+      ),
+      items: const [
+        PopupMenuItem(
+          value: 'remove',
+          child: Text('Remove from history'),
+        ),
+      ],
+    ).then((value) {
+      if (value == 'remove') {
+        audioProvider.removeFromStreamHistory(track.sourceUrl ?? track.path);
+      }
+    });
   }
 
   Widget _buildAlbumArt(Track track, ColorScheme colorScheme) {

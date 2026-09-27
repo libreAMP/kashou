@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/settings_provider.dart';
 import '../screens/personalization_screen.dart';
 import '../theme/app_theme.dart';
+import '../utils/platform.dart';
 import '../widgets/back_chip.dart';
 import '../widgets/settings_tiles.dart';
 
@@ -14,6 +15,7 @@ class SettingsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final sections = _buildSections(context);
     return Scaffold(
       body: CustomScrollView(
         slivers: [
@@ -25,212 +27,249 @@ class SettingsScreen extends StatelessWidget {
             scrolledUnderElevation: 0,
             leading: const BackChip(),
           ),
-          SliverList(
-            delegate: SliverChildListDelegate([
-              SettingsSection(
-                title: 'Appearance',
-                children: [
-                  ListTile(
-                    leading: const Icon(Icons.palette_outlined),
-                    title: const Text('Personalization'),
-                    subtitle: const Text('Theme, colors, and fonts'),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const PersonalizationScreen(),
-                        ),
-                      );
-                    },
-                  ),
-                ],
-              ),
-              SettingsSection(
-                title: 'Library',
-                children: [
-                  ListTile(
-                    leading: const Icon(Icons.folder_outlined),
-                    title: const Text('Music Folders'),
-                    subtitle: const Text('Manage custom music locations'),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () {
-                      _showMusicFoldersDialog(context);
-                    },
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.refresh),
-                    title: const Text('Rescan Library'),
-                    subtitle: const Text('Scan for new music files'),
-                    onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Rescanning library...')),
-                      );
-                    },
-                  ),
-                ],
-              ),
-              Consumer<SettingsProvider>(
-                builder: (context, settings, child) => SettingsSection(
-                  title: 'Audio',
-                  children: [
-                    SettingsSwitchTile(
-                      icon: Icons.music_note,
-                      title: 'Gapless Playback',
-                      subtitle: 'No gaps between tracks',
-                      value: settings.enableGapless,
-                      onChanged: settings.setEnableGapless,
-                    ),
-                    SettingsSwitchTile(
-                      icon: Icons.animation,
-                      title: 'Crossfade',
-                      subtitle: 'Fade between tracks',
-                      value: settings.enableCrossfade,
-                      onChanged: settings.setEnableCrossfade,
-                    ),
-                    if (settings.enableCrossfade)
-                      ListTile(
-                        leading: const SizedBox(width: 40),
-                        title: const Text('Crossfade Duration'),
-                        subtitle: SliderTheme(
-                          data: m3eSliderTheme(context),
-                          child: Slider(
-                            value: settings.crossfadeDuration,
-                            min: 1,
-                            max: 10,
-                            divisions: 9,
-                            label: '${settings.crossfadeDuration.toInt()}s',
-                            onChanged: settings.setCrossfadeDuration,
-                          ),
-                        ),
-                      ),
-                    SettingsSwitchTile(
-                      icon: Icons.volume_up,
-                      title: 'Replay Gain',
-                      subtitle: 'Normalize volume across tracks',
-                      value: settings.enableReplayGain,
-                      onChanged: settings.setEnableReplayGain,
-                    ),
-                    ListTile(
-                      leading: const Icon(Icons.tune),
-                      title: const Text('Buffer Size'),
-                      subtitle: const Text('Applies on next launch'),
-                      trailing: DropdownButton<int>(
-                        value: settings.bufferSize,
-                        items: const [
-                          DropdownMenuItem(value: 1024, child: Text('1024')),
-                          DropdownMenuItem(value: 2048, child: Text('2048')),
-                          DropdownMenuItem(value: 4096, child: Text('4096')),
-                        ],
-                        onChanged: (value) {
-                          if (value != null) settings.setBufferSize(value);
-                        },
-                      ),
-                    ),
-                    ListTile(
-                      leading: const Icon(Icons.high_quality),
-                      title: const Text('Resampler Quality'),
-                      subtitle: const Text('Float output on high, next launch'),
-                      trailing: DropdownButton<String>(
-                        value: settings.resamplerQuality,
-                        items: const [
-                          DropdownMenuItem(value: 'Low', child: Text('Low')),
-                          DropdownMenuItem(
-                            value: 'Medium',
-                            child: Text('Medium'),
-                          ),
-                          DropdownMenuItem(value: 'High', child: Text('High')),
-                          DropdownMenuItem(
-                            value: 'Very High',
-                            child: Text('Very High'),
-                          ),
-                        ],
-                        onChanged: (value) {
-                          if (value != null)
-                            settings.setResamplerQuality(value);
-                        },
-                      ),
-                    ),
-                    SettingsSwitchTile(
-                      icon: Icons.blur_on,
-                      title: 'Dithering',
-                      subtitle: 'Dither on the 16 bit path, next launch',
-                      value: settings.enableDither,
-                      onChanged: settings.setEnableDither,
-                    ),
-                  ],
-                ),
-              ),
-              Consumer<SettingsProvider>(
-                builder: (context, settings, child) => SettingsSection(
-                  title: 'Online Features',
-                  children: [
-                    SettingsSwitchTile(
-                      icon: Icons.cloud_outlined,
-                      title: 'YouTube Integration',
-                      subtitle: 'Enable online music streaming',
-                      value: settings.enableYouTubeIntegration,
-                      onChanged: settings.setEnableYouTubeIntegration,
-                    ),
-                    SettingsSwitchTile(
-                      icon: Icons.history_rounded,
-                      title: 'Search history',
-                      subtitle: 'Remember what you search on Stream',
-                      value: settings.enableSearchHistory,
-                      onChanged: settings.setEnableSearchHistory,
-                    ),
-                    SettingsSwitchTile(
-                      icon: Icons.cast,
-                      title: 'Casting',
-                      subtitle: 'Chromecast support',
-                      value: settings.enableCasting,
-                      onChanged: settings.setEnableCasting,
-                    ),
-                    SettingsSwitchTile(
-                      icon: Icons.directions_car,
-                      title: 'Android Auto',
-                      subtitle: 'Car dashboard integration',
-                      value: settings.enableAndroidAuto,
-                      onChanged: settings.setEnableAndroidAuto,
-                    ),
-                  ],
-                ),
-              ),
-              SettingsSection(
-                title: 'About',
-                children: [
-                  ListTile(
-                    leading: const Icon(Icons.info_outline),
-                    title: const Text('Version'),
-                    subtitle: const Text('1.0.0'),
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.code),
-                    title: const Text('Open Source'),
-                    subtitle: const Text('GPL v3 License'),
-                    trailing: const Icon(Icons.open_in_new),
-                    onTap: () => launchUrl(
-                      Uri.parse('https://github.com/libreAMP/kashou'),
-                      mode: LaunchMode.externalApplication,
-                    ),
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.favorite_outline),
-                    title: const Text('Support Development'),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () => launchUrl(
-                      Uri.parse('https://github.com/libreAMP/kashou'),
-                      mode: LaunchMode.externalApplication,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 32),
-            ]),
-          ),
+          if (isDesktop)
+            SliverToBoxAdapter(child: _buildDesktopBody(sections))
+          else
+            SliverList(
+              delegate: SliverChildListDelegate([
+                ...sections,
+                const SizedBox(height: 32),
+              ]),
+            ),
         ],
       ),
     );
+  }
+
+  Widget _buildDesktopBody(List<Widget> sections) {
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 1100),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final wide = constraints.maxWidth >= 840;
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 32),
+              child: wide
+                  ? Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Column(children: sections.sublist(0, 3)),
+                        ),
+                        Expanded(
+                          child: Column(children: sections.sublist(3)),
+                        ),
+                      ],
+                    )
+                  : Column(children: sections),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _buildSections(BuildContext context) {
+    return [
+      SettingsSection(
+        title: 'Appearance',
+        children: [
+          ListTile(
+            leading: const Icon(Icons.palette_outlined),
+            title: const Text('Personalization'),
+            subtitle: const Text('Theme, colors, and fonts'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const PersonalizationScreen(),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+      SettingsSection(
+        title: 'Library',
+        children: [
+          ListTile(
+            leading: const Icon(Icons.folder_outlined),
+            title: const Text('Music Folders'),
+            subtitle: const Text('Manage custom music locations'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () {
+              _showMusicFoldersDialog(context);
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.refresh),
+            title: const Text('Rescan Library'),
+            subtitle: const Text('Scan for new music files'),
+            onTap: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Rescanning library...')),
+              );
+            },
+          ),
+        ],
+      ),
+      Consumer<SettingsProvider>(
+        builder: (context, settings, child) => SettingsSection(
+          title: 'Audio',
+          children: [
+            SettingsSwitchTile(
+              icon: Icons.music_note,
+              title: 'Gapless Playback',
+              subtitle: 'No gaps between tracks',
+              value: settings.enableGapless,
+              onChanged: settings.setEnableGapless,
+            ),
+            SettingsSwitchTile(
+              icon: Icons.animation,
+              title: 'Crossfade',
+              subtitle: 'Fade between tracks',
+              value: settings.enableCrossfade,
+              onChanged: settings.setEnableCrossfade,
+            ),
+            if (settings.enableCrossfade)
+              ListTile(
+                leading: const SizedBox(width: 40),
+                title: const Text('Crossfade Duration'),
+                subtitle: SliderTheme(
+                  data: m3eSliderTheme(context),
+                  child: Slider(
+                    value: settings.crossfadeDuration,
+                    min: 1,
+                    max: 10,
+                    divisions: 9,
+                    label: '${settings.crossfadeDuration.toInt()}s',
+                    onChanged: settings.setCrossfadeDuration,
+                  ),
+                ),
+              ),
+            SettingsSwitchTile(
+              icon: Icons.volume_up,
+              title: 'Replay Gain',
+              subtitle: 'Normalize volume across tracks',
+              value: settings.enableReplayGain,
+              onChanged: settings.setEnableReplayGain,
+            ),
+            ListTile(
+              leading: const Icon(Icons.tune),
+              title: const Text('Buffer Size'),
+              subtitle: const Text('Applies on next launch'),
+              trailing: DropdownButton<int>(
+                value: settings.bufferSize,
+                items: const [
+                  DropdownMenuItem(value: 1024, child: Text('1024')),
+                  DropdownMenuItem(value: 2048, child: Text('2048')),
+                  DropdownMenuItem(value: 4096, child: Text('4096')),
+                ],
+                onChanged: (value) {
+                  if (value != null) settings.setBufferSize(value);
+                },
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.high_quality),
+              title: const Text('Resampler Quality'),
+              subtitle: const Text('Float output on high, next launch'),
+              trailing: DropdownButton<String>(
+                value: settings.resamplerQuality,
+                items: const [
+                  DropdownMenuItem(value: 'Low', child: Text('Low')),
+                  DropdownMenuItem(
+                    value: 'Medium',
+                    child: Text('Medium'),
+                  ),
+                  DropdownMenuItem(value: 'High', child: Text('High')),
+                  DropdownMenuItem(
+                    value: 'Very High',
+                    child: Text('Very High'),
+                  ),
+                ],
+                onChanged: (value) {
+                  if (value != null) settings.setResamplerQuality(value);
+                },
+              ),
+            ),
+            SettingsSwitchTile(
+              icon: Icons.blur_on,
+              title: 'Dithering',
+              subtitle: 'Dither on the 16 bit path, next launch',
+              value: settings.enableDither,
+              onChanged: settings.setEnableDither,
+            ),
+          ],
+        ),
+      ),
+      Consumer<SettingsProvider>(
+        builder: (context, settings, child) => SettingsSection(
+          title: 'Online Features',
+          children: [
+            SettingsSwitchTile(
+              icon: Icons.cloud_outlined,
+              title: 'YouTube Integration',
+              subtitle: 'Enable online music streaming',
+              value: settings.enableYouTubeIntegration,
+              onChanged: settings.setEnableYouTubeIntegration,
+            ),
+            SettingsSwitchTile(
+              icon: Icons.history_rounded,
+              title: 'Search history',
+              subtitle: 'Remember what you search on Stream',
+              value: settings.enableSearchHistory,
+              onChanged: settings.setEnableSearchHistory,
+            ),
+            SettingsSwitchTile(
+              icon: Icons.cast,
+              title: 'Casting',
+              subtitle: 'Chromecast support',
+              value: settings.enableCasting,
+              onChanged: settings.setEnableCasting,
+            ),
+            SettingsSwitchTile(
+              icon: Icons.directions_car,
+              title: 'Android Auto',
+              subtitle: 'Car dashboard integration',
+              value: settings.enableAndroidAuto,
+              onChanged: settings.setEnableAndroidAuto,
+            ),
+          ],
+        ),
+      ),
+      SettingsSection(
+        title: 'About',
+        children: [
+          ListTile(
+            leading: const Icon(Icons.info_outline),
+            title: const Text('Version'),
+            subtitle: const Text('1.0.0'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.code),
+            title: const Text('Open Source'),
+            subtitle: const Text('GPL v3 License'),
+            trailing: const Icon(Icons.open_in_new),
+            onTap: () => launchUrl(
+              Uri.parse('https://github.com/libreAMP/kashou'),
+              mode: LaunchMode.externalApplication,
+            ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.favorite_outline),
+            title: const Text('Support Development'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => launchUrl(
+              Uri.parse('https://github.com/libreAMP/kashou'),
+              mode: LaunchMode.externalApplication,
+            ),
+          ),
+        ],
+      ),
+    ];
   }
 
   void _showMusicFoldersDialog(BuildContext context) async {
@@ -244,7 +283,7 @@ class SettingsScreen extends StatelessWidget {
       builder: (context) => AlertDialog(
         title: const Text('Music Folders'),
         content: SizedBox(
-          width: double.maxFinite,
+          width: isDesktop ? 480 : double.maxFinite,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -259,12 +298,18 @@ class SettingsScreen extends StatelessWidget {
                       title: Text(path),
                       trailing: IconButton(
                         icon: const Icon(Icons.delete),
+                        tooltip: 'Remove folder',
                         onPressed: () async {
+                          final navigator = Navigator.of(context);
                           customPaths.remove(path);
                           await prefs.setStringList(
                               'custom_music_paths', customPaths);
-                          Navigator.pop(context);
-                          _showMusicFoldersDialog(context);
+                          navigator.pop();
+                          // the builder's context is unmounted after pop, so
+                          // reopen from the screen's own context instead
+                          if (context.mounted) {
+                            _showMusicFoldersDialog(context);
+                          }
                         },
                       ),
                     )),
@@ -278,8 +323,7 @@ class SettingsScreen extends StatelessWidget {
           ),
           FilledButton.icon(
             onPressed: () async {
-              String? selectedDirectory =
-                  await FilePicker.platform.getDirectoryPath();
+              String? selectedDirectory = await FilePicker.getDirectoryPath();
 
               if (selectedDirectory != null) {
                 customPaths.add(selectedDirectory);
@@ -298,4 +342,3 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 }
-

@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:collection';
-import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import 'package:collection/collection.dart';
@@ -9,7 +9,21 @@ import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 import 'package:innertube_dart/innertube_dart.dart' as innertube;
 
 import '../models/youtube_streaming_data.dart';
+import 'potoken/po_token_service.dart';
 import 'youtube/youtube_service.dart';
+
+/// A playable audio url plus whatever metadata the source reported with it.
+class ResolvedAudioStream {
+  const ResolvedAudioStream({
+    required this.url,
+    this.loudnessDb,
+    this.title,
+  });
+
+  final String url;
+  final double? loudnessDb;
+  final String? title;
+}
 
 class YtdlWrapperService {
   static final YoutubeExplode _client = YoutubeExplode();
@@ -21,6 +35,142 @@ class YtdlWrapperService {
   static const Duration _defaultStreamCacheTtl = Duration(minutes: 10);
 
   const YtdlWrapperService();
+
+  /// Resolve the audio url to actually play for [watchUrl].
+  ///
+  /// The returned url is verified to serve bytes before it is handed back, so
+  /// callers never pass a dead one to the player. See [isStreamUrlUsable] for
+  /// why that has to be checked rather than assumed.
+  ///
+  /// Only InnerTube reports loudness, so streams resolved through
+  /// youtube_explode carry no replay-gain correction.
+  static Future<ResolvedAudioStream?> resolveAudioStream(
+    String watchUrl, {
+    bool forceRefresh = false,
+    int maxAttempts = 3,
+  }) async {
+    for (var attempt = 1; attempt <= maxAttempts; attempt++) {
+      // every retry has to bypass the cache: it holds the manifest that just
+      // came back dead, and re-reading it would hand back the same 403 url
+      final stream = await _resolveOnce(watchUrl,
+          forceRefresh: forceRefresh || attempt > 1);
+      if (stream == null) return null;
+      if (await isStreamUrlUsable(stream.url)) return stream;
+      debugPrint('[Ytdl] dead stream url on attempt $attempt, re-resolving');
+      if (attempt < maxAttempts) {
+        await Future.delayed(Duration(milliseconds: 400 * attempt));
+      }
+    }
+    return null;
+  }
+
+  static Future<ResolvedAudioStream?> _resolveOnce(
+    String watchUrl, {
+    required bool forceRefresh,
+  }) async {
+    // Desktop has no PoToken (see po_token_service.dart). Where one can be
+    // minted, InnerTube stays first: it is the path that mints it.
+    if (PoTokenService.supported) {
+      final inner = await _resolveInnerTubeAudio(watchUrl,
+          forceRefresh: forceRefresh);
+      if (inner != null) return inner;
+    }
+    return _resolveExplodeAudio(watchUrl, forceRefresh: forceRefresh);
+  }
+
+  /// Whether [url] will actually serve bytes right now.
+  ///
+  /// YouTube grants roughly one usable fetch per resolved manifest, so a freshly
+  /// minted url sometimes arrives already throttled and then *every* request to
+  /// it 403s — regardless of user agent, range or headers, which is why this
+  /// is not something the app's own headers can influence. The failure is also
+  /// invisible to just_audio: mpv simply fails to open the file, no error
+  /// reaches Dart, and the load hangs until the caller's timeout. Two bytes are
+  /// enough to tell, and asking costs far less than a hung load.
+  static Future<bool> isStreamUrlUsable(
+    String url, {
+    Duration timeout = const Duration(seconds: 8),
+  }) async {
+    final client = http.Client();
+    try {
+      final req = http.Request('GET', Uri.parse(url));
+      // an m3u8 is a text manifest, not a byte range
+      if (!url.contains('.m3u8')) req.headers['Range'] = 'bytes=0-1';
+      final res = await client.send(req).timeout(timeout);
+      final ok = res.statusCode == 200 || res.statusCode == 206;
+      // a 206 that carries no bytes would hang mpv just as badly as a 403, so
+      // confirm the body actually starts; the rest is never read
+      if (ok) await res.stream.first.timeout(timeout);
+      debugPrint('[Ytdl] probe ${res.statusCode} '
+          '${ok ? 'usable' : 'REJECTED'} ${_shorten(url)}');
+      return ok;
+    } catch (e) {
+      debugPrint('[Ytdl] probe failed ($e) ${_shorten(url)}');
+      return false;
+    } finally {
+      client.close();
+    }
+  }
+
+  static String _shorten(String url) =>
+      url.length <= 96 ? url : '${url.substring(0, 96)}...';
+
+  static Future<ResolvedAudioStream?> _resolveInnerTubeAudio(
+    String watchUrl, {
+    required bool forceRefresh,
+  }) async {
+    final videoId = VideoId.parseVideoId(watchUrl.trim());
+    if (videoId == null) return null;
+
+    var info = await YoutubeService.instance
+        .fetchStreams(videoId, forceRefresh: forceRefresh);
+    if ((info == null || info.audioStreams.isEmpty) && !forceRefresh) {
+      // a cold client often needs a second, uncached attempt
+      await Future.delayed(const Duration(milliseconds: 800));
+      info = await YoutubeService.instance
+          .fetchStreams(videoId, forceRefresh: true);
+    }
+    if (info == null || info.audioStreams.isEmpty) return null;
+
+    final mp4 = info.audioStreams
+        .where((s) => s.mimeType.contains('mp4'))
+        .toList()
+      ..sort((a, b) => b.bitrate.compareTo(a.bitrate));
+    final stream = mp4.isNotEmpty ? mp4.first : info.audioStreams.first;
+
+    return ResolvedAudioStream(
+      url: stream.url,
+      loudnessDb: info.loudnessDb,
+      title: info.title,
+    );
+  }
+
+  static Future<ResolvedAudioStream?> _resolveExplodeAudio(
+    String watchUrl, {
+    required bool forceRefresh,
+  }) async {
+    try {
+      final data = await const YtdlWrapperService().fetchStreamingData(
+        watchUrl,
+        useInnerTube: false,
+        forceRefresh: forceRefresh,
+      );
+      final stream = data?.bestStream ?? data?.fallbackStream;
+      if (stream == null) return null;
+      return ResolvedAudioStream(url: stream.url, title: data?.title);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Direct youtube_explode resolve (no InnerTube, no PoToken). Returns the
+  /// stream URL or null.
+  static Future<String?> fetchFallbackAudioUrl(String videoUrl,
+      {bool forceRefresh = false}) async {
+    final resolved =
+        await _resolveExplodeAudio(videoUrl, forceRefresh: forceRefresh);
+    return resolved?.url;
+  }
 
   // filter out stuff too short or too long to really be a song
   static const _minMusicSeconds = 45;
@@ -64,7 +214,7 @@ class YtdlWrapperService {
       }
       videos = videos.take(limit).toList();
 
-      print(
+      debugPrint(
           '[youtube_explode] search "$query" (limit=$limit, music=$musicOnly) -> ${videos.length} results');
 
       final items = videos.map<Map<String, dynamic>>((video) {
@@ -87,7 +237,7 @@ class YtdlWrapperService {
       _searchCache[key] = _CachedResult(items);
       return items;
     } catch (e) {
-      print('youtube_explode search error: $e');
+      debugPrint('youtube_explode search error: $e');
       return [];
     }
   }
@@ -101,7 +251,7 @@ class YtdlWrapperService {
     final parsedVideoId = VideoId.parseVideoId(trimmedUrl);
 
     if (parsedVideoId == null) {
-      print('Invalid YouTube URL: $videoUrl');
+      debugPrint('Invalid YouTube URL: $videoUrl');
       return null;
     }
 
@@ -113,7 +263,6 @@ class YtdlWrapperService {
 
     if (useInnerTube) {
       try {
-
         final streamInfo = await YoutubeService.instance
             .fetchStreams(parsedVideoId, forceRefresh: forceRefresh);
 
@@ -125,9 +274,9 @@ class YtdlWrapperService {
           return streamingData;
         }
 
-        print('[innertube] No streams found, falling back to youtube_explode');
+        debugPrint('[innertube] No streams found, falling back to youtube_explode');
       } catch (e) {
-        print('[innertube] Error: $e, falling back to youtube_explode');
+        debugPrint('[innertube] Error: $e, falling back to youtube_explode');
       }
     }
 
@@ -157,7 +306,7 @@ class YtdlWrapperService {
       if (hlsAudioStreams.isEmpty &&
           hlsMuxedStreams.isEmpty &&
           progressiveStreams.isEmpty) {
-        print('No audio streams available for $videoUrl');
+        debugPrint('No audio streams available for $videoUrl');
         return null;
       }
 
@@ -192,7 +341,7 @@ class YtdlWrapperService {
 
       return streamingData;
     } catch (e) {
-      print('youtube_explode streaming fetch error: $e');
+      debugPrint('youtube_explode streaming fetch error: $e');
       return null;
     }
   }
@@ -256,9 +405,9 @@ class YtdlWrapperService {
     final audioStreams = streamInfo.audioStreams as List<innertube.AudioStream>;
 
     final primaryFormats = audioStreams.map((stream) {
-      print(
+      debugPrint(
           '[innertube] Audio stream: ${stream.itag}, ${stream.bitrate}bps, ${stream.mimeType}');
-      print(
+      debugPrint(
           '[innertube] Audio URL: ${stream.url.substring(0, stream.url.length > 100 ? 100 : stream.url.length)}...');
       return YouTubeStreamFormat(
         url: stream.url,

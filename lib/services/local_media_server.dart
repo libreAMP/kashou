@@ -238,7 +238,7 @@ class LocalMediaServer {
       }
     }
 
-    if (start < 0 || start >= fileLength || end! < start) {
+    if (start < 0 || start >= fileLength || end < start) {
       request.response
         ..statusCode = HttpStatus.requestedRangeNotSatisfiable
         ..headers.set(HttpHeaders.contentRangeHeader, 'bytes */$fileLength');

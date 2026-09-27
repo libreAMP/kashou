@@ -1,17 +1,31 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/library_provider.dart';
 import '../providers/audio_provider.dart';
 import '../widgets/track_list_item.dart';
 import '../widgets/album_card.dart';
+import '../widgets/track_options_sheet.dart';
 import 'track_list_page.dart';
 import '../models/track.dart';
 import '../theme/app_theme.dart';
 import '../theme/radii.dart';
+import '../utils/platform.dart';
 import 'search_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
+
+  static const double _maxContentWidth = 1100;
+
+  // keeps phone edge padding; centers the feed on wide desktop windows
+  double _contentHorizontalPadding(BuildContext context) {
+    if (!isDesktop) return 20;
+    final width = MediaQuery.sizeOf(context).width;
+    if (width <= _maxContentWidth) return 20;
+    return (width - _maxContentWidth) / 2 + 20;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -37,7 +51,10 @@ class HomeScreen extends StatelessWidget {
                   return RefreshIndicator(
                     onRefresh: () => library.scanLibrary(force: true),
                     child: ListView(
-                      padding: EdgeInsets.fromLTRB(20, 4, 20,
+                      padding: EdgeInsets.fromLTRB(
+                          _contentHorizontalPadding(context),
+                          4,
+                          _contentHorizontalPadding(context),
                           showMiniPlayer ? safeArea + 96 : safeArea + 24),
                       children: [
                         _buildHeroHeader(context, library),
@@ -61,8 +78,10 @@ class HomeScreen extends StatelessWidget {
 
   Widget _buildSearchBar(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final horizontal = _contentHorizontalPadding(context);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 8, 12, 8),
+      padding: EdgeInsets.fromLTRB(
+          horizontal, 8, isDesktop ? horizontal : 12, 8),
       child: Row(
         children: [
           Expanded(
@@ -114,6 +133,17 @@ class HomeScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 4),
+          // pull-to-refresh needs a touch drag, so offer a visible
+          // alternative on desktop
+          if (isDesktop)
+            IconButton(
+              icon: const Icon(Icons.refresh_rounded),
+              tooltip: 'Refresh library',
+              onPressed: () => Provider.of<LibraryProvider>(
+                context,
+                listen: false,
+              ).scanLibrary(force: true),
+            ),
           IconButton(
             icon: const Icon(Icons.settings_outlined),
             tooltip: 'Settings',
@@ -224,19 +254,7 @@ class HomeScreen extends StatelessWidget {
               )),
             ),
             const SizedBox(height: 12),
-            SizedBox(
-              height: 160,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                itemCount: recentTracks.length,
-                itemBuilder: (context, index) {
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 12),
-                    child: _buildTrackCard(context, recentTracks[index]),
-                  );
-                },
-              ),
-            ),
+            _buildTrackCardShelf(context, recentTracks),
           ],
         );
       },
@@ -266,22 +284,52 @@ class HomeScreen extends StatelessWidget {
               )),
             ),
             const SizedBox(height: 12),
-            SizedBox(
-              height: 160,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                itemCount: recentTracks.length,
-                itemBuilder: (context, index) {
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 12),
-                    child: _buildTrackCard(context, recentTracks[index]),
-                  );
-                },
-              ),
-            ),
+            _buildTrackCardShelf(context, recentTracks),
           ],
         );
       },
+    );
+  }
+
+  // desktop: mouse users scroll vertically, so shelves become grids that use
+  // the full content width instead of sideways carousels
+  Widget _buildTrackCardShelf(BuildContext context, List<Track> tracks) {
+    if (isDesktop) {
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final columns = (constraints.maxWidth / 140).floor().clamp(4, 12);
+          final cellWidth =
+              (constraints.maxWidth - (columns - 1) * 12) / columns;
+          return GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            padding: EdgeInsets.zero,
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: columns,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+              // art is square; the extra height fits the two text lines
+              childAspectRatio: cellWidth / (cellWidth + 41),
+            ),
+            itemCount: tracks.length,
+            itemBuilder: (context, index) =>
+                _buildTrackCard(context, tracks[index]),
+          );
+        },
+      );
+    }
+    return SizedBox(
+      height: 160,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        itemCount: tracks.length,
+        itemBuilder: (context, index) {
+          return Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: _buildTrackCard(context, tracks[index]),
+          );
+        },
+      ),
     );
   }
 
@@ -314,18 +362,37 @@ class HomeScreen extends StatelessWidget {
               )),
             ),
             const SizedBox(height: 12),
-            ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: localFavoriteTracks.length,
-              padding: EdgeInsets.zero,
-              itemBuilder: (context, index) {
-                return TrackListItem(track: localFavoriteTracks[index]);
-              },
-            ),
+            _buildFavoriteTracksList(context, localFavoriteTracks),
           ],
         );
       },
+    );
+  }
+
+  Widget _buildFavoriteTracksList(BuildContext context, List<Track> tracks) {
+    final width = MediaQuery.sizeOf(context).width;
+    final contentWidth = math.min(width - 40, _maxContentWidth);
+    final twoColumns = isDesktop && contentWidth >= 760;
+
+    if (!twoColumns) {
+      return ListView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: tracks.length,
+        padding: EdgeInsets.zero,
+        itemBuilder: (context, index) {
+          return TrackListItem(track: tracks[index]);
+        },
+      );
+    }
+
+    final itemWidth = (contentWidth - 12) / 2;
+    return Wrap(
+      spacing: 12,
+      children: [
+        for (final track in tracks)
+          SizedBox(width: itemWidth, child: TrackListItem(track: track)),
+      ],
     );
   }
 
@@ -347,27 +414,52 @@ class HomeScreen extends StatelessWidget {
               title: 'Top albums',
             ),
             const SizedBox(height: 12),
-            SizedBox(
-              height: 160,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                itemCount: albums.length,
-                itemBuilder: (context, index) {
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 12),
-                    child: SizedBox(
-                        width: 118, child: AlbumCard(album: albums[index])),
+            if (isDesktop)
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final columns =
+                      (constraints.maxWidth / 180).floor().clamp(3, 8);
+                  final cellWidth =
+                      (constraints.maxWidth - (columns - 1) * 12) / columns;
+                  return GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    padding: EdgeInsets.zero,
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: columns,
+                      crossAxisSpacing: 12,
+                      mainAxisSpacing: 12,
+                      // art is square; the extra height fits the two text lines
+                      childAspectRatio: cellWidth / (cellWidth + 41),
+                    ),
+                    itemCount: albums.length,
+                    itemBuilder: (context, index) =>
+                        AlbumCard(album: albums[index]),
                   );
                 },
+              )
+            else
+              SizedBox(
+                height: 160,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: albums.length,
+                  itemBuilder: (context, index) {
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 12),
+                      child: SizedBox(
+                          width: 118, child: AlbumCard(album: albums[index])),
+                    );
+                  },
+                ),
               ),
-            ),
           ],
         );
       },
     );
   }
 
-  Widget _buildTrackCard(BuildContext context, track) {
+  Widget _buildTrackCard(BuildContext context, Track track) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
 
@@ -382,9 +474,13 @@ class HomeScreen extends StatelessWidget {
         final audio = Provider.of<AudioProvider>(context, listen: false);
         audio.playTrack(track);
       },
+      // desktop pointer alternative to the long-press options menu
+      onSecondaryTapUp:
+          isDesktop ? (_) => showTrackOptionsSheet(context, track) : null,
       borderRadius: BorderRadius.circular(rMd),
       child: SizedBox(
-        width: 118,
+        // desktop grids give each card a cell width; mobile carousels fix it
+        width: isDesktop ? null : 118,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

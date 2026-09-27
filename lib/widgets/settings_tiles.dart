@@ -96,8 +96,8 @@ class SettingsSwitchTile extends StatelessWidget {
       trailing: Switch(
         value: value,
         onChanged: onChanged,
-        thumbIcon: MaterialStateProperty.resolveWith<Icon?>((states) {
-          if (states.contains(MaterialState.selected)) {
+        thumbIcon: WidgetStateProperty.resolveWith<Icon?>((states) {
+          if (states.contains(WidgetState.selected)) {
             return Icon(Icons.check_rounded, size: 16, color: scheme.primary);
           }
           return Icon(

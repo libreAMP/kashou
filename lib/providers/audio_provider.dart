@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
 
@@ -10,7 +11,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import '../models/track.dart';
 import '../services/audio_service.dart' as audio_svc;
-import '../services/youtube/youtube_service.dart';
+import '../services/ytdl_service.dart';
 import '../providers/settings_provider.dart';
 import '../providers/recommendation_provider.dart';
 import '../providers/library_provider.dart';
@@ -26,7 +27,7 @@ class AudioProvider extends ChangeNotifier {
   audio_svc.AudioPlayerHandler? _audioHandler;
   SettingsProvider? _settingsProvider;
   RecommendationProvider? _recProvider;
-  ConcatenatingAudioSource? _playlist;
+  List<AudioSource>? _playlistSources;
 
   final List<StreamSubscription> _playerSubs = [];
   // re-subscribed on each gapless setup
@@ -198,9 +199,7 @@ class AudioProvider extends ChangeNotifier {
     _restorePendingSnapshot();
     _pendingTrack = null;
     _pendingShouldUseExistingSource = false;
-    if (_currentTrack == null) {
-      _currentTrack = _lastCommittedTrack;
-    }
+    _currentTrack ??= _lastCommittedTrack;
     notifyListeners();
   }
 
@@ -388,7 +387,9 @@ class AudioProvider extends ChangeNotifier {
 
     _playerSubs.add(audioPlayer.durationStream.listen((duration) {
       _duration = duration ?? Duration.zero;
-      if (_audioHandler != null && duration != null && duration > Duration.zero) {
+      if (_audioHandler != null &&
+          duration != null &&
+          duration > Duration.zero) {
         _audioHandler!.updateDuration(duration);
       }
       // search sometimes ships no duration
@@ -419,17 +420,22 @@ class AudioProvider extends ChangeNotifier {
       notifyListeners();
     }));
 
-    _playerSubs.add(audioPlayer.androidAudioSessionIdStream.listen((sessionId) {
-      if (sessionId != null) {
-        CustomEqualizer.init(sessionId);
-        CustomEqualizer.enableEffects(_equalizerEnabled);
-        _loadEqualizerBands();
-      }
-    }));
-
+    // android session id drives the equalizer, desktop has neither
+    if (Platform.isAndroid) {
+      _playerSubs
+          .add(audioPlayer.androidAudioSessionIdStream.listen((sessionId) {
+        if (sessionId != null) {
+          CustomEqualizer.init(sessionId);
+          CustomEqualizer.enableEffects(_equalizerEnabled);
+          _loadEqualizerBands();
+        }
+      }));
+    }
   }
 
   Future<void> _configureAudioSession() async {
+    // audio_session is mobile-only, desktop playback needs no focus juggling
+    if (!Platform.isAndroid && !Platform.isIOS) return;
     try {
       final session = await AudioSession.instance;
       await session.configure(const AudioSessionConfiguration(
@@ -539,29 +545,22 @@ class AudioProvider extends ChangeNotifier {
     final watchUrl = _isWatchUrl(track.path) ? track.path : track.sourceUrl;
     if (watchUrl == null || !_isWatchUrl(watchUrl)) return null;
     try {
-      final videoId = Uri.parse(watchUrl).queryParameters['v'] ?? watchUrl;
-      var streamInfo = await YoutubeService.instance.fetchStreams(videoId);
-      if (streamInfo == null || streamInfo.audioStreams.isEmpty) {
-        await Future.delayed(const Duration(milliseconds: 800));
-        streamInfo = await YoutubeService.instance
-            .fetchStreams(videoId, forceRefresh: true);
-      }
-      if (streamInfo == null || streamInfo.audioStreams.isEmpty) {
+      final stream = await YtdlWrapperService.resolveAudioStream(watchUrl);
+      if (stream == null) {
         debugPrint('[Audio] resolve failed, no streams: ${track.title}');
         return null;
       }
-      final mp4 = streamInfo.audioStreams
-          .where((s) => s.mimeType.contains('mp4'))
-          .toList()
-        ..sort((a, b) => b.bitrate.compareTo(a.bitrate));
-      final stream = mp4.isNotEmpty ? mp4.first : streamInfo.audioStreams.first;
       debugPrint('[Audio] resolved stream: ${track.title}');
 
-      return track.copyWith(
+      var resolved = track.copyWith(
         path: stream.url,
-        loudnessDb: streamInfo.loudnessDb,
-        title: track.title.isEmpty ? streamInfo.title : track.title,
+        title: track.title.isEmpty ? (stream.title ?? '') : track.title,
       );
+      // copyWith treats null as "keep", so only overwrite when we have one
+      if (stream.loudnessDb != null) {
+        resolved = resolved.copyWith(loudnessDb: stream.loudnessDb);
+      }
+      return resolved;
     } catch (e) {
       debugPrint('[Audio] watch url resolve failed: $e');
       return null;
@@ -686,7 +685,7 @@ class AudioProvider extends ChangeNotifier {
       } else {
         _gaplessIndexSub?.cancel();
         _gaplessIndexSub = null;
-        _playlist = null;
+        _playlistSources = null;
         await _applyLoudness(track, enableReplayGain);
 
         if (enableCrossfade && wasPlaying && !_isRemotePath(track.path)) {
@@ -725,6 +724,9 @@ class AudioProvider extends ChangeNotifier {
       }
     } catch (e) {
       debugPrint('Error playing track: $e');
+      // a resolved googlevideo url can still 403 at playback time (token-less
+      // desktop clients, stale potoken): re-resolve once via youtube_explode
+      if (await _retryViaFallback(track, seq)) return;
       if (seq != _playSeq) return;
       _isLoadingTrack = false;
       _pendingTrack = null;
@@ -738,6 +740,52 @@ class AudioProvider extends ChangeNotifier {
         _restorePendingSnapshot();
       }
       notifyListeners();
+    }
+  }
+
+  // Last-resort retry when a remote track fails to load/play: re-resolve the
+  // watch url through youtube_explode (token-less, no InnerTube) and try once
+  // more. Returns true when the retry succeeded or the play was superseded.
+  Future<bool> _retryViaFallback(Track track, int seq) async {
+    if (seq != _playSeq) return true;
+    if (!_isRemotePath(track.path)) return false;
+    final watchUrl = track.sourceUrl;
+    if (watchUrl == null || !_isWatchUrl(watchUrl)) return false;
+    try {
+      final fallbackUrl = await YtdlWrapperService.fetchFallbackAudioUrl(
+          watchUrl,
+          forceRefresh: true);
+      if (fallbackUrl == null) return false;
+      if (seq != _playSeq) return true;
+      debugPrint('[Audio] retrying via fallback: ${track.title}');
+      track = track.copyWith(path: fallbackUrl);
+      await _loadTrackIntoPlayer(track);
+      await audioPlayer.play();
+      if (seq != _playSeq) return true;
+      _isPlaying = audioPlayer.playing;
+      _currentTrack = track;
+      _pendingTrack = null;
+      _isLoadingTrack = false;
+      _lastCommittedTrack = track;
+      _clearPendingSnapshot();
+      _pendingShouldUseExistingSource = false;
+      final queueIndex = _queue.indexWhere((t) => t.id == track.id);
+      if (queueIndex != -1) {
+        _queue[queueIndex] = track;
+        _currentIndex = queueIndex;
+      }
+      notifyListeners();
+      _prefetchNext();
+      try {
+        _addToRecentTracks(track.id);
+        _addToStreamHistory(track);
+      } catch (e) {
+        debugPrint('[Audio] history bookkeeping failed: $e');
+      }
+      return true;
+    } catch (e) {
+      debugPrint('[Audio] fallback retry failed: $e');
+      return false;
     }
   }
 
@@ -759,27 +807,26 @@ class AudioProvider extends ChangeNotifier {
     final next = _currentIndex + 1;
     if (next >= _queue.length) return;
     final url = _queue[next].sourceUrl ?? _queue[next].path;
-    final videoId = _extractVideoId(url);
-    if (videoId == null) return;
+    if (_extractVideoId(url) == null) return;
     Future.delayed(const Duration(seconds: 2), () {
-      YoutubeService.instance.fetchStreams(videoId).catchError((_) => null);
+      // warm whichever cache the resolve will actually read
+      YtdlWrapperService.resolveAudioStream(url).catchError((_) => null);
     });
   }
 
   Future<void> _setupGaplessPlayback() async {
-    _playlist = ConcatenatingAudioSource(
-      children: _queue.map((track) {
-        return _createAudioSource(track);
-      }).toList(),
-    );
+    _playlistSources = _queue.map((track) {
+      return _createAudioSource(track);
+    }).toList();
 
-    await audioPlayer.setAudioSource(_playlist!, initialIndex: _currentIndex);
+    await audioPlayer.setAudioSources(_playlistSources!,
+        initialIndex: _currentIndex);
     await audioPlayer.play();
 
     _gaplessIndexSub?.cancel();
     _gaplessIndexSub = audioPlayer.currentIndexStream.listen((index) {
       // stale gapless events fire mid handoff
-      if (_playlist == null || _pendingTrack != null) return;
+      if (_playlistSources == null || _pendingTrack != null) return;
       if (index != null && index < _queue.length) {
         _currentIndex = index;
         _currentTrack = _queue[index];
@@ -815,8 +862,8 @@ class AudioProvider extends ChangeNotifier {
   }
 
   bool _playlistIsMatchingQueue() {
-    if (_playlist == null) return false;
-    final children = _playlist!.children;
+    final children = _playlistSources;
+    if (children == null) return false;
     if (children.length != _queue.length) return false;
     for (int i = 0; i < children.length; i++) {
       final source = children[i];
@@ -839,8 +886,8 @@ class AudioProvider extends ChangeNotifier {
 
     if (!wasPlaying) return false;
 
-    if (_playlist != null && _playlistIsMatchingQueue()) {
-      final currentSource = _playlist!.children[_currentIndex];
+    if (_playlistSources != null && _playlistIsMatchingQueue()) {
+      final currentSource = _playlistSources![_currentIndex];
       if (currentSource is UriAudioSource) {
         return currentSource.uri.toString() == track.path;
       }
@@ -860,18 +907,10 @@ class AudioProvider extends ChangeNotifier {
         return HlsAudioSource(uri);
       }
       debugPrint('[Audio] Using URI audio source');
-      // googlevideo 403s requests without a bounded range header
-      if (path.contains('googlevideo.com')) {
-        final headers = <String, String>{
-          'User-Agent':
-              'com.google.android.apps.youtube.vr.oculus/1.65.10 (Linux; U; Android 12L; Quest 3) gzip',
-        };
-        final end = int.tryParse(uri.queryParameters['clen'] ?? '');
-        if (end != null && end > 0) {
-          headers['Range'] = 'bytes=0-${end - 1}';
-        }
-        return AudioSource.uri(uri, headers: headers);
-      }
+      // No headers. The User-Agent is irrelevant to googlevideo (a live url
+      // serves 206 to libmpv, curl, the Quest 3 UA and no UA alike, and a dead
+      // one 403s them all), and any header at all forces playback through
+      // just_audio's loopback proxy for no gain. mpv range-negotiates itself.
       return AudioSource.uri(uri);
     }
     debugPrint('[Audio] Using file audio source');
@@ -887,10 +926,16 @@ class AudioProvider extends ChangeNotifier {
     }
     _isLoadingSource = true;
     final source = _createAudioSource(track);
+    // A rejected googlevideo url never surfaces as an error: the header proxy
+    // just hands mpv the 403, mpv fails to open, and the load hangs until
+    // this timeout. Fail fast instead so _retryViaFallback can re-resolve,
+    // rather than sitting on a dead socket for the full 30s. Local files load
+    // off disk, keep the generous bound.
+    final timeout = _isRemotePath(track.path)
+        ? const Duration(seconds: 10)
+        : const Duration(seconds: 30);
     try {
-      await audioPlayer
-          .setAudioSource(source)
-          .timeout(const Duration(seconds: 30));
+      await audioPlayer.setAudioSource(source).timeout(timeout);
     } finally {
       _isLoadingSource = false;
     }
@@ -930,9 +975,11 @@ class AudioProvider extends ChangeNotifier {
     await playTrack(_queue[index], playlist: _queue);
   }
 
+  /// Moves a queue item to [newIndex]. Matches ReorderableListView's
+  /// [onReorderItem], which already accounts for the removed old index, so no
+  /// downward adjustment is needed here.
   void moveQueueItem(int oldIndex, int newIndex) {
     if (oldIndex < 0 || oldIndex >= _queue.length) return;
-    if (newIndex > oldIndex) newIndex -= 1;
     final track = _queue.removeAt(oldIndex);
     _queue.insert(newIndex, track);
     // keep the pointer on whatever is playing
@@ -1067,7 +1114,10 @@ class AudioProvider extends ChangeNotifier {
     _equalizerEnabled = enabled;
     try {
       await CustomEqualizer.enableEffects(enabled);
-    } catch (e) {}
+    } catch (e) {
+      // desktop has no equalizer session, the platform call is a no-op there
+      debugPrint('Equalizer enable failed: $e');
+    }
     notifyListeners();
   }
 
@@ -1108,7 +1158,9 @@ class AudioProvider extends ChangeNotifier {
     _bassBoost = value;
     try {
       await CustomEqualizer.setBassBoost((value * 1000).toInt());
-    } catch (e) {}
+    } catch (e) {
+      debugPrint('Bass boost failed: $e');
+    }
     notifyListeners();
   }
 
@@ -1117,7 +1169,9 @@ class AudioProvider extends ChangeNotifier {
     _trebleBoost = value;
     try {
       await CustomEqualizer.setVirtualizer((value * 1000).toInt());
-    } catch (e) {}
+    } catch (e) {
+      debugPrint('Treble boost failed: $e');
+    }
     notifyListeners();
   }
 

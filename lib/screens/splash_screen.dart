@@ -5,6 +5,7 @@ import '../providers/library_provider.dart';
 import '../services/permission_service.dart';
 import '../services/audio_service.dart';
 import '../theme/shapes.dart';
+import '../utils/platform.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -51,6 +52,15 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   Future<void> _initialize() async {
+    // grab the navigator + library provider before the first await so no
+    // BuildContext is used across an async gap
+    final navigator = Navigator.of(context);
+    final libraryProvider = Provider.of<LibraryProvider>(
+      context,
+      listen: false,
+    );
+    void route(String name) => navigator.pushReplacementNamed(name);
+
     try {
       await Future.delayed(const Duration(seconds: 2));
 
@@ -61,7 +71,8 @@ class _SplashScreenState extends State<SplashScreen>
 
       // welcome asks for permissions itself on first run
       if (!hasSeenWelcome) {
-        Navigator.pushReplacementNamed(context, '/welcome');
+        if (!mounted) return;
+        route('/welcome');
         return;
       }
 
@@ -70,23 +81,18 @@ class _SplashScreenState extends State<SplashScreen>
       await _initializeAudioService();
 
       // Start library scan
-      final libraryProvider = Provider.of<LibraryProvider>(
-        context,
-        listen: false,
-      );
-
       await Future.delayed(const Duration(milliseconds: 500));
 
       if (mounted) {
         await libraryProvider.scanLibrary(force: true);
         if (mounted) {
-          Navigator.pushReplacementNamed(context, '/home');
+          route('/home');
         }
       }
     } catch (e) {
       debugPrint('Error during initialization: $e');
       if (mounted) {
-        Navigator.pushReplacementNamed(context, '/home');
+        route('/home');
       }
     }
   }
@@ -110,6 +116,10 @@ class _SplashScreenState extends State<SplashScreen>
     final scheme = Theme.of(context).colorScheme;
     final dark = Theme.of(context).brightness == Brightness.dark;
 
+    // scale the brand mark up a touch on roomy desktop windows
+    final badgeSize = isDesktop ? 200.0 : 168.0;
+    final badgePadding = isDesktop ? 45.0 : 38.0;
+
     return Scaffold(
       backgroundColor: scheme.surface,
       body: Center(
@@ -121,8 +131,8 @@ class _SplashScreenState extends State<SplashScreen>
               ScaleTransition(
                 scale: _badgePop,
                 child: SizedBox(
-                  width: 168,
-                  height: 168,
+                  width: badgeSize,
+                  height: badgeSize,
                   child: Stack(
                     alignment: Alignment.center,
                     children: [
@@ -138,7 +148,7 @@ class _SplashScreenState extends State<SplashScreen>
                       RotationTransition(
                         turns: _kaUntwist,
                         child: Padding(
-                          padding: const EdgeInsets.all(38),
+                          padding: EdgeInsets.all(badgePadding),
                           child: Image.asset(
                             dark
                                 ? 'assets/images/ka_mark_light_ink.png'
@@ -167,6 +177,22 @@ class _SplashScreenState extends State<SplashScreen>
                       ),
                 ),
               ),
+              // desktop first-run scans can take a moment; show a subtle
+              // busy hint since there is no touch affordance to wait on
+              if (isDesktop) ...[
+                const SizedBox(height: 32),
+                FadeTransition(
+                  opacity: _wordFade,
+                  child: SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         ),

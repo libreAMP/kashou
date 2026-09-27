@@ -3,10 +3,14 @@ import 'package:flutter/foundation.dart';
 import 'dart:io';
 
 class PermissionService {
-  static Future<void> initialize() async {
-  }
+  // permission_handler only implements android/ios; desktop grants implicitly
+  static bool get _needsRuntimePermissions =>
+      Platform.isAndroid || Platform.isIOS;
+
+  static Future<void> initialize() async {}
 
   static Future<bool> requestPermissions() async {
+    if (!_needsRuntimePermissions) return true;
     try {
       List<Permission> permissions = [];
 
@@ -34,6 +38,7 @@ class PermissionService {
   }
 
   static Future<bool> checkStoragePermission() async {
+    if (!_needsRuntimePermissions) return true;
     if (await Permission.audio.isGranted ||
         await Permission.storage.isGranted) {
       return true;
@@ -47,6 +52,7 @@ class PermissionService {
   }
 
   static Future<bool> checkNotificationPermission() async {
+    if (!_needsRuntimePermissions) return true;
     if (await Permission.notification.isGranted) {
       return true;
     }
@@ -56,6 +62,7 @@ class PermissionService {
   }
 
   static Future<bool> checkBluetoothPermission() async {
+    if (!_needsRuntimePermissions) return true;
     if (await Permission.bluetoothConnect.isGranted) {
       return true;
     }

@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart' show CupertinoPageTransitionsBuilder;
 import 'package:flutter/material.dart';
 
 // expressive shape scale, kept apart from the legacy radii.dart so nothing breaks
@@ -111,6 +112,7 @@ ThemeData buildKashouTheme(ColorScheme scheme, TextTheme text) {
       builders: {
         TargetPlatform.android: FadeForwardsPageTransitionsBuilder(),
         TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+        TargetPlatform.linux: FadeForwardsPageTransitionsBuilder(),
       },
     ),
   );

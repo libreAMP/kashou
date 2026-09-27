@@ -8,9 +8,10 @@ import '../models/track.dart';
 import '../providers/audio_provider.dart';
 import '../providers/recommendation_provider.dart';
 import '../providers/settings_provider.dart';
-import '../services/youtube/youtube_service.dart';
+import '../services/ytdl_service.dart';
 import '../services/ytmusic_service.dart';
 import '../theme/radii.dart';
+import '../utils/platform.dart';
 import '../widgets/art_card.dart';
 import '../widgets/square_art.dart';
 import '../widgets/loading_indicator.dart';
@@ -29,6 +30,9 @@ class StreamScreen extends StatefulWidget {
   @override
   State<StreamScreen> createState() => _StreamScreenState();
 }
+
+// wide desktop windows get a centered column instead of a stretched phone layout
+const double _maxContentWidth = 1200;
 
 class _StreamScreenState extends State<StreamScreen>
     with AutomaticKeepAliveClientMixin {
@@ -256,27 +260,17 @@ class _StreamScreenState extends State<StreamScreen>
     await audioProvider.prepareTrackLoad(placeholder);
 
     try {
-      var streamInfo = await YoutubeService.instance.fetchStreams(videoId);
-      if (streamInfo == null || streamInfo.audioStreams.isEmpty) {
-        await Future.delayed(const Duration(milliseconds: 800));
-        streamInfo = await YoutubeService.instance
-            .fetchStreams(videoId, forceRefresh: true);
-      }
-      if (streamInfo == null || streamInfo.audioStreams.isEmpty) {
+      // youtube_explode leads on desktop, see resolveAudioStream
+      final stream = await YtdlWrapperService.resolveAudioStream(videoUrl);
+      if (stream == null) {
         audioProvider.cancelPendingTrack(videoId);
         _snack('Unable to load audio stream.');
         return;
       }
 
-      final mp4 = streamInfo.audioStreams
-          .where((s) => s.mimeType.contains('mp4'))
-          .toList()
-        ..sort((a, b) => b.bitrate.compareTo(a.bitrate));
-      final stream = mp4.isNotEmpty ? mp4.first : streamInfo.audioStreams.first;
-
       final finalTrack = placeholder.copyWith(
         path: stream.url,
-        loudnessDb: streamInfo.loudnessDb,
+        loudnessDb: stream.loudnessDb,
       );
 
       await audioProvider.playTrack(finalTrack);
@@ -350,26 +344,28 @@ class _StreamScreenState extends State<StreamScreen>
             children: [
               _buildSearchBar(context),
               Expanded(
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 320),
-                  switchInCurve: Curves.easeOutCubic,
-                  switchOutCurve: Curves.easeIn,
-                  transitionBuilder: (child, anim) => FadeTransition(
-                    opacity: anim,
-                    child: SlideTransition(
-                      position: Tween(
-                              begin: const Offset(0, 0.04), end: Offset.zero)
-                          .animate(anim),
-                      child: child,
+                child: _centeredContent(
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 320),
+                    switchInCurve: Curves.easeOutCubic,
+                    switchOutCurve: Curves.easeIn,
+                    transitionBuilder: (child, anim) => FadeTransition(
+                      opacity: anim,
+                      child: SlideTransition(
+                        position: Tween(
+                                begin: const Offset(0, 0.04), end: Offset.zero)
+                            .animate(anim),
+                        child: child,
+                      ),
                     ),
-                  ),
-                  child: KeyedSubtree(
-                    key: ValueKey(_currentQuery.isNotEmpty
-                        ? 'results'
-                        : _exploreOpen
-                            ? 'explore'
-                            : 'discover'),
-                    child: _buildBody(context),
+                    child: KeyedSubtree(
+                      key: ValueKey(_currentQuery.isNotEmpty
+                          ? 'results'
+                          : _exploreOpen
+                              ? 'explore'
+                              : 'discover'),
+                      child: _buildBody(context),
+                    ),
                   ),
                 ),
               ),
@@ -380,12 +376,28 @@ class _StreamScreenState extends State<StreamScreen>
     );
   }
 
+  // keeps tight constraints so scrollables inside stay bounded
+  Widget _centeredContent(Widget child) {
+    if (!isDesktop) return child;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final extra = constraints.maxWidth - _maxContentWidth;
+        if (extra <= 0) return child;
+        return Padding(
+          padding: EdgeInsets.symmetric(horizontal: extra / 2),
+          child: child,
+        );
+      },
+    );
+  }
+
   Widget _buildSearchBar(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final searching = _exploreOpen || _currentQuery.isNotEmpty;
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 8, 12, 8),
+    return _centeredContent(
+      Padding(
+        padding: const EdgeInsets.fromLTRB(20, 8, 12, 8),
       child: Row(
         children: [
           Expanded(
@@ -432,6 +444,13 @@ class _StreamScreenState extends State<StreamScreen>
           ),
           ...[
             const SizedBox(width: 4),
+            // pull-to-refresh needs a pointer-friendly counterpart
+            if (isDesktop)
+              IconButton(
+                icon: const Icon(Icons.refresh_rounded),
+                tooltip: 'Refresh',
+                onPressed: _loadDiscover,
+              ),
             IconButton(
               icon: const Icon(Icons.download_rounded),
               tooltip: 'Downloads',
@@ -463,6 +482,7 @@ class _StreamScreenState extends State<StreamScreen>
             ),
           ],
         ],
+        ),
       ),
     );
   }
@@ -517,21 +537,42 @@ class _StreamScreenState extends State<StreamScreen>
             padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
             child: _sectionTitle('Playlists'),
           ),
-          SizedBox(
-            height: 214,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
+          if (isDesktop)
+            Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
-              itemCount: _searchPlaylists.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 16),
-              itemBuilder: (_, i) => ArtCard(
-                thumbnail: _searchPlaylists[i]['thumbnail'] as String?,
-                title: _searchPlaylists[i]['title'] as String? ?? '',
-                subtitle: _searchPlaylists[i]['subtitle'] as String?,
-                onTap: () => _openPlaylist(_searchPlaylists[i]),
+              child: Wrap(
+                spacing: 16,
+                runSpacing: 16,
+                children: [
+                  for (final pl in _searchPlaylists)
+                    MouseRegion(
+                      cursor: SystemMouseCursors.click,
+                      child: ArtCard(
+                        thumbnail: pl['thumbnail'] as String?,
+                        title: pl['title'] as String? ?? '',
+                        subtitle: pl['subtitle'] as String?,
+                        onTap: () => _openPlaylist(pl),
+                      ),
+                    ),
+                ],
+              ),
+            )
+          else
+            SizedBox(
+              height: 214,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                itemCount: _searchPlaylists.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 16),
+                itemBuilder: (_, i) => ArtCard(
+                  thumbnail: _searchPlaylists[i]['thumbnail'] as String?,
+                  title: _searchPlaylists[i]['title'] as String? ?? '',
+                  subtitle: _searchPlaylists[i]['subtitle'] as String?,
+                  onTap: () => _openPlaylist(_searchPlaylists[i]),
+                ),
               ),
             ),
-          ),
           const SizedBox(height: 16),
         ],
         if (_searchAlbums.isNotEmpty &&
@@ -540,21 +581,42 @@ class _StreamScreenState extends State<StreamScreen>
             padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
             child: _sectionTitle('Albums'),
           ),
-          SizedBox(
-            height: 214,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
+          if (isDesktop)
+            Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
-              itemCount: _searchAlbums.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 16),
-              itemBuilder: (_, i) => ArtCard(
-                thumbnail: _searchAlbums[i]['thumbnail'] as String?,
-                title: _searchAlbums[i]['title'] as String? ?? '',
-                subtitle: _searchAlbums[i]['subtitle'] as String?,
-                onTap: () => _openPlaylist(_searchAlbums[i]),
+              child: Wrap(
+                spacing: 16,
+                runSpacing: 16,
+                children: [
+                  for (final al in _searchAlbums)
+                    MouseRegion(
+                      cursor: SystemMouseCursors.click,
+                      child: ArtCard(
+                        thumbnail: al['thumbnail'] as String?,
+                        title: al['title'] as String? ?? '',
+                        subtitle: al['subtitle'] as String?,
+                        onTap: () => _openPlaylist(al),
+                      ),
+                    ),
+                ],
+              ),
+            )
+          else
+            SizedBox(
+              height: 214,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                itemCount: _searchAlbums.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 16),
+                itemBuilder: (_, i) => ArtCard(
+                  thumbnail: _searchAlbums[i]['thumbnail'] as String?,
+                  title: _searchAlbums[i]['title'] as String? ?? '',
+                  subtitle: _searchAlbums[i]['subtitle'] as String?,
+                  onTap: () => _openPlaylist(_searchAlbums[i]),
+                ),
               ),
             ),
-          ),
           const SizedBox(height: 16),
         ],
       ],
@@ -569,46 +631,52 @@ class _StreamScreenState extends State<StreamScreen>
     if (_searchAlbums.isNotEmpty) types.add('Albums');
     if (types.length < 2) return const SizedBox.shrink();
     final options = ['All', ...types];
+    final chips = [
+      for (var i = 0; i < options.length; i++)
+        FilterChip(
+          label: Text(options[i]),
+          selected: _searchFilter == options[i],
+          onSelected: (_) => setState(() => _searchFilter = options[i]),
+          showCheckmark: false,
+          avatar: Icon(
+            options[i] == 'All'
+                ? Icons.check_rounded
+                : options[i] == 'Songs'
+                    ? Icons.music_note_rounded
+                    : options[i] == 'Playlists'
+                        ? Icons.queue_music_rounded
+                        : Icons.album_rounded,
+            size: 18,
+          ),
+          side: BorderSide.none,
+          backgroundColor: scheme.surfaceContainerHigh,
+          selectedColor: scheme.secondaryContainer,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          labelStyle: TextStyle(
+            color: _searchFilter == options[i]
+                ? scheme.onSecondaryContainer
+                : scheme.onSurfaceVariant,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+    ];
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          children: [
-            for (var i = 0; i < options.length; i++) ...[
-              if (i > 0) const SizedBox(width: 8),
-              FilterChip(
-                label: Text(options[i]),
-                selected: _searchFilter == options[i],
-                onSelected: (_) => setState(() => _searchFilter = options[i]),
-                showCheckmark: false,
-                avatar: Icon(
-                  options[i] == 'All'
-                      ? Icons.check_rounded
-                      : options[i] == 'Songs'
-                          ? Icons.music_note_rounded
-                          : options[i] == 'Playlists'
-                              ? Icons.queue_music_rounded
-                              : Icons.album_rounded,
-                  size: 18,
-                ),
-                side: BorderSide.none,
-                backgroundColor: scheme.surfaceContainerHigh,
-                selectedColor: scheme.secondaryContainer,
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 12, vertical: 6),
-                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                labelStyle: TextStyle(
-                  color: _searchFilter == options[i]
-                      ? scheme.onSecondaryContainer
-                      : scheme.onSurfaceVariant,
-                  fontWeight: FontWeight.w700,
-                ),
+      child: isDesktop
+          // filter rows are short; wrapping beats a sideways scrollbar
+          ? Wrap(spacing: 8, children: chips)
+          : SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  for (var i = 0; i < chips.length; i++) ...[
+                    if (i > 0) const SizedBox(width: 8),
+                    chips[i],
+                  ],
+                ],
               ),
-            ],
-          ],
-        ),
-      ),
+            ),
     );
   }
 
@@ -681,38 +749,45 @@ class _StreamScreenState extends State<StreamScreen>
 
   Widget _buildMoodGrid(List<Map<String, dynamic>> moods) {
     final scheme = Theme.of(context).colorScheme;
-    final width = MediaQuery.of(context).size.width - 40;
-    final cardWidth = (width - 12) / 2;
-    return Wrap(
-      spacing: 12,
-      runSpacing: 12,
-      children: [
-        for (final mood in moods)
-          SizedBox(
-            width: cardWidth,
-            child: Material(
-              color: scheme.surfaceContainerHigh,
-              borderRadius: BorderRadius.circular(rMd),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(rMd),
-                onTap: () => _openMood(mood),
-                child: Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
-                  child: Text(
-                    mood['title'] as String? ?? '',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodyLarge
-                        ?.copyWith(fontWeight: FontWeight.w600),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = isDesktop
+            ? (constraints.maxWidth / 220).floor().clamp(3, 6).toInt()
+            : 2;
+        final cardWidth =
+            (constraints.maxWidth - 12 * (columns - 1)) / columns;
+        return Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: [
+            for (final mood in moods)
+              SizedBox(
+                width: cardWidth,
+                child: Material(
+                  color: scheme.surfaceContainerHigh,
+                  borderRadius: BorderRadius.circular(rMd),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(rMd),
+                    onTap: () => _openMood(mood),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 18),
+                      child: Text(
+                        mood['title'] as String? ?? '',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodyLarge
+                            ?.copyWith(fontWeight: FontWeight.w600),
+                      ),
+                    ),
                   ),
                 ),
               ),
-            ),
-          ),
-      ],
+          ],
+        );
+      },
     );
   }
 
@@ -831,21 +906,42 @@ class _StreamScreenState extends State<StreamScreen>
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
           child: _sectionTitle(shelf['title'] as String? ?? ''),
         ),
-        SizedBox(
-          height: 214,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
+        if (isDesktop)
+          Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
-            itemCount: items.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 16),
-            itemBuilder: (_, i) => ArtCard(
-              thumbnail: items[i]['thumbnail'] as String?,
-              title: items[i]['title'] as String? ?? '',
-              subtitle: items[i]['subtitle'] as String?,
-              onTap: () => _openPlaylist(items[i]),
+            child: Wrap(
+              spacing: 16,
+              runSpacing: 16,
+              children: [
+                for (final item in items)
+                  MouseRegion(
+                    cursor: SystemMouseCursors.click,
+                    child: ArtCard(
+                      thumbnail: item['thumbnail'] as String?,
+                      title: item['title'] as String? ?? '',
+                      subtitle: item['subtitle'] as String?,
+                      onTap: () => _openPlaylist(item),
+                    ),
+                  ),
+              ],
+            ),
+          )
+        else
+          SizedBox(
+            height: 214,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              itemCount: items.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 16),
+              itemBuilder: (_, i) => ArtCard(
+                thumbnail: items[i]['thumbnail'] as String?,
+                title: items[i]['title'] as String? ?? '',
+                subtitle: items[i]['subtitle'] as String?,
+                onTap: () => _openPlaylist(items[i]),
+              ),
             ),
           ),
-        ),
         const SizedBox(height: 24),
       ],
     );
@@ -854,7 +950,6 @@ class _StreamScreenState extends State<StreamScreen>
   // four song rows per page
   Widget _buildQuickPicks(Map<String, dynamic> shelf) {
     final items = (shelf['items'] as List).cast<Map<String, dynamic>>();
-    final pageWidth = MediaQuery.of(context).size.width - 56;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -865,20 +960,46 @@ class _StreamScreenState extends State<StreamScreen>
                   ? shelf['title'] as String
                   : 'Quick picks'),
         ),
-        SizedBox(
-          height: 4 * 72,
-          child: GridView.builder(
-            scrollDirection: Axis.horizontal,
+        if (isDesktop)
+          // desktop: a multi-column list reads naturally; the mobile paging
+          // carousel does not
+          Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 4,
-              mainAxisExtent: pageWidth,
-              mainAxisSpacing: 16,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final columns =
+                    (constraints.maxWidth / 340).floor().clamp(2, 4);
+                return GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  padding: EdgeInsets.zero,
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: columns,
+                    mainAxisExtent: 72,
+                    crossAxisSpacing: 8,
+                    mainAxisSpacing: 8,
+                  ),
+                  itemCount: items.length,
+                  itemBuilder: (_, i) => _buildSongRow(items[i]),
+                );
+              },
             ),
-            itemCount: items.length,
-            itemBuilder: (_, i) => _buildSongRow(items[i]),
+          )
+        else
+          SizedBox(
+            height: 4 * 72,
+            child: GridView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 4,
+                mainAxisExtent: MediaQuery.of(context).size.width - 56,
+                mainAxisSpacing: 16,
+              ),
+              itemCount: items.length,
+              itemBuilder: (_, i) => _buildSongRow(items[i]),
+            ),
           ),
-        ),
         const SizedBox(height: 24),
       ],
     );
@@ -892,21 +1013,42 @@ class _StreamScreenState extends State<StreamScreen>
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
           child: _sectionTitle(title),
         ),
-        SizedBox(
-          height: 214,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
+        if (isDesktop)
+          Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
-            itemCount: items.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 16),
-            itemBuilder: (_, i) => ArtCard(
-              thumbnail: _videoThumb(items[i]),
-              title: items[i]['title'] as String? ?? '',
-              subtitle: items[i]['channel'] as String?,
-              onTap: () => _playVideo(items[i]),
+            child: Wrap(
+              spacing: 16,
+              runSpacing: 16,
+              children: [
+                for (final item in items)
+                  MouseRegion(
+                    cursor: SystemMouseCursors.click,
+                    child: ArtCard(
+                      thumbnail: _videoThumb(item),
+                      title: item['title'] as String? ?? '',
+                      subtitle: item['channel'] as String?,
+                      onTap: () => _playVideo(item),
+                    ),
+                  ),
+              ],
+            ),
+          )
+        else
+          SizedBox(
+            height: 214,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              itemCount: items.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 16),
+              itemBuilder: (_, i) => ArtCard(
+                thumbnail: _videoThumb(items[i]),
+                title: items[i]['title'] as String? ?? '',
+                subtitle: items[i]['channel'] as String?,
+                onTap: () => _playVideo(items[i]),
+              ),
             ),
           ),
-        ),
         const SizedBox(height: 24),
       ],
     );
@@ -935,6 +1077,8 @@ class _StreamScreenState extends State<StreamScreen>
             onTap: () =>
                 isCurrent ? audio.togglePlayPause() : _playVideo(video),
             onLongPress: () => _showSongSheet(video),
+            // right-click mirrors the long-press options on desktop
+            onSecondaryTap: isDesktop ? () => _showSongSheet(video) : null,
             borderRadius: BorderRadius.circular(rMd),
             child: Padding(
               padding: const EdgeInsets.fromLTRB(8, 8, 4, 8),
@@ -1000,6 +1144,7 @@ class _StreamScreenState extends State<StreamScreen>
                           ? scheme.primary
                           : scheme.onSurfaceVariant,
                     ),
+                    tooltip: isDesktop ? (playing ? 'Pause' : 'Play') : null,
                     onPressed: () => isCurrent
                         ? audio.togglePlayPause()
                         : _playVideo(video),
@@ -1016,45 +1161,61 @@ class _StreamScreenState extends State<StreamScreen>
   void _showSongSheet(Map<String, dynamic> video) {
     final artistId = video['artistId'] as String?;
     final channel = video['channel'] as String? ?? '';
-    showModalBottomSheet(
-      context: context,
-      builder: (sheetContext) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            sheetHandle(sheetContext),
-            ListTile(
-              leading: SquareArt(url: _videoThumb(video), size: 44, radius: rSm),
-              title: Text(video['title'] as String? ?? '',
-                  maxLines: 1, overflow: TextOverflow.ellipsis),
-              subtitle: Text(channel,
-                  maxLines: 1, overflow: TextOverflow.ellipsis),
-            ),
-            const Divider(height: 1),
-            ListTile(
-              leading: const Icon(Icons.play_arrow_rounded),
-              title: const Text('Play'),
-              onTap: () {
-                Navigator.of(sheetContext).pop();
-                _playVideo(video);
-              },
-            ),
-            if (artistId != null)
+    Widget buildContent(BuildContext sheetContext) => SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (!isDesktop) sheetHandle(sheetContext),
               ListTile(
-                leading: const Icon(Icons.person_rounded),
-                title: Text('Go to $channel'),
+                leading:
+                    SquareArt(url: _videoThumb(video), size: 44, radius: rSm),
+                title: Text(video['title'] as String? ?? '',
+                    maxLines: 1, overflow: TextOverflow.ellipsis),
+                subtitle: Text(channel,
+                    maxLines: 1, overflow: TextOverflow.ellipsis),
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: const Icon(Icons.play_arrow_rounded),
+                title: const Text('Play'),
                 onTap: () {
                   Navigator.of(sheetContext).pop();
-                  Navigator.of(context).push(MaterialPageRoute(
-                    builder: (_) =>
-                        ArtistScreen(browseId: artistId, name: channel),
-                  ));
+                  _playVideo(video);
                 },
               ),
-            const SizedBox(height: 8),
-          ],
+              if (artistId != null)
+                ListTile(
+                  leading: const Icon(Icons.person_rounded),
+                  title: Text('Go to $channel'),
+                  onTap: () {
+                    Navigator.of(sheetContext).pop();
+                    Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) =>
+                          ArtistScreen(browseId: artistId, name: channel),
+                    ));
+                  },
+                ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+    // bottom sheets are a touch idiom; a dialog fits pointer conventions
+    if (isDesktop) {
+      showDialog(
+        context: context,
+        builder: (dialogContext) => Dialog(
+          clipBehavior: Clip.antiAlias,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 400),
+            child: buildContent(dialogContext),
+          ),
         ),
-      ),
+      );
+      return;
+    }
+    showModalBottomSheet(
+      context: context,
+      builder: buildContent,
     );
   }
 

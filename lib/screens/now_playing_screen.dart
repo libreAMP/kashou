@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart' hide RepeatMode;
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../providers/audio_provider.dart';
@@ -24,6 +26,7 @@ import '../widgets/squiggly_slider.dart';
 import '../providers/settings_provider.dart';
 import '../services/ytmusic_service.dart';
 import '../utils/app_messenger.dart';
+import '../utils/platform.dart';
 import 'artist_screen.dart';
 
 class NowPlayingScreen extends StatefulWidget {
@@ -255,7 +258,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
+    final screen = Material(
       color: Colors.transparent,
       child: Consumer2<AudioProvider, LibraryProvider>(
         builder: (context, audio, library, child) {
@@ -276,6 +279,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           final size = mediaQuery.size;
           final theme = Theme.of(context);
           final colorScheme = theme.colorScheme;
+          // wide desktop windows get a side-by-side player layout
+          final wideDesktop = isDesktop && size.width >= 920;
 
           return Container(
             decoration: BoxDecoration(
@@ -295,22 +300,25 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                 // Content overlay
                 Column(
                   children: [
-                    // Drag handle
-                    SafeArea(
-                      bottom: false,
-                      child: Center(
-                        child: Container(
-                          margin: const EdgeInsets.only(top: 8, bottom: 4),
-                          width: 40,
-                          height: 4,
-                          decoration: BoxDecoration(
-                            color:
-                                colorScheme.onSurfaceVariant.withOpacity(0.4),
-                            borderRadius: BorderRadius.circular(2),
+                    // Drag handle, a touch sheet affordance hidden on desktop
+                    if (!isDesktop)
+                      SafeArea(
+                        bottom: false,
+                        child: Center(
+                          child: Container(
+                            margin: const EdgeInsets.only(top: 8, bottom: 4),
+                            width: 40,
+                            height: 4,
+                            decoration: BoxDecoration(
+                              color:
+                                  colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
+                              borderRadius: BorderRadius.circular(2),
+                            ),
                           ),
                         ),
-                      ),
-                    ),
+                      )
+                    else
+                      const SizedBox(height: 12),
                     Expanded(
                       child: SafeArea(
                         top: false,
@@ -322,7 +330,10 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                               child: _buildTopBar(context, track),
                             ),
                             Expanded(
-                              child: AnimatedSwitcher(
+                              child: wideDesktop
+                                  ? _buildDesktopWideBody(
+                                      context, audio, library, track, size)
+                                  : AnimatedSwitcher(
                                 duration: EMotion.medium,
                                 switchInCurve: Curves.easeOutCubic,
                                 switchOutCurve: Curves.easeInCubic,
@@ -364,7 +375,12 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                                           _buildArtworkCard(
                                                               context,
                                                               track,
-                                                              size)),
+                                                              size,
+                                                              artSize: isDesktop
+                                                                  ? math.min(
+                                                                      (size.width - 40) * 0.92,
+                                                                      460)
+                                                                  : null)),
                                                 ),
                                               ),
                                             ),
@@ -373,7 +389,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                       ),
                               ),
                             ),
-                            SafeArea(
+                            if (!wideDesktop)
+                              SafeArea(
                               top: false,
                               minimum: const EdgeInsets.only(bottom: 12),
                               child: Padding(
@@ -391,11 +408,17 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                           : Column(
                                               mainAxisSize: MainAxisSize.min,
                                               children: [
-                                                GestureDetector(
-                                                  onTap: () =>
-                                                      _toggleLyrics(track),
-                                                  child: _buildTrackMeta(
-                                                      context, track, audio),
+                                                MouseRegion(
+                                                  cursor: isDesktop
+                                                      ? SystemMouseCursors
+                                                          .click
+                                                      : MouseCursor.defer,
+                                                  child: GestureDetector(
+                                                    onTap: () =>
+                                                        _toggleLyrics(track),
+                                                    child: _buildTrackMeta(
+                                                        context, track, audio),
+                                                  ),
                                                 ),
                                                 const SizedBox(height: 16),
                                               ],
@@ -424,6 +447,126 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           );
         },
       ),
+    );
+    if (!isDesktop) return screen;
+    // desktop: keyboard transport controls for the player window
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.space): () {
+          final audio = context.read<AudioProvider>();
+          if (audio.currentTrack != null && !audio.isLoadingTrack) {
+            audio.togglePlayPause();
+          }
+        },
+        const SingleActivator(LogicalKeyboardKey.arrowLeft): () =>
+            _seekBy(context, -5),
+        const SingleActivator(LogicalKeyboardKey.arrowRight): () =>
+            _seekBy(context, 5),
+        const SingleActivator(LogicalKeyboardKey.arrowLeft, control: true):
+            () => context.read<AudioProvider>().skipPrevious(),
+        const SingleActivator(LogicalKeyboardKey.arrowRight, control: true):
+            () => context.read<AudioProvider>().skipNext(),
+      },
+      child: Focus(autofocus: true, child: screen),
+    );
+  }
+
+  void _seekBy(BuildContext context, int seconds) {
+    final audio = context.read<AudioProvider>();
+    if (audio.currentTrack == null || audio.isLoadingTrack) return;
+    var target = audio.position + Duration(seconds: seconds);
+    if (target < Duration.zero) target = Duration.zero;
+    if (target > audio.duration) target = audio.duration;
+    audio.seek(target);
+  }
+
+  // side-by-side player for wide desktop windows: art (or lyrics) on the
+  // left, metadata and transport controls in a fixed column on the right
+  Widget _buildDesktopWideBody(BuildContext context, AudioProvider audio,
+      LibraryProvider library, Track track, Size size) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final artSize = math.min(
+          math.min(constraints.maxWidth * 0.38, constraints.maxHeight * 0.86),
+          560.0,
+        );
+        return Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1120),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(40, 4, 40, 28),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: AnimatedSwitcher(
+                      duration: EMotion.medium,
+                      switchInCurve: Curves.easeOutCubic,
+                      switchOutCurve: Curves.easeInCubic,
+                      transitionBuilder: (child, anim) => FadeTransition(
+                        opacity: anim,
+                        child: ScaleTransition(
+                          scale:
+                              Tween<double>(begin: 0.9, end: 1).animate(anim),
+                          child: child,
+                        ),
+                      ),
+                      layoutBuilder: (current, previous) => Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          ...previous,
+                          if (current != null) current,
+                        ],
+                      ),
+                      child: _lyricsOpen
+                          ? KeyedSubtree(
+                              key: const ValueKey('lyrics'),
+                              child: _buildLyricsView(context, audio, track),
+                            )
+                          : KeyedSubtree(
+                              key: const ValueKey('art'),
+                              child: Center(
+                                child: RepaintBoundary(
+                                  child: _buildArtworkCard(
+                                      context, track, size,
+                                      artSize: artSize),
+                                ),
+                              ),
+                            ),
+                    ),
+                  ),
+                  const SizedBox(width: 48),
+                  SizedBox(
+                    width: 440,
+                    child: Center(
+                      child: SingleChildScrollView(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            MouseRegion(
+                              cursor: SystemMouseCursors.click,
+                              child: GestureDetector(
+                                onTap: () => _toggleLyrics(track),
+                                child: _buildTrackMeta(context, track, audio),
+                              ),
+                            ),
+                            const SizedBox(height: 24),
+                            RepaintBoundary(
+                                child: _buildProgressStrip(context, audio)),
+                            const SizedBox(height: 24),
+                            _buildPrimaryControls(context, audio),
+                            const SizedBox(height: 28),
+                            _buildSecondaryControlRow(context, audio, library),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -539,9 +682,10 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     );
   }
 
-  Widget _buildArtworkCard(BuildContext context, Track track, Size size) {
+  Widget _buildArtworkCard(BuildContext context, Track track, Size size,
+      {double? artSize}) {
     final colorScheme = Theme.of(context).colorScheme;
-    final dimension = (size.width - 40) * 0.92;
+    final dimension = artSize ?? (size.width - 40) * 0.92;
 
     Widget buildFallback() {
       return Container(
@@ -593,13 +737,15 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       image = lowArt();
     }
 
-    return GestureDetector(
+    final card = GestureDetector(
       // onDoubleTap has no position
       onDoubleTapDown: (details) => _doubleTapDx = details.localPosition.dx,
       onDoubleTap: () {
         _triggerSeekFlash(_doubleTapDx < dimension / 2);
         _seekFromDoubleTap(context, dimension);
       },
+      // right-click mirrors the more-vert menu on desktop
+      onSecondaryTap: isDesktop ? () => _showMoreOptions(context) : null,
       onHorizontalDragEnd: (details) {
         final velocity = details.primaryVelocity ?? 0;
         if (velocity.abs() < 400) return;
@@ -625,6 +771,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
         ],
       ),
     );
+    if (!isDesktop) return card;
+    return MouseRegion(cursor: SystemMouseCursors.click, child: card);
   }
 
   void _triggerSeekFlash(bool left) {
@@ -655,7 +803,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
                 decoration: BoxDecoration(
-                  color: scheme.surface.withOpacity(0.75),
+                  color: scheme.surface.withValues(alpha: 0.75),
                   borderRadius: EShape.radius(EShape.md),
                 ),
                 child: Column(
@@ -705,9 +853,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            colorScheme.primaryContainer.withOpacity(0.3),
+            colorScheme.primaryContainer.withValues(alpha: 0.3),
             colorScheme.surface,
-            colorScheme.tertiaryContainer.withOpacity(0.2),
+            colorScheme.tertiaryContainer.withValues(alpha: 0.2),
           ],
           stops: const [0.0, 0.5, 1.0],
         ),
@@ -720,9 +868,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            colorScheme.surface.withOpacity(0.7),
-            colorScheme.surface.withOpacity(0.85),
-            colorScheme.surface.withOpacity(0.95),
+            colorScheme.surface.withValues(alpha: 0.7),
+            colorScheme.surface.withValues(alpha: 0.85),
+            colorScheme.surface.withValues(alpha: 0.95),
           ],
         ),
       ),
@@ -780,7 +928,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                 track.artist,
                 textAlign: TextAlign.center,
                 style: theme.textTheme.titleMedium?.copyWith(
-                  color: colorScheme.onSurfaceVariant.withOpacity(0.9),
+                  color: colorScheme.onSurfaceVariant.withValues(alpha: 0.9),
                   fontWeight: FontWeight.w500,
                   fontSize: 16,
                 ),
@@ -904,6 +1052,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           child: _buildSeekButton(
             context,
             icon: Icons.skip_previous_outlined,
+            tooltip: 'Previous',
             onTap: audio.skipPrevious,
             left: true,
           ),
@@ -915,6 +1064,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           child: _buildSeekButton(
             context,
             icon: Icons.skip_next_outlined,
+            tooltip: 'Next',
             onTap: audio.skipNext,
             left: false,
           ),
@@ -925,6 +1075,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
 
   Widget _buildSeekButton(BuildContext context,
       {required IconData icon,
+      required String tooltip,
       required VoidCallback onTap,
       required bool left}) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -933,7 +1084,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       right: Radius.circular(left ? 14 : 26),
     );
 
-    return Material(
+    final button = Material(
       color: colorScheme.surfaceContainerHigh,
       borderRadius: radius,
       child: InkWell(
@@ -946,6 +1097,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
         ),
       ),
     );
+    if (!isDesktop) return button;
+    return Tooltip(message: tooltip, child: button);
   }
 
   Widget _buildPlayButton(BuildContext context, AudioProvider audio) {
@@ -953,7 +1106,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     final isLoading = audio.isLoadingTrack;
     final isPlaying = audio.isPlaying;
 
-    return AnimatedContainer(
+    final button = AnimatedContainer(
       duration: EMotion.fast,
       curve: EMotion.standard,
       decoration: BoxDecoration(
@@ -992,6 +1145,11 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           ),
         ),
       ),
+    );
+    if (!isDesktop) return button;
+    return Tooltip(
+      message: isPlaying ? 'Pause' : 'Play',
+      child: button,
     );
   }
 
@@ -1181,7 +1339,37 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     }
   }
 
+  // desktop presents what mobile shows as bottom sheets in a dialog instead
+  Future<T?> _showAdaptiveDialog<T>(BuildContext context, WidgetBuilder builder,
+      {double maxWidth = 480}) {
+    return showDialog<T>(
+      context: context,
+      builder: (dialogContext) => Dialog(
+        clipBehavior: Clip.antiAlias,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: maxWidth,
+            maxHeight: MediaQuery.of(dialogContext).size.height * 0.85,
+          ),
+          child: Builder(builder: builder),
+        ),
+      ),
+    );
+  }
+
   void _showEqualizerSheet(BuildContext context) {
+    if (isDesktop) {
+      _showAdaptiveDialog(
+        context,
+        (dialogContext) => SizedBox(
+          width: double.infinity,
+          height: MediaQuery.of(dialogContext).size.height * 0.8,
+          child: const EqualizerWidget(),
+        ),
+        maxWidth: 560,
+      );
+      return;
+    }
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -1200,6 +1388,18 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
   }
 
   void _showQueueSheet(BuildContext context) {
+    if (isDesktop) {
+      _showAdaptiveDialog(
+        context,
+        (dialogContext) => SizedBox(
+          width: double.infinity,
+          height: MediaQuery.of(dialogContext).size.height * 0.75,
+          child: _buildQueueBody(dialogContext),
+        ),
+        maxWidth: 540,
+      );
+      return;
+    }
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -1210,70 +1410,73 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           maxChildSize: 0.9,
           expand: false,
           builder: (context, scrollController) {
-            return Consumer<AudioProvider>(
-              builder: (context, audio, child) {
-                return Column(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Text(
-                        'Queue',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
-                      ),
-                    ),
-                    Expanded(
-                      child: ReorderableListView.builder(
-                        scrollController: scrollController,
-                        itemCount: audio.queue.length,
-                        onReorder: audio.moveQueueItem,
-                        itemBuilder: (context, index) {
-                          final track = audio.queue[index];
-                          final isCurrent = index == audio.currentIndex;
-
-                          return ListTile(
-                            key: ValueKey('${track.id}_$index'),
-                            leading: Icon(
-                              isCurrent
-                                  ? Icons.play_circle_filled
-                                  : Icons.music_note,
-                              color: isCurrent
-                                  ? Theme.of(context).colorScheme.primary
-                                  : null,
-                            ),
-                            title: Text(
-                              track.title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: isCurrent
-                                    ? Theme.of(context).colorScheme.primary
-                                    : null,
-                                fontWeight: isCurrent ? FontWeight.bold : null,
-                              ),
-                            ),
-                            subtitle: Text(
-                              track.views != null && track.views!.isNotEmpty
-                                  ? '${track.artist} · ${track.views}'
-                                  : track.artist,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            trailing: ReorderableDragStartListener(
-                              index: index,
-                              child: const Icon(Icons.drag_handle_rounded),
-                            ),
-                            onTap: isCurrent ? null : () => audio.playAt(index),
-                          );
-                        },
-                      ),
-                    ),
-                  ],
-                );
-              },
-            );
+            return _buildQueueBody(context, scrollController: scrollController);
           },
+        );
+      },
+    );
+  }
+
+  Widget _buildQueueBody(BuildContext context,
+      {ScrollController? scrollController}) {
+    return Consumer<AudioProvider>(
+      builder: (context, audio, child) {
+        return Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(
+                'Queue',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+            ),
+            Expanded(
+              child: ReorderableListView.builder(
+                scrollController: scrollController,
+                itemCount: audio.queue.length,
+                onReorderItem: audio.moveQueueItem,
+                itemBuilder: (context, index) {
+                  final track = audio.queue[index];
+                  final isCurrent = index == audio.currentIndex;
+
+                  return ListTile(
+                    key: ValueKey('${track.id}_$index'),
+                    leading: Icon(
+                      isCurrent ? Icons.play_circle_filled : Icons.music_note,
+                      color: isCurrent
+                          ? Theme.of(context).colorScheme.primary
+                          : null,
+                    ),
+                    title: Text(
+                      track.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: isCurrent
+                            ? Theme.of(context).colorScheme.primary
+                            : null,
+                        fontWeight: isCurrent ? FontWeight.bold : null,
+                      ),
+                    ),
+                    subtitle: Text(
+                      track.views != null && track.views!.isNotEmpty
+                          ? '${track.artist} · ${track.views}'
+                          : track.artist,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    trailing: ReorderableDragStartListener(
+                      index: index,
+                      child: const Icon(Icons.drag_handle_rounded),
+                    ),
+                    onTap: isCurrent ? null : () => audio.playAt(index),
+                  );
+                },
+              ),
+            ),
+          ],
         );
       },
     );
@@ -1312,72 +1515,86 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
   }
 
   void _showAddToPlaylist(BuildContext context, Track track) {
+    if (isDesktop) {
+      _showAdaptiveDialog(
+        context,
+        (dialogContext) => _buildAddToPlaylistBody(dialogContext, track),
+      );
+      return;
+    }
     showModalBottomSheet(
       context: context,
-      builder: (sheetContext) => SafeArea(
-        child: Consumer<LibraryProvider>(
-          builder: (context, library, _) {
-            Future<void> add(String playlistId, String name) async {
-              final playlist =
-                  library.playlists.firstWhere((p) => p.id == playlistId);
-              if (playlist.tracks.any((t) => t.id == track.id)) {
-                appMessenger.currentState?.showSnackBar(
-                    SnackBar(content: Text('Already in $name')));
-              } else {
-                await library.addToPlaylist(playlistId, track);
-                appMessenger.currentState?.showSnackBar(
-                    SnackBar(content: Text('Added to $name')));
-              }
-              if (sheetContext.mounted) Navigator.pop(sheetContext);
-            }
+      builder: (sheetContext) => _buildAddToPlaylistBody(sheetContext, track),
+    );
+  }
 
-            return Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                sheetHandle(sheetContext),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      'Add to playlist',
-                      style: Theme.of(context)
-                          .textTheme
-                          .titleMedium
-                          ?.copyWith(fontWeight: FontWeight.w700),
-                    ),
+  Widget _buildAddToPlaylistBody(BuildContext sheetContext, Track track) {
+    return SafeArea(
+      child: Consumer<LibraryProvider>(
+        builder: (context, library, _) {
+          Future<void> add(String playlistId, String name) async {
+            final playlist =
+                library.playlists.firstWhere((p) => p.id == playlistId);
+            if (playlist.tracks.any((t) => t.id == track.id)) {
+              appMessenger.currentState?.showSnackBar(
+                  SnackBar(content: Text('Already in $name')));
+            } else {
+              await library.addToPlaylist(playlistId, track);
+              appMessenger.currentState?.showSnackBar(
+                  SnackBar(content: Text('Added to $name')));
+            }
+            if (sheetContext.mounted) Navigator.pop(sheetContext);
+          }
+
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (!isDesktop)
+                sheetHandle(sheetContext)
+              else
+                const SizedBox(height: 20),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Add to playlist',
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w700),
                   ),
                 ),
-                ListTile(
-                  leading: const Icon(Icons.add_rounded),
-                  title: const Text('New playlist'),
-                  onTap: () async {
-                    final name = await _promptPlaylistName(sheetContext);
-                    if (name == null || name.trim().isEmpty) return;
-                    await library.createPlaylist(name.trim());
-                    await add(library.playlists.last.id, name.trim());
-                  },
+              ),
+              ListTile(
+                leading: const Icon(Icons.add_rounded),
+                title: const Text('New playlist'),
+                onTap: () async {
+                  final name = await _promptPlaylistName(sheetContext);
+                  if (name == null || name.trim().isEmpty) return;
+                  await library.createPlaylist(name.trim());
+                  await add(library.playlists.last.id, name.trim());
+                },
+              ),
+              Flexible(
+                child: ListView(
+                  shrinkWrap: true,
+                  children: [
+                    for (final p in library.playlists)
+                      ListTile(
+                        leading: const Icon(Icons.queue_music_rounded),
+                        title: Text(p.name,
+                            maxLines: 1, overflow: TextOverflow.ellipsis),
+                        subtitle: Text('${p.trackCount} songs'),
+                        onTap: () => add(p.id, p.name),
+                      ),
+                  ],
                 ),
-                Flexible(
-                  child: ListView(
-                    shrinkWrap: true,
-                    children: [
-                      for (final p in library.playlists)
-                        ListTile(
-                          leading: const Icon(Icons.queue_music_rounded),
-                          title: Text(p.name,
-                              maxLines: 1, overflow: TextOverflow.ellipsis),
-                          subtitle: Text('${p.trackCount} songs'),
-                          onTap: () => add(p.id, p.name),
-                        ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 8),
-              ],
-            );
-          },
-        ),
+              ),
+              const SizedBox(height: 8),
+            ],
+          );
+        },
       ),
     );
   }
@@ -1385,25 +1602,41 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
   void _showMoreOptions(BuildContext context) {
     final rootContext = context;
 
+    if (isDesktop) {
+      _showAdaptiveDialog(
+        context,
+        (dialogContext) => _buildMoreOptionsBody(dialogContext, rootContext),
+      );
+      return;
+    }
     showModalBottomSheet(
       context: context,
-      builder: (sheetContext) {
-        final scheme = Theme.of(context).colorScheme;
-        return SafeArea(
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  margin: const EdgeInsets.symmetric(vertical: 12),
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: scheme.onSurfaceVariant.withValues(alpha: 0.4),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
+      builder: (sheetContext) =>
+          _buildMoreOptionsBody(sheetContext, rootContext),
+    );
+  }
+
+  Widget _buildMoreOptionsBody(
+      BuildContext sheetContext, BuildContext rootContext) {
+    final scheme = Theme.of(sheetContext).colorScheme;
+    return SafeArea(
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (!isDesktop)
+              Container(
+                margin: const EdgeInsets.symmetric(vertical: 12),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: scheme.onSurfaceVariant.withValues(alpha: 0.4),
+                  borderRadius: BorderRadius.circular(2),
                 ),
-                Padding(
+              )
+            else
+              const SizedBox(height: 16),
+            Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
               child: Consumer<AudioProvider>(
                 builder: (context, audio, _) {
@@ -1471,11 +1704,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                 },
               ),
             ),
-              ],
-            ),
-          ),
-        );
-      },
+          ],
+        ),
+      ),
     );
   }
 
@@ -1563,6 +1794,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
   }
 
   Future<void> _shareTrack(BuildContext context, Track? track) async {
+    // resolve the messenger before awaiting so no context crosses the gap
+    final messenger = ScaffoldMessenger.of(context);
     if (track == null) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1580,13 +1813,13 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
         : 'Listen to ${track.title}$by on Kashou.\n$repo';
 
     try {
-      await Share.share(shareText, subject: 'Share ${track.title}');
+      await SharePlus.instance.share(
+        ShareParams(text: shareText, subject: 'Share ${track.title}'),
+      );
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Unable to share track: $e')),
-        );
-      }
+      messenger.showSnackBar(
+        SnackBar(content: Text('Unable to share track: $e')),
+      );
     }
   }
 
@@ -1671,66 +1904,82 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       if (!isStream) MapEntry('Path', track.path),
     ];
 
+    if (isDesktop) {
+      _showAdaptiveDialog(
+        context,
+        (dialogContext) => SafeArea(
+          child: _buildTrackInfoBody(dialogContext, rows),
+        ),
+      );
+      return;
+    }
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       builder: (sheetContext) {
-        final scheme = Theme.of(sheetContext).colorScheme;
         return SafeArea(
           child: ConstrainedBox(
             constraints: BoxConstraints(
               maxHeight: MediaQuery.of(sheetContext).size.height * 0.7,
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                sheetHandle(sheetContext),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
-                  child: Text(
-                    'Track info',
-                    style: Theme.of(sheetContext)
-                        .textTheme
-                        .titleMedium
-                        ?.copyWith(fontWeight: FontWeight.w700),
-                  ),
-                ),
-                Flexible(
-                  child: ListView(
-                    shrinkWrap: true,
-                    padding: const EdgeInsets.fromLTRB(24, 4, 24, 16),
-                    children: [
-                      for (final row in rows)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 14),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                row.key,
-                                style: Theme.of(sheetContext)
-                                    .textTheme
-                                    .bodySmall
-                                    ?.copyWith(color: scheme.onSurfaceVariant),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                row.value,
-                                style:
-                                    Theme.of(sheetContext).textTheme.bodyLarge,
-                              ),
-                            ],
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+            child: _buildTrackInfoBody(sheetContext, rows),
           ),
         );
       },
+    );
+  }
+
+  Widget _buildTrackInfoBody(
+      BuildContext sheetContext, List<MapEntry<String, String>> rows) {
+    final scheme = Theme.of(sheetContext).colorScheme;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (!isDesktop)
+          sheetHandle(sheetContext)
+        else
+          const SizedBox(height: 20),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+          child: Text(
+            'Track info',
+            style: Theme.of(sheetContext)
+                .textTheme
+                .titleMedium
+                ?.copyWith(fontWeight: FontWeight.w700),
+          ),
+        ),
+        Flexible(
+          child: ListView(
+            shrinkWrap: true,
+            padding: const EdgeInsets.fromLTRB(24, 4, 24, 16),
+            children: [
+              for (final row in rows)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        row.key,
+                        style: Theme.of(sheetContext)
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(color: scheme.onSurfaceVariant),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        row.value,
+                        style: Theme.of(sheetContext).textTheme.bodyLarge,
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

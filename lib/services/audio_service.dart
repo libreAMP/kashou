@@ -1,6 +1,6 @@
 import 'dart:io';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
+import 'package:flutter/foundation.dart';
 import 'package:audio_service/audio_service.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:path_provider/path_provider.dart';
@@ -79,9 +79,13 @@ Future<List<double>> _sideBarInsets(ui.Image src) async {
   }
   if (lum(0) > 24 || lum(pw - 1) > 24) return const [0, 0];
   var first = 0;
-  while (first < pw ~/ 2 && lum(first) < 24) first++;
+  while (first < pw ~/ 2 && lum(first) < 24) {
+    first++;
+  }
   var last = pw - 1;
-  while (last > pw ~/ 2 && lum(last) < 24) last--;
+  while (last > pw ~/ 2 && lum(last) < 24) {
+    last--;
+  }
   if (first >= pw ~/ 2 || last <= pw ~/ 2) return const [0, 0];
   final l = first / pw;
   final r = (pw - 1 - last) / pw;
@@ -104,6 +108,14 @@ class AudioPlayerService {
     _audioPlayer =
         AudioPlayer(audioLoadConfiguration: _loadConfigFor(bufferSize));
 
+    // audio_service only implements android/ios/macos; desktop plays
+    // straight through the plain player
+    if (Platform.isLinux || Platform.isWindows) {
+      _isInitialized = true;
+      _isInitializing = false;
+      return;
+    }
+
     try {
       _audioHandler = await AudioService.init(
         builder: () => AudioPlayerHandler(bufferSize),
@@ -117,17 +129,14 @@ class AudioPlayerService {
       );
       _isInitialized = true;
     } catch (e) {
-      print('Error initializing audio service: $e');
+      debugPrint('Error initializing audio service: $e');
     } finally {
       _isInitializing = false;
     }
   }
 
   static AudioPlayer get audioPlayer {
-    if (_audioPlayer == null) {
-      _audioPlayer = AudioPlayer();
-    }
-    return _audioPlayer!;
+    return _audioPlayer ??= AudioPlayer();
   }
 
   static AudioHandler? get audioHandler => _audioHandler;
@@ -170,7 +179,7 @@ class AudioPlayerHandler extends BaseAudioHandler
         await artFile.writeAsBytes(wide ?? track.albumArt!);
         artUri = Uri.file(artFile.path);
       } catch (e) {
-        print('Error saving album art to file: $e');
+        debugPrint('Error saving album art to file: $e');
       }
     } else if (track.sourceUrl != null) {
       final videoId = Uri.tryParse(track.sourceUrl!)?.queryParameters['v'];

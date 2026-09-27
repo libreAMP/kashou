@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:ui';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -15,6 +14,7 @@ import '../providers/settings_provider.dart';
 import '../theme/app_theme.dart';
 import '../services/local_media_server.dart';
 import '../utils/hero_transitions.dart';
+import '../utils/platform.dart';
 import '../models/track.dart';
 
 class MiniPlayer extends StatefulWidget {
@@ -110,65 +110,72 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
     _slideController.addListener(_reportSlide);
 
     final settings = Provider.of<SettingsProvider>(context, listen: false);
-    _castingEnabled = settings.enableCasting;
+    // chromecast only exists on mobile, no plugin channels on desktop
+    final castSupported = isMobile;
+    _castingEnabled = settings.enableCasting && castSupported;
 
-    _castSessionSubscription = GoogleCastSessionManager
-        .instance.currentSessionStream
-        .listen((session) {
-      if (!mounted) return;
+    if (castSupported) {
+      _castSessionSubscription = GoogleCastSessionManager
+          .instance.currentSessionStream
+          .listen((session) {
+        if (!mounted) return;
 
-      if (session != null) {
-        debugPrint(
-            '[Cast] Session connected to ${session.device?.friendlyName}');
-        _wasCasting = true;
+        if (session != null) {
+          debugPrint(
+              '[Cast] Session connected to ${session.device?.friendlyName}');
+          _wasCasting = true;
 
-        // Debounce to prevent reconnect loops
-        _castConnectionDebounce?.cancel();
-        _castConnectionDebounce = Timer(const Duration(milliseconds: 500), () {
-          if (mounted && !_isCastConnecting) {
-            _isCastConnecting = true;
-            _onCastConnected().then((_) {
-              _isCastConnecting = false;
-            }).catchError((e) {
-              _isCastConnecting = false;
-              debugPrint('[Cast] Connection handler error: $e');
-            });
-          }
-        });
-      } else {
-        // stream replays null on subscribe
-        if (!_wasCasting) return;
-        _wasCasting = false;
-        debugPrint('[Cast] Session disconnected - restoring local playback');
-        _castConnectionDebounce?.cancel();
-        _isCastConnecting = false;
-        LocalMediaServer.instance.stop();
-
-        // Restore local playback asynchronously
-        final audioProvider =
-            Provider.of<AudioProvider>(context, listen: false);
-
-        Future.microtask(() async {
-          await audioProvider.audioPlayer.setVolume(1.0);
-
-          if (audioProvider.currentTrack != null) {
-            try {
-              await audioProvider.audioPlayer.play();
-              debugPrint('[Cast] Local playback restored');
-            } catch (e) {
-              debugPrint('[Cast] Failed to restore playback: $e');
+          // Debounce to prevent reconnect loops
+          _castConnectionDebounce?.cancel();
+          _castConnectionDebounce =
+              Timer(const Duration(milliseconds: 500), () {
+            if (mounted && !_isCastConnecting) {
+              _isCastConnecting = true;
+              _onCastConnected().then((_) {
+                _isCastConnecting = false;
+              }).catchError((e) {
+                _isCastConnecting = false;
+                debugPrint('[Cast] Connection handler error: $e');
+              });
             }
-          }
-        });
-      }
-    });
+          });
+        } else {
+          // stream replays null on subscribe
+          if (!_wasCasting) return;
+          _wasCasting = false;
+          debugPrint('[Cast] Session disconnected - restoring local playback');
+          _castConnectionDebounce?.cancel();
+          _isCastConnecting = false;
+          LocalMediaServer.instance.stop();
 
-    if (_castingEnabled) {
-      GoogleCastDiscoveryManager.instance.startDiscovery();
+          // Restore local playback asynchronously
+          final audioProvider =
+              Provider.of<AudioProvider>(context, listen: false);
+
+          Future.microtask(() async {
+            await audioProvider.audioPlayer.setVolume(1.0);
+
+            if (audioProvider.currentTrack != null) {
+              try {
+                await audioProvider.audioPlayer.play();
+                debugPrint('[Cast] Local playback restored');
+              } catch (e) {
+                debugPrint('[Cast] Failed to restore playback: $e');
+              }
+            }
+          });
+        }
+      });
+
+      if (_castingEnabled) {
+        GoogleCastDiscoveryManager.instance.startDiscovery();
+      }
     }
   }
 
   Future<void> _onCastConnected() async {
+    // resolve the messenger up front so it survives the async gap below
+    final messenger = ScaffoldMessenger.of(context);
     final audioProvider = Provider.of<AudioProvider>(context, listen: false);
     final track = audioProvider.currentTrack;
     if (track == null) {
@@ -193,13 +200,10 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
 
         if (serverUrl == null) {
           debugPrint('[Cast] Failed to start local media server');
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                  content:
-                      Text('Unable to start local media server for casting.')),
-            );
-          }
+          messenger.showSnackBar(
+            const SnackBar(
+                content: Text('Unable to start local media server for casting.')),
+          );
           return;
         }
         streamUrl = serverUrl;
@@ -246,11 +250,9 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
       }
     } catch (e) {
       debugPrint('[Cast] Error loading media: $e');
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Cast error: $e')),
-        );
-      }
+      messenger.showSnackBar(
+        SnackBar(content: Text('Cast error: $e')),
+      );
     }
   }
 
@@ -268,13 +270,14 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
   }
 
   Future<void> _castSkipNext() async {
+    // resolve before awaiting so it doesn't cross the async gap
+    final audioProvider = Provider.of<AudioProvider>(context, listen: false);
     try {
       // Stop current cast media
       await GoogleCastRemoteMediaClient.instance.stop();
       debugPrint('[Cast] Stopped current cast media');
 
       // Skip to next track in local queue
-      final audioProvider = Provider.of<AudioProvider>(context, listen: false);
       await audioProvider.skipNext();
 
       // Wait a moment for the new track to load locally
@@ -366,6 +369,45 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
     _isSwipingHorizontal = false;
   }
 
+  // chromecast has no plugin channels on desktop, so skip the session stream
+  Widget _withCastSession(Widget Function(bool isCasting) builder) {
+    if (isDesktop) return builder(false);
+    return StreamBuilder<GoogleCastSession?>(
+      stream: GoogleCastSessionManager.instance.currentSessionStream,
+      builder: (context, castSnapshot) => builder(castSnapshot.data != null),
+    );
+  }
+
+  // desktop: click the progress strip to seek; the bar itself looks the same
+  Widget _seekableProgress(int totalMillis, Widget progressBar) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTapDown: (details) {
+              final width = constraints.maxWidth;
+              if (width <= 0) return;
+              final fraction =
+                  (details.localPosition.dx / width).clamp(0.0, 1.0);
+              context.read<AudioProvider>().seek(
+                    Duration(milliseconds: (fraction * totalMillis).round()),
+                  );
+            },
+            child: Padding(
+              padding: const EdgeInsets.only(top: 9),
+              child: Align(
+                alignment: Alignment.bottomCenter,
+                child: progressBar,
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Selector<AudioProvider, _MiniPlayerSnapshot>(
@@ -396,32 +438,23 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
 
         final settings = Provider.of<SettingsProvider>(context);
 
-        return FadeTransition(
-          opacity: _fadeAnimation,
-          child: SlideTransition(
-            position: _slideAnimation,
-            child: GestureDetector(
-              onTap: widget.onTap,
-              onVerticalDragUpdate: _handleVerticalDragUpdate,
-              onVerticalDragEnd: _handleVerticalDragEnd,
-              onHorizontalDragStart: _handleHorizontalDragStart,
-              onHorizontalDragEnd: (details) => _handleHorizontalDragEnd(
-                  details, context.read<AudioProvider>()),
-              child: RepaintBoundary(
-                child: Padding(
-                  padding: widget.embedded
-                      ? EdgeInsets.zero
-                      : const EdgeInsets.fromLTRB(10, 0, 10, 8),
-                  child: Material(
+        final progressBar = LinearProgressIndicator(
+          value: progress,
+          minHeight: 3,
+          backgroundColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+          valueColor: AlwaysStoppedAnimation<Color>(
+            colorScheme.primary,
+          ),
+        );
+
+        Widget barCard = Material(
                     color: widget.embedded
                         ? Colors.transparent
                         : colorScheme.surfaceContainerHigh,
                     borderRadius: widget.embedded
                         ? BorderRadius.zero
                         : BorderRadius.circular(16),
-                    clipBehavior: widget.embedded
-                        ? Clip.none
-                        : Clip.antiAlias,
+                    clipBehavior: widget.embedded ? Clip.none : Clip.antiAlias,
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -481,7 +514,7 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
                                     size: 26, color: colorScheme.primary),
                                 const SizedBox(width: 10),
                               ] else ...[
-                                if (settings.enableCasting)
+                                if (settings.enableCasting && !isDesktop)
                                   IconButton(
                                     icon: Icon(
                                       Icons.cast,
@@ -492,6 +525,7 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
                                     splashRadius: 22,
                                   ),
                                 IconButton(
+                                  tooltip: isDesktop ? 'Previous' : null,
                                   icon: Icon(
                                     Icons.skip_previous_rounded,
                                     color: colorScheme.onSurface,
@@ -502,33 +536,26 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
                                       .skipPrevious(),
                                   splashRadius: 24,
                                 ),
-                                StreamBuilder<GoogleCastSession?>(
-                                  stream: GoogleCastSessionManager
-                                      .instance.currentSessionStream,
-                                  builder: (context, castSnapshot) {
-                                    final isCasting = castSnapshot.data != null;
-                                    return IconButton(
-                                      icon: Icon(
-                                        Icons.skip_next_rounded,
-                                        color: colorScheme.onSurface,
-                                      ),
-                                      iconSize: 26,
-                                      onPressed: () => isCasting
-                                          ? _castSkipNext()
-                                          : context
-                                              .read<AudioProvider>()
-                                              .skipNext(),
-                                      splashRadius: 24,
-                                    );
-                                  },
+                                _withCastSession(
+                                  (isCasting) => IconButton(
+                                    tooltip: isDesktop ? 'Next' : null,
+                                    icon: Icon(
+                                      Icons.skip_next_rounded,
+                                      color: colorScheme.onSurface,
+                                    ),
+                                    iconSize: 26,
+                                    onPressed: () => isCasting
+                                        ? _castSkipNext()
+                                        : context
+                                            .read<AudioProvider>()
+                                            .skipNext(),
+                                    splashRadius: 24,
+                                  ),
                                 ),
                                 const SizedBox(width: 2),
-                                StreamBuilder<GoogleCastSession?>(
-                                  stream: GoogleCastSessionManager
-                                      .instance.currentSessionStream,
-                                  builder: (context, castSnapshot) {
-                                    final isCasting = castSnapshot.data != null;
-                                    return PressableScale(
+                                _withCastSession(
+                                  (isCasting) {
+                                    final playButton = PressableScale(
                                         child: Material(
                                       color: colorScheme.primaryContainer,
                                       borderRadius: BorderRadius.circular(14),
@@ -559,7 +586,29 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
                                         ),
                                       ),
                                     ));
+                                    if (!isDesktop) return playButton;
+                                    return Tooltip(
+                                      message: snapshot.isPlaying
+                                          ? 'Pause'
+                                          : 'Play',
+                                      child: playButton,
+                                    );
                                   },
+                                ),
+                              ],
+                              // swipe-down-to-dismiss needs a visible
+                              // alternative on desktop
+                              if (isDesktop) ...[
+                                const SizedBox(width: 2),
+                                IconButton(
+                                  tooltip: 'Close player',
+                                  icon: Icon(
+                                    Icons.close_rounded,
+                                    color: colorScheme.onSurfaceVariant,
+                                  ),
+                                  iconSize: 22,
+                                  onPressed: widget.onDismiss,
+                                  splashRadius: 22,
                                 ),
                               ],
                             ],
@@ -570,24 +619,45 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
                           curve: Curves.easeOutCubic,
                           alignment: Alignment.bottomCenter,
                           child: totalMillis > 0 && !isLoading
-                              ? LinearProgressIndicator(
-                                  value: progress,
-                                  minHeight: 3,
-                                  backgroundColor: colorScheme
-                                      .surfaceContainerHighest
-                                      .withOpacity(0.4),
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                    colorScheme.primary,
-                                  ),
-                                )
+                              ? (isDesktop
+                                  ? _seekableProgress(totalMillis, progressBar)
+                                  : progressBar)
                               : const SizedBox.shrink(),
                         ),
                       ],
                     ),
-                  ),
-                ),
-              ),
+                  );
+
+        if (isDesktop) {
+          barCard = MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: barCard,
+          );
+        }
+
+        final gestureArea = GestureDetector(
+          onTap: widget.onTap,
+          onVerticalDragUpdate: _handleVerticalDragUpdate,
+          onVerticalDragEnd: _handleVerticalDragEnd,
+          onHorizontalDragStart: _handleHorizontalDragStart,
+          onHorizontalDragEnd: (details) =>
+              _handleHorizontalDragEnd(details, context.read<AudioProvider>()),
+          child: RepaintBoundary(
+            // full width on desktop everywhere; the mobile pill floats centered
+            child: Padding(
+              padding: widget.embedded
+                  ? EdgeInsets.zero
+                  : const EdgeInsets.fromLTRB(10, 0, 10, 8),
+              child: barCard,
             ),
+          ),
+        );
+
+        return FadeTransition(
+          opacity: _fadeAnimation,
+          child: SlideTransition(
+            position: _slideAnimation,
+            child: gestureArea,
           ),
         );
       },
@@ -638,8 +708,9 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
                   await Future.delayed(const Duration(milliseconds: 300));
 
                   if (fallback == true) {
-                    if (dialogContext.mounted)
+                    if (dialogContext.mounted) {
                       Navigator.of(dialogContext).pop();
+                    }
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
@@ -700,7 +771,7 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
                     Container(
                       padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
-                        color: colorScheme.primaryContainer.withOpacity(0.2),
+                        color: colorScheme.primaryContainer.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(18),
                       ),
                       child: Row(
@@ -725,7 +796,7 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
                                     session.deviceStatusText,
                                     style: theme.textTheme.bodySmall?.copyWith(
                                       color: colorScheme.onPrimaryContainer
-                                          .withOpacity(0.8),
+                                          .withValues(alpha: 0.8),
                                     ),
                                   ),
                               ],
@@ -758,7 +829,7 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
                             Icon(Icons.cast,
                                 size: 36,
                                 color: colorScheme.onSurfaceVariant
-                                    .withOpacity(0.5)),
+                                    .withValues(alpha: 0.5)),
                             const SizedBox(height: 12),
                             Text(
                               'Searching for cast devices...',
@@ -781,8 +852,9 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
                         Future<void> connectToDevice() async {
                           debugPrint(
                               '[Cast] Connecting to ${device.friendlyName} (${device.deviceID})');
-                          if (dialogContext.mounted)
+                          if (dialogContext.mounted) {
                             Navigator.of(dialogContext).pop();
+                          }
 
                           try {
                             final result = await GoogleCastSessionManager
@@ -812,7 +884,7 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
                         return ListTile(
                           leading: CircleAvatar(
                             backgroundColor: isConnected
-                                ? colorScheme.primary.withOpacity(0.15)
+                                ? colorScheme.primary.withValues(alpha: 0.15)
                                 : colorScheme.surfaceContainerHighest,
                             child: Icon(
                               isConnected ? Icons.cast_connected : Icons.cast,
@@ -903,7 +975,6 @@ Widget _artFallback(ColorScheme colorScheme) => Icon(
 
 String? _ytThumbUrl(Track track) {
   final url = track.sourceUrl ?? track.path;
-  if (url == null) return null;
   final id = _ytVideoId(url);
   return id == null ? null : 'https://i.ytimg.com/vi/$id/mqdefault.jpg';
 }

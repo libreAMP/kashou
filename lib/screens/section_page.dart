@@ -1,11 +1,14 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:http/http.dart' as http;
 import 'package:shimmer/shimmer.dart';
 import '../providers/audio_provider.dart';
-import '../services/youtube/youtube_service.dart';
+import '../services/ytdl_service.dart';
 import '../models/track.dart';
 import '../theme/radii.dart';
+import '../utils/platform.dart';
 import '../widgets/square_art.dart';
 import '../widgets/page_mini_player.dart';
 
@@ -32,6 +35,9 @@ class SectionPage extends StatefulWidget {
 }
 
 class _SectionPageState extends State<SectionPage> {
+  // wide desktop windows center the content instead of stretching it
+  static const double _maxContentWidth = 1200;
+
   ViewMode _viewMode = ViewMode.grid;
   bool _searchOpen = false;
   bool _loadingItems = false;
@@ -65,19 +71,14 @@ class _SectionPageState extends State<SectionPage> {
     await audioProvider.prepareTrackLoad(placeholderTrack, playlist: tracks);
 
     try {
-      final streamInfo =
-          await YoutubeService.instance.fetchStreams(placeholderTrack.id);
-      if (streamInfo == null || streamInfo.audioStreams.isEmpty) {
+      // youtube_explode leads on desktop, see resolveAudioStream
+      final stream = await YtdlWrapperService.resolveAudioStream(
+          placeholderTrack.sourceUrl ?? placeholderTrack.path);
+      if (stream == null) {
         audioProvider.cancelPendingTrack(placeholderTrack.id);
         _showSnackBar('Unable to load audio stream.');
         return;
       }
-
-      final mp4 = streamInfo.audioStreams
-          .where((s) => s.mimeType.contains('mp4'))
-          .toList()
-        ..sort((a, b) => b.bitrate.compareTo(a.bitrate));
-      final stream = mp4.isNotEmpty ? mp4.first : streamInfo.audioStreams.first;
 
       final finalTrack = placeholderTrack.copyWith(
         path: stream.url,
@@ -167,11 +168,39 @@ class _SectionPageState extends State<SectionPage> {
     await _playVideo(shuffled.first, shuffled);
   }
 
+  // tooltips are desktop-only: on mobile long-press would newly trigger them
+  Widget _desktopTooltip(String message, Widget child) {
+    if (!isDesktop) return child;
+    return Tooltip(message: message, child: child);
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final screenWidth = MediaQuery.of(context).size.width;
+
+    final Widget body = _loadingItems
+        ? Column(
+            children: [
+              _buildHeader(colorScheme, theme),
+              Expanded(child: _buildShimmer(colorScheme)),
+            ],
+          )
+        : _filteredItems.isEmpty && _searchController.text.isEmpty
+            ? _buildEmptyState(colorScheme, theme)
+            : Column(
+                children: [
+                  _buildHeader(colorScheme, theme),
+                  Expanded(
+                    child: _filteredItems.isEmpty
+                        ? _buildNoResultsState(colorScheme, theme)
+                        : _viewMode == ViewMode.grid
+                            ? _buildResponsiveGrid(screenWidth)
+                            : _buildEnhancedList(),
+                  ),
+                ],
+              );
 
     return Scaffold(
       bottomNavigationBar: const PageMiniPlayer(),
@@ -205,27 +234,15 @@ class _SectionPageState extends State<SectionPage> {
           const SizedBox(width: 8),
         ],
       ),
-      body: _loadingItems
-          ? Column(
-              children: [
-                _buildHeader(colorScheme, theme),
-                Expanded(child: _buildShimmer(colorScheme)),
-              ],
+      body: isDesktop
+          ? Center(
+              child: ConstrainedBox(
+                constraints:
+                    const BoxConstraints(maxWidth: _maxContentWidth),
+                child: body,
+              ),
             )
-          : _filteredItems.isEmpty && _searchController.text.isEmpty
-              ? _buildEmptyState(colorScheme, theme)
-              : Column(
-                  children: [
-                    _buildHeader(colorScheme, theme),
-                    Expanded(
-                      child: _filteredItems.isEmpty
-                          ? _buildNoResultsState(colorScheme, theme)
-                          : _viewMode == ViewMode.grid
-                              ? _buildResponsiveGrid(screenWidth)
-                              : _buildEnhancedList(),
-                    ),
-                  ],
-                ),
+          : body,
     );
   }
 
@@ -370,13 +387,16 @@ class _SectionPageState extends State<SectionPage> {
                 child: InkWell(
                   borderRadius: BorderRadius.circular(18),
                   onTap: _filteredItems.isEmpty ? null : _playAll,
-                  child: SizedBox(
-                    width: 104,
-                    height: 52,
-                    child: Icon(
-                      Icons.play_arrow_rounded,
-                      size: 30,
-                      color: colorScheme.onPrimaryContainer,
+                  child: _desktopTooltip(
+                    'Play all',
+                    SizedBox(
+                      width: 104,
+                      height: 52,
+                      child: Icon(
+                        Icons.play_arrow_rounded,
+                        size: 30,
+                        color: colorScheme.onPrimaryContainer,
+                      ),
                     ),
                   ),
                 ),
@@ -388,11 +408,14 @@ class _SectionPageState extends State<SectionPage> {
                 child: InkWell(
                   customBorder: const CircleBorder(),
                   onTap: _filteredItems.isEmpty ? null : _shufflePlay,
-                  child: SizedBox(
-                    width: 52,
-                    height: 52,
-                    child: Icon(Icons.shuffle_rounded,
-                        size: 22, color: colorScheme.onSurface),
+                  child: _desktopTooltip(
+                    'Shuffle play',
+                    SizedBox(
+                      width: 52,
+                      height: 52,
+                      child: Icon(Icons.shuffle_rounded,
+                          size: 22, color: colorScheme.onSurface),
+                    ),
                   ),
                 ),
               ),
@@ -428,7 +451,24 @@ class _SectionPageState extends State<SectionPage> {
     int crossAxisCount;
     double childAspectRatio;
 
-    if (screenWidth >= 1200) {
+    if (isDesktop) {
+      // on desktop the content is centered and capped, so measure the
+      // effective content width and allow denser multi-column layouts
+      final contentWidth = math.min(screenWidth, _maxContentWidth);
+      if (contentWidth >= 1100) {
+        crossAxisCount = 6;
+        childAspectRatio = 0.68;
+      } else if (contentWidth >= 900) {
+        crossAxisCount = 5;
+        childAspectRatio = 0.69;
+      } else if (contentWidth >= 700) {
+        crossAxisCount = 4;
+        childAspectRatio = 0.70;
+      } else {
+        crossAxisCount = 3;
+        childAspectRatio = 0.72;
+      }
+    } else if (screenWidth >= 1200) {
       crossAxisCount = 5;
       childAspectRatio = 0.68;
     } else if (screenWidth >= 900) {
@@ -549,6 +589,7 @@ class _SectionPageState extends State<SectionPage> {
                     ),
                     onPressed: () => _playVideo(video),
                     padding: EdgeInsets.zero,
+                    tooltip: isDesktop ? 'Play' : null,
                   ),
                 ),
               ],
@@ -567,44 +608,61 @@ class _SectionPageState extends State<SectionPage> {
     final title = item['title'] as String? ?? 'Unknown';
     final subtitle = item['channel'] as String? ?? 'Unknown artist';
 
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SquareArt(url: thumbnail, radius: rMd),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(2, 8, 2, 0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: colorScheme.onSurface,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                  height: 1.3,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                subtitle,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                  fontSize: 11,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+
+    if (isDesktop) {
+      // pointer affordances: click cursor, hover highlight and ink splash
+      return Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => _playVideo(item),
+          borderRadius: BorderRadius.circular(rSm),
+          child: Padding(
+            padding: const EdgeInsets.all(4),
+            child: content,
+          ),
+        ),
+      );
+    }
+
     return GestureDetector(
       onTap: () => _playVideo(item),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SquareArt(url: thumbnail, radius: rMd),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(2, 8, 2, 0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: colorScheme.onSurface,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13,
-                    height: 1.3,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  subtitle,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                    fontSize: 11,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-      );
+      child: content,
+    );
   }
 }
 

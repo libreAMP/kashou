@@ -5,11 +5,15 @@ import '../models/track.dart';
 import '../providers/audio_provider.dart';
 import '../services/ytmusic_service.dart';
 import '../theme/radii.dart';
+import '../utils/platform.dart';
 import '../widgets/art_card.dart';
 import '../widgets/back_chip.dart';
 import '../widgets/loading_indicator.dart';
 import '../widgets/square_art.dart';
 import 'section_page.dart';
+
+// widest the content is allowed to stretch on desktop windows
+const double _desktopMaxWidth = 1100;
 
 class ArtistScreen extends StatefulWidget {
   final String browseId;
@@ -39,6 +43,11 @@ class _ArtistScreenState extends State<ArtistScreen> {
       _artist = a;
       _loading = false;
     });
+  }
+
+  Future<void> _refresh() async {
+    setState(() => _loading = true);
+    await _load();
   }
 
   void _openPlaylist(Map<String, dynamic> pl) {
@@ -107,60 +116,110 @@ class _ArtistScreenState extends State<ArtistScreen> {
     return Scaffold(
       body: _loading
           ? const Center(child: KashouLoader())
-          : CustomScrollView(
-              slivers: [
-                SliverAppBar.large(
-                  expandedHeight: 260,
-                  pinned: true,
-                  backgroundColor: Colors.transparent,
-                  surfaceTintColor: Colors.transparent,
-                  elevation: 0,
-                  scrolledUnderElevation: 0,
-                  leading: const BackChip(),
-                  flexibleSpace: FlexibleSpaceBar(
-                    title: Text(name,
-                        style: const TextStyle(fontWeight: FontWeight.w800)),
-                    background: _artist?['thumbnail'] != null
-                        ? Stack(
-                            fit: StackFit.expand,
-                            children: [
-                              SquareArt(
-                                  url: _artist!['thumbnail'] as String?,
-                                  radius: 0),
-                              const DecoratedBox(
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    begin: Alignment.topCenter,
-                                    end: Alignment.bottomCenter,
-                                    colors: [Colors.transparent, Colors.black54],
+          : LayoutBuilder(
+              builder: (context, constraints) {
+                final contentWidth =
+                    isDesktop && constraints.maxWidth > _desktopMaxWidth
+                        ? _desktopMaxWidth
+                        : constraints.maxWidth;
+                // song rows split into columns once there is room for them
+                final songColumns = !isDesktop
+                    ? 1
+                    : contentWidth >= 900
+                        ? 3
+                        : contentWidth >= 620
+                            ? 2
+                            : 1;
+                final scrollView = CustomScrollView(
+                  slivers: [
+                    SliverAppBar.large(
+                      expandedHeight: 260,
+                      pinned: true,
+                      backgroundColor: Colors.transparent,
+                      surfaceTintColor: Colors.transparent,
+                      elevation: 0,
+                      scrolledUnderElevation: 0,
+                      leading: isDesktop
+                          ? const Tooltip(
+                              message: 'Back', child: BackChip())
+                          : const BackChip(),
+                      actions: [
+                        if (isDesktop)
+                          IconButton(
+                            tooltip: 'Refresh',
+                            onPressed: _refresh,
+                            icon: const Icon(Icons.refresh_rounded),
+                          ),
+                      ],
+                      flexibleSpace: FlexibleSpaceBar(
+                        title: Text(name,
+                            style:
+                                const TextStyle(fontWeight: FontWeight.w800)),
+                        background: _artist?['thumbnail'] != null
+                            ? Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  SquareArt(
+                                      url: _artist!['thumbnail'] as String?,
+                                      radius: 0),
+                                  const DecoratedBox(
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        begin: Alignment.topCenter,
+                                        end: Alignment.bottomCenter,
+                                        colors: [
+                                          Colors.transparent,
+                                          Colors.black54
+                                        ],
+                                      ),
+                                    ),
                                   ),
-                                ),
-                              ),
-                            ],
-                          )
-                        : Container(color: scheme.surfaceContainerHigh),
-                  ),
-                ),
-                if (songs.isNotEmpty) ...[
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-                      child: Text('Songs',
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleMedium
-                              ?.copyWith(fontWeight: FontWeight.w700)),
+                                ],
+                              )
+                            : Container(color: scheme.surfaceContainerHigh),
+                      ),
                     ),
+                    if (songs.isNotEmpty) ...[
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                          child: Text('Songs',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.w700)),
+                        ),
+                      ),
+                      if (songColumns > 1)
+                        SliverGrid.builder(
+                          gridDelegate:
+                              SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: songColumns,
+                            mainAxisExtent: 72,
+                          ),
+                          itemCount: songs.length,
+                          itemBuilder: (_, i) => _songRow(songs[i], songs),
+                        )
+                      else
+                        SliverList.builder(
+                          itemCount: songs.length,
+                          itemBuilder: (_, i) => _songRow(songs[i], songs),
+                        ),
+                    ],
+                    for (final shelf in shelves)
+                      SliverToBoxAdapter(child: _buildShelf(shelf)),
+                    const SliverToBoxAdapter(child: SizedBox(height: 32)),
+                  ],
+                );
+                if (!isDesktop) return scrollView;
+                return Center(
+                  child: ConstrainedBox(
+                    constraints:
+                        const BoxConstraints(maxWidth: _desktopMaxWidth),
+                    child: scrollView,
                   ),
-                  SliverList.builder(
-                    itemCount: songs.length,
-                    itemBuilder: (_, i) => _songRow(songs[i], songs),
-                  ),
-                ],
-                for (final shelf in shelves)
-                  SliverToBoxAdapter(child: _buildShelf(shelf)),
-                const SliverToBoxAdapter(child: SizedBox(height: 32)),
-              ],
+                );
+              },
             ),
     );
   }
@@ -205,6 +264,30 @@ class _ArtistScreenState extends State<ArtistScreen> {
   Widget _buildShelf(Map<String, dynamic> shelf) {
     final items = (shelf['items'] as List).cast<Map<String, dynamic>>();
     final title = shelf['title'] as String? ?? '';
+    if (isDesktop) {
+      // horizontal shelves are awkward with a mouse; wrap the cards instead
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+            child: Text(title,
+                style: Theme.of(context)
+                    .textTheme
+                    .titleMedium
+                    ?.copyWith(fontWeight: FontWeight.w700)),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Wrap(
+              spacing: 16,
+              runSpacing: 20,
+              children: [for (final item in items) _shelfCard(item)],
+            ),
+          ),
+        ],
+      );
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -232,6 +315,18 @@ class _ArtistScreenState extends State<ArtistScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _shelfCard(Map<String, dynamic> item) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: ArtCard(
+        thumbnail: item['thumbnail'] as String?,
+        title: item['title'] as String? ?? '',
+        subtitle: item['subtitle'] as String?,
+        onTap: () => _openPlaylist(item),
+      ),
     );
   }
 }

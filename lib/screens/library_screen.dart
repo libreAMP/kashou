@@ -15,6 +15,7 @@ import '../theme/app_theme.dart';
 import '../theme/radii.dart';
 import '../widgets/settings_tiles.dart';
 import '../utils/app_messenger.dart';
+import '../utils/platform.dart';
 import '../providers/audio_provider.dart';
 import '../widgets/track_list_item.dart';
 import '../widgets/album_card.dart';
@@ -38,6 +39,27 @@ class _LibraryScreenState extends State<LibraryScreen>
   String _sortMode = 'added';
   List<String> _tabOrder = List.of(_defaultTabs);
 
+  // roomy desktop windows get a wider centered column than phones/tablets
+  static const double _desktopContentWidth = 960;
+
+  // desktop lists/grids get a draggable scrollbar, so each tab keeps a
+  // controller; mobile stays controller-less
+  final _tabScrollControllers = <String, ScrollController>{};
+
+  ScrollController? _scrollControllerFor(String label) => isDesktop
+      ? _tabScrollControllers.putIfAbsent(label, ScrollController.new)
+      : null;
+
+  Widget _wrapTabScrollable(ScrollController? controller, Widget child) {
+    if (!isDesktop || controller == null) return child;
+    return Scrollbar(
+      controller: controller,
+      thumbVisibility: true,
+      interactive: true,
+      child: child,
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -59,19 +81,20 @@ class _LibraryScreenState extends State<LibraryScreen>
 
   Widget _tabFor(
       String label, LibraryProvider library, double bottomPadding) {
+    final controller = _scrollControllerFor(label);
     switch (label) {
       case 'Liked':
-        return _buildLikedTab(library, bottomPadding);
+        return _buildLikedTab(library, bottomPadding, controller);
       case 'Songs':
-        return _buildSongsTab(library, bottomPadding);
+        return _buildSongsTab(library, bottomPadding, controller);
       case 'Albums':
-        return _buildAlbumsTab(library, bottomPadding);
+        return _buildAlbumsTab(library, bottomPadding, controller);
       case 'Artists':
-        return _buildArtistsTab(library, bottomPadding);
+        return _buildArtistsTab(library, bottomPadding, controller);
       case 'Playlists':
-        return _buildPlaylistsTab(library, bottomPadding);
+        return _buildPlaylistsTab(library, bottomPadding, controller);
       default:
-        return _buildDownloadsTab(bottomPadding);
+        return _buildDownloadsTab(bottomPadding, controller);
     }
   }
 
@@ -109,10 +132,14 @@ class _LibraryScreenState extends State<LibraryScreen>
   void dispose() {
     _tabController.dispose();
     _searchController.dispose();
+    for (final controller in _tabScrollControllers.values) {
+      controller.dispose();
+    }
     super.dispose();
   }
 
   void _revealChip(int i) {
+    if (isDesktop) return; // all chips stay visible in the wrapped desktop rail
     if (i == _lastChip) return;
     _lastChip = i;
     final ctx = _chipKeys[i].currentContext;
@@ -152,54 +179,78 @@ class _LibraryScreenState extends State<LibraryScreen>
           final scheme = Theme.of(context).colorScheme;
           final sel = _tabController.animation!.value.round();
           WidgetsBinding.instance.addPostFrameCallback((_) => _revealChip(sel));
+          Widget chip(int i) {
+            return Material(
+              key: _chipKeys[i],
+              color: i == sel ? scheme.primary : scheme.surfaceContainerHigh,
+              borderRadius: BorderRadius.circular(24),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(24),
+                onTap: () => _tabController.animateTo(i),
+                child: Padding(
+                  // the horizontal rail stretches chips to full tab height;
+                  // the wrapped desktop rail sizes them from content instead
+                  padding: EdgeInsets.symmetric(
+                      horizontal: 16, vertical: isDesktop ? 11 : 0),
+                  child: Row(
+                    children: [
+                      Icon(_tabIcons[labels[i]]!,
+                          size: 18,
+                          color: i == sel
+                              ? scheme.onPrimary
+                              : scheme.onSurfaceVariant),
+                      const SizedBox(width: 8),
+                      Text(
+                        labels[i],
+                        style: TextStyle(
+                          color: i == sel
+                              ? scheme.onPrimary
+                              : scheme.onSurface,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }
+
           return SizedBox(
             height: 64,
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-              child: Row(
-                // without this the chips shrink to text height
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  for (var i = 0; i < labels.length; i++) ...[
-                    if (i > 0) const SizedBox(width: 8),
-                    Material(
-                      key: _chipKeys[i],
-                      color: i == sel
-                          ? scheme.primary
-                          : scheme.surfaceContainerHigh,
-                      borderRadius: BorderRadius.circular(24),
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(24),
-                        onTap: () => _tabController.animateTo(i),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: Row(
-                            children: [
-                              Icon(_tabIcons[labels[i]]!,
-                                  size: 18,
-                                  color: i == sel
-                                      ? scheme.onPrimary
-                                      : scheme.onSurfaceVariant),
-                              const SizedBox(width: 8),
-                              Text(
-                                labels[i],
-                                style: TextStyle(
-                                  color: i == sel
-                                      ? scheme.onPrimary
-                                      : scheme.onSurface,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ),
+            // keep the chip rail lined up with the centered desktop column
+            child: isDesktop
+                ? Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(
+                          maxWidth: _desktopContentWidth),
+                      // desktop: chips wrap instead of scrolling sideways
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                        child: Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            for (var i = 0; i < labels.length; i++) chip(i),
+                          ],
                         ),
                       ),
                     ),
-                  ],
-                ],
-              ),
-            ),
+                  )
+                : SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                    child: Row(
+                      // without this the chips shrink to text height
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        for (var i = 0; i < labels.length; i++) ...[
+                          if (i > 0) const SizedBox(width: 8),
+                          chip(i),
+                        ],
+                      ],
+                    ),
+                  ),
           );
         },
       ),
@@ -231,6 +282,7 @@ class _LibraryScreenState extends State<LibraryScreen>
                       actions: [
                         IconButton(
                           icon: const Icon(Icons.refresh),
+                          tooltip: isDesktop ? 'Rescan library' : null,
                           onPressed: () {
                             final provider = Provider.of<LibraryProvider>(
                               context,
@@ -241,6 +293,7 @@ class _LibraryScreenState extends State<LibraryScreen>
                         ),
                         IconButton(
                           icon: const Icon(Icons.more_vert),
+                          tooltip: isDesktop ? 'Library options' : null,
                           onPressed: () {
                             _showLibraryOptions(context);
                           },
@@ -260,14 +313,17 @@ class _LibraryScreenState extends State<LibraryScreen>
                             padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
                             child: LayoutBuilder(
                               builder: (context, constraints) {
-                                final isWide = constraints.maxWidth > 640;
+                                final cap =
+                                    isDesktop ? _desktopContentWidth : 640.0;
+                                final isWide = constraints.maxWidth > cap;
                                 return Align(
                                   alignment: isWide
                                       ? Alignment.topCenter
                                       : Alignment.topLeft,
                                   child: ConstrainedBox(
                                     constraints: BoxConstraints(
-                                      maxWidth: isWide ? 640 : double.infinity,
+                                      maxWidth:
+                                          isWide ? cap : double.infinity,
                                     ),
                                     child: Column(
                                       crossAxisAlignment:
@@ -291,47 +347,42 @@ class _LibraryScreenState extends State<LibraryScreen>
                                               .surfaceContainerHigh,
                                           borderRadius:
                                               BorderRadius.circular(16),
-                                          child: Container(
-                                            child: SearchBar(
-                                              controller: _searchController,
-                                              leading: const Padding(
-                                                padding:
-                                                    EdgeInsets.only(left: 8),
-                                                child: Icon(Icons.search),
-                                              ),
-                                              trailing: _searchController
-                                                      .text.isNotEmpty
-                                                  ? [
-                                                      IconButton(
-                                                        icon: const Icon(
-                                                            Icons.clear),
-                                                        onPressed: () {
-                                                          _searchController
-                                                              .clear();
-                                                          setState(() {});
-                                                        },
-                                                      ),
-                                                    ]
-                                                  : null,
-                                              hintText: 'Search music...',
-                                              elevation:
-                                                  const WidgetStatePropertyAll(
-                                                      0),
-                                              shape: WidgetStatePropertyAll(
-                                                RoundedRectangleBorder(
-                                                  borderRadius:
-                                                      BorderRadius.circular(24),
-                                                ),
-                                              ),
-                                              padding:
-                                                  const WidgetStatePropertyAll(
-                                                EdgeInsets.symmetric(
-                                                    horizontal: 16),
-                                              ),
-                                              onChanged: (value) {
-                                                setState(() {});
-                                              },
+                                          child: SearchBar(
+                                            controller: _searchController,
+                                            leading: const Padding(
+                                              padding: EdgeInsets.only(left: 8),
+                                              child: Icon(Icons.search),
                                             ),
+                                            trailing: _searchController
+                                                    .text.isNotEmpty
+                                                ? [
+                                                    IconButton(
+                                                      icon: const Icon(
+                                                          Icons.clear),
+                                                      onPressed: () {
+                                                        _searchController.clear();
+                                                        setState(() {});
+                                                      },
+                                                    ),
+                                                  ]
+                                                : null,
+                                            hintText: 'Search music...',
+                                            elevation:
+                                                const WidgetStatePropertyAll(0),
+                                            shape: WidgetStatePropertyAll(
+                                              RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(24),
+                                              ),
+                                            ),
+                                            padding:
+                                                const WidgetStatePropertyAll(
+                                              EdgeInsets.symmetric(
+                                                  horizontal: 16),
+                                            ),
+                                            onChanged: (value) {
+                                              setState(() {});
+                                            },
                                           ),
                                         ),
                                       ],
@@ -367,7 +418,8 @@ class _LibraryScreenState extends State<LibraryScreen>
 
                     return LayoutBuilder(
                       builder: (context, constraints) {
-                        final isWide = constraints.maxWidth > 640;
+                        final cap = isDesktop ? _desktopContentWidth : 640.0;
+                        final isWide = constraints.maxWidth > cap;
                         final keyboardHeight =
                             MediaQuery.of(context).viewInsets.bottom;
                         final showMiniPlayer =
@@ -378,7 +430,7 @@ class _LibraryScreenState extends State<LibraryScreen>
                                 (showMiniPlayer ? 96.0 : 16.0);
                         return ConstrainedBox(
                           constraints: BoxConstraints(
-                            maxWidth: isWide ? 640 : double.infinity,
+                            maxWidth: isWide ? cap : double.infinity,
                           ),
                           child: Align(
                             alignment: isWide
@@ -405,7 +457,8 @@ class _LibraryScreenState extends State<LibraryScreen>
     );
   }
 
-  Widget _buildLikedTab(LibraryProvider library, double bottomPadding) {
+  Widget _buildLikedTab(LibraryProvider library, double bottomPadding,
+      ScrollController? controller) {
     final favoriteTracks = _sorted(_filtered(library.favoriteTracks));
 
     if (favoriteTracks.isEmpty) {
@@ -427,7 +480,7 @@ class _LibraryScreenState extends State<LibraryScreen>
                   color: Theme.of(context)
                       .colorScheme
                       .onSurfaceVariant
-                      .withOpacity(0.4),
+                      .withValues(alpha: 0.4),
                 ),
               ),
               const SizedBox(height: 24),
@@ -445,7 +498,7 @@ class _LibraryScreenState extends State<LibraryScreen>
                       color: Theme.of(context)
                           .colorScheme
                           .onSurfaceVariant
-                          .withOpacity(0.7),
+                          .withValues(alpha: 0.7),
                     ),
                 textAlign: TextAlign.center,
               ),
@@ -461,31 +514,35 @@ class _LibraryScreenState extends State<LibraryScreen>
     final localTracks = favoriteTracks.where((track) => !isOnline(track)).toList();
     final onlineTracks = favoriteTracks.where(isOnline).toList();
 
-    return ListView(
-      padding: EdgeInsets.fromLTRB(16, 16, 16, bottomPadding),
-      children: [
-        if (onlineTracks.isNotEmpty) ...[
-          _buildSectionHeader(
-            context,
-            icon: Icons.cloud_outlined,
-            title: 'Online Songs',
-            subtitle: '${onlineTracks.length} tracks',
-          ),
-          const SizedBox(height: 8),
-          ...onlineTracks.map((track) => TrackListItem(track: track)),
-          if (localTracks.isNotEmpty) const SizedBox(height: 24),
+    return _wrapTabScrollable(
+      controller,
+      ListView(
+        controller: controller,
+        padding: EdgeInsets.fromLTRB(16, 16, 16, bottomPadding),
+        children: [
+          if (onlineTracks.isNotEmpty) ...[
+            _buildSectionHeader(
+              context,
+              icon: Icons.cloud_outlined,
+              title: 'Online Songs',
+              subtitle: '${onlineTracks.length} tracks',
+            ),
+            const SizedBox(height: 8),
+            ...onlineTracks.map((track) => TrackListItem(track: track)),
+            if (localTracks.isNotEmpty) const SizedBox(height: 24),
+          ],
+          if (localTracks.isNotEmpty) ...[
+            _buildSectionHeader(
+              context,
+              icon: Icons.phone_android,
+              title: 'Local Songs',
+              subtitle: '${localTracks.length} tracks',
+            ),
+            const SizedBox(height: 8),
+            ...localTracks.map((track) => TrackListItem(track: track)),
+          ],
         ],
-        if (localTracks.isNotEmpty) ...[
-          _buildSectionHeader(
-            context,
-            icon: Icons.phone_android,
-            title: 'Local Songs',
-            subtitle: '${localTracks.length} tracks',
-          ),
-          const SizedBox(height: 8),
-          ...localTracks.map((track) => TrackListItem(track: track)),
-        ],
-      ],
+      ),
     );
   }
 
@@ -503,7 +560,7 @@ class _LibraryScreenState extends State<LibraryScreen>
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: theme.colorScheme.primaryContainer.withOpacity(0.5),
+              color: theme.colorScheme.primaryContainer.withValues(alpha: 0.5),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(
@@ -536,7 +593,8 @@ class _LibraryScreenState extends State<LibraryScreen>
     );
   }
 
-  Widget _buildSongsTab(LibraryProvider library, double bottomPadding) {
+  Widget _buildSongsTab(LibraryProvider library, double bottomPadding,
+      ScrollController? controller) {
     final tracks = _sorted(_searchController.text.isEmpty ? library.allTracks : library.searchTracks(_searchController.text));
 
     if (tracks.isEmpty) {
@@ -582,16 +640,37 @@ class _LibraryScreenState extends State<LibraryScreen>
       );
     }
 
-    return ListView.builder(
-      padding: EdgeInsets.fromLTRB(16, 0, 16, bottomPadding),
-      itemCount: tracks.length,
-      itemBuilder: (context, index) {
-        return TrackListItem(track: tracks[index]);
-      },
+    return _wrapTabScrollable(
+      controller,
+      ListView.builder(
+        controller: controller,
+        padding: EdgeInsets.fromLTRB(16, 0, 16, bottomPadding),
+        itemCount: tracks.length,
+        itemBuilder: (context, index) {
+          return TrackListItem(track: tracks[index]);
+        },
+      ),
     );
   }
 
-  Widget _buildAlbumsTab(LibraryProvider library, double bottomPadding) {
+  // desktop packs as many cover columns as the centered column allows;
+  // mobile keeps the fixed 3-up phone grid
+  SliverGridDelegate get _coverGridDelegate => isDesktop
+      ? const SliverGridDelegateWithMaxCrossAxisExtent(
+          maxCrossAxisExtent: 220,
+          childAspectRatio: 0.72,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 16,
+        )
+      : const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 3,
+          childAspectRatio: 0.72,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 16,
+        );
+
+  Widget _buildAlbumsTab(LibraryProvider library, double bottomPadding,
+      ScrollController? controller) {
     final albums = _searchController.text.isEmpty
         ? library.albums
         : library.searchAlbums(_searchController.text);
@@ -620,22 +699,22 @@ class _LibraryScreenState extends State<LibraryScreen>
       );
     }
 
-    return GridView.builder(
-      padding: EdgeInsets.fromLTRB(16, 16, 16, bottomPadding),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
-        childAspectRatio: 0.72,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 16,
+    return _wrapTabScrollable(
+      controller,
+      GridView.builder(
+        controller: controller,
+        padding: EdgeInsets.fromLTRB(16, 16, 16, bottomPadding),
+        gridDelegate: _coverGridDelegate,
+        itemCount: albums.length,
+        itemBuilder: (context, index) {
+          return AlbumCard(album: albums[index]);
+        },
       ),
-      itemCount: albums.length,
-      itemBuilder: (context, index) {
-        return AlbumCard(album: albums[index]);
-      },
     );
   }
 
-  Widget _buildArtistsTab(LibraryProvider library, double bottomPadding) {
+  Widget _buildArtistsTab(LibraryProvider library, double bottomPadding,
+      ScrollController? controller) {
     final artists = _searchController.text.isEmpty
         ? library.artists
         : library.searchArtists(_searchController.text);
@@ -664,22 +743,21 @@ class _LibraryScreenState extends State<LibraryScreen>
       );
     }
 
-    return GridView.builder(
-      padding: EdgeInsets.fromLTRB(16, 16, 16, bottomPadding),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
-        childAspectRatio: 0.72,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 16,
+    return _wrapTabScrollable(
+      controller,
+      GridView.builder(
+        controller: controller,
+        padding: EdgeInsets.fromLTRB(16, 16, 16, bottomPadding),
+        gridDelegate: _coverGridDelegate,
+        itemCount: artists.length,
+        itemBuilder: (context, index) {
+          return ArtistCard(artist: artists[index]);
+        },
       ),
-      itemCount: artists.length,
-      itemBuilder: (context, index) {
-        return ArtistCard(artist: artists[index]);
-      },
     );
   }
 
-  Widget _buildDownloadsTab(double bottomPadding) {
+  Widget _buildDownloadsTab(double bottomPadding, ScrollController? controller) {
     return FutureBuilder<List<Track>>(
       future: DownloadStore.tracks(),
       builder: (context, snapshot) {
@@ -713,16 +791,22 @@ class _LibraryScreenState extends State<LibraryScreen>
             ),
           );
         }
-        return ListView.builder(
-          padding: EdgeInsets.fromLTRB(16, 8, 16, bottomPadding),
-          itemCount: tracks.length,
-          itemBuilder: (context, index) => TrackListItem(track: tracks[index]),
+        return _wrapTabScrollable(
+          controller,
+          ListView.builder(
+            controller: controller,
+            padding: EdgeInsets.fromLTRB(16, 8, 16, bottomPadding),
+            itemCount: tracks.length,
+            itemBuilder: (context, index) =>
+                TrackListItem(track: tracks[index]),
+          ),
         );
       },
     );
   }
 
-  Widget _buildPlaylistsTab(LibraryProvider library, double bottomPadding) {
+  Widget _buildPlaylistsTab(LibraryProvider library, double bottomPadding,
+      ScrollController? controller) {
     final q = _searchController.text.trim().toLowerCase();
     final playlists = q.isEmpty ? library.playlists : library.playlists.where((p) => p.name.toLowerCase().contains(q)).toList();
     if (playlists.isEmpty) {
@@ -760,29 +844,49 @@ class _LibraryScreenState extends State<LibraryScreen>
       );
     }
 
-    return ListView.builder(
-      padding: EdgeInsets.fromLTRB(16, 16, 16, bottomPadding),
-      itemCount: playlists.length,
-      itemBuilder: (context, index) {
-        final playlist = playlists[index];
-        return ListTile(
-          title: Text(playlist.name),
-          subtitle: Text('${playlist.tracks.length} songs'),
-          leading: _playlistArt(playlist, Theme.of(context).colorScheme),
-          onTap: () => Navigator.of(context).push(MaterialPageRoute(
-            builder: (_) =>
-                TrackListPage(
-                  title: playlist.name,
-                  tracks: playlist.tracks,
-                  cover: playlist.coverImage,
-                  playlistId: playlist.id,
-                  onOptions: () =>
-                      _showPlaylistOptions(context, playlist.id),
-                ),
-          )),
-          onLongPress: () => _showPlaylistOptions(context, playlist.id),
-        );
-      },
+    return _wrapTabScrollable(
+      controller,
+      ListView.builder(
+        controller: controller,
+        padding: EdgeInsets.fromLTRB(16, 16, 16, bottomPadding),
+        itemCount: playlists.length,
+        itemBuilder: (context, index) {
+          final playlist = playlists[index];
+          return GestureDetector(
+            // desktop: right-click mirrors the long-press options menu
+            onSecondaryTapUp: isDesktop
+                ? (_) => _showPlaylistOptions(context, playlist.id)
+                : null,
+            child: ListTile(
+              title: Text(playlist.name),
+              subtitle: Text('${playlist.tracks.length} songs'),
+              leading: _playlistArt(playlist, Theme.of(context).colorScheme),
+              // desktop has no long-press discoverability, so show the
+              // options button explicitly
+              trailing: isDesktop
+                  ? IconButton(
+                      tooltip: 'Playlist options',
+                      icon: const Icon(Icons.more_vert),
+                      onPressed: () =>
+                          _showPlaylistOptions(context, playlist.id),
+                    )
+                  : null,
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) =>
+                    TrackListPage(
+                      title: playlist.name,
+                      tracks: playlist.tracks,
+                      cover: playlist.coverImage,
+                      playlistId: playlist.id,
+                      onOptions: () =>
+                          _showPlaylistOptions(context, playlist.id),
+                    ),
+              )),
+              onLongPress: () => _showPlaylistOptions(context, playlist.id),
+            ),
+          );
+        },
+      ),
     );
   }
 
@@ -903,10 +1007,24 @@ class _LibraryScreenState extends State<LibraryScreen>
   }
 
   void _showLibraryOptions(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    // desktop convention: centered dialog; mobile keeps the bottom sheet
+    if (isDesktop) {
+      showDialog(
+        context: context,
+        builder: (dialogContext) => Dialog(
+          backgroundColor: Colors.transparent,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: _libraryOptionsCard(dialogContext),
+          ),
+        ),
+      );
+      return;
+    }
     showModalBottomSheet(
       context: context,
-      builder: (context) {
+      builder: (sheetContext) {
+        final scheme = Theme.of(sheetContext).colorScheme;
         return SafeArea(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -922,85 +1040,89 @@ class _LibraryScreenState extends State<LibraryScreen>
               ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                child: Material(
-                  color: scheme.surfaceContainerHigh,
-                  borderRadius: EShape.radius(EShape.lg),
-                  clipBehavior: Clip.antiAlias,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      ListTile(
-                        leading: const Icon(Icons.history),
-                        title: const Text('YouTube History'),
-                        onTap: () {
-                          Navigator.pop(context);
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                                builder: (_) => const YoutubeHistoryScreen()),
-                          );
-                        },
-                      ),
-                      Divider(
-                          height: 1,
-                          indent: 56,
-                          color: scheme.outlineVariant.withValues(alpha: 0.4)),
-                      ListTile(
-                        leading: const Icon(Icons.link_rounded),
-                        title: const Text('Import from YouTube'),
-                        onTap: () {
-                          Navigator.pop(context);
-                          _importFromYouTube();
-                        },
-                      ),
-                      Divider(
-                          height: 1,
-                          indent: 56,
-                          color: scheme.outlineVariant.withValues(alpha: 0.4)),
-                      ListTile(
-                        leading: const Icon(Icons.refresh),
-                        title: const Text('Rescan Library'),
-                        onTap: () {
-                          Navigator.pop(context);
-                          final provider = Provider.of<LibraryProvider>(
-                            context,
-                            listen: false,
-                          );
-                          provider.scanLibrary(force: true);
-                        },
-                      ),
-                      Divider(
-                          height: 1,
-                          indent: 56,
-                          color: scheme.outlineVariant.withValues(alpha: 0.4)),
-                      ListTile(
-                        leading: const Icon(Icons.sort),
-                        title: const Text('Sort Options'),
-                        onTap: () {
-                          Navigator.pop(context);
-                          _showSortDialog(context);
-                        },
-                      ),
-                      Divider(
-                          height: 1,
-                          indent: 56,
-                          color:
-                              scheme.outlineVariant.withValues(alpha: 0.4)),
-                      ListTile(
-                        leading: const Icon(Icons.reorder_rounded),
-                        title: const Text('Reorder Tabs'),
-                        onTap: () {
-                          Navigator.pop(context);
-                          _showTabOrderDialog(context);
-                        },
-                      ),
-                    ],
-                  ),
-                ),
+                child: _libraryOptionsCard(sheetContext),
               ),
             ],
           ),
         );
       },
+    );
+  }
+
+  Widget _libraryOptionsCard(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Material(
+      color: scheme.surfaceContainerHigh,
+      borderRadius: EShape.radius(EShape.lg),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(
+            leading: const Icon(Icons.history),
+            title: const Text('YouTube History'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                    builder: (_) => const YoutubeHistoryScreen()),
+              );
+            },
+          ),
+          Divider(
+              height: 1,
+              indent: 56,
+              color: scheme.outlineVariant.withValues(alpha: 0.4)),
+          ListTile(
+            leading: const Icon(Icons.link_rounded),
+            title: const Text('Import from YouTube'),
+            onTap: () {
+              Navigator.pop(context);
+              _importFromYouTube();
+            },
+          ),
+          Divider(
+              height: 1,
+              indent: 56,
+              color: scheme.outlineVariant.withValues(alpha: 0.4)),
+          ListTile(
+            leading: const Icon(Icons.refresh),
+            title: const Text('Rescan Library'),
+            onTap: () {
+              Navigator.pop(context);
+              final provider = Provider.of<LibraryProvider>(
+                context,
+                listen: false,
+              );
+              provider.scanLibrary(force: true);
+            },
+          ),
+          Divider(
+              height: 1,
+              indent: 56,
+              color: scheme.outlineVariant.withValues(alpha: 0.4)),
+          ListTile(
+            leading: const Icon(Icons.sort),
+            title: const Text('Sort Options'),
+            onTap: () {
+              Navigator.pop(context);
+              _showSortDialog(context);
+            },
+          ),
+          Divider(
+              height: 1,
+              indent: 56,
+              color: scheme.outlineVariant.withValues(alpha: 0.4)),
+          ListTile(
+            leading: const Icon(Icons.reorder_rounded),
+            title: const Text('Reorder Tabs'),
+            onTap: () {
+              Navigator.pop(context);
+              _showTabOrderDialog(context);
+            },
+          ),
+        ],
+      ),
     );
   }
 
@@ -1030,7 +1152,7 @@ class _LibraryScreenState extends State<LibraryScreen>
   }
 
   void _showTabOrderDialog(BuildContext context) {
-    final refresh = () => setState(() {});
+    void refresh() => setState(() {});
     showDialog(
       context: context,
       builder: (dialogContext) {
@@ -1047,12 +1169,10 @@ class _LibraryScreenState extends State<LibraryScreen>
               width: double.maxFinite,
               child: ReorderableListView(
                 shrinkWrap: true,
-                onReorder: (old, neu) {
+                onReorderItem: (old, neu) {
                   setState(() {
-                    var to = neu;
-                    if (to > old) to--;
                     final moved = _tabOrder.removeAt(old);
-                    _tabOrder.insert(to, moved);
+                    _tabOrder.insert(neu, moved);
                   });
                 },
                 children: [
@@ -1098,27 +1218,30 @@ class _LibraryScreenState extends State<LibraryScreen>
                     letterSpacing: -0.5,
                   ),
             ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (final m in const [
-              ['added', 'Date added'],
-              ['title', 'Title'],
-              ['artist', 'Artist'],
-              ['duration', 'Duration'],
-            ])
-              RadioListTile<String>(
-                title: Text(m[1]),
-                value: m[0],
-                groupValue: _sortMode,
-                onChanged: (v) async {
-                  setState(() => _sortMode = v!);
-                  final prefs = await SharedPreferences.getInstance();
-                  await prefs.setString('library_sort', v!);
-                  if (context.mounted) Navigator.pop(context);
-                },
-              ),
-          ],
+        content: RadioGroup<String>(
+          groupValue: _sortMode,
+          onChanged: (v) async {
+            if (v == null) return;
+            setState(() => _sortMode = v);
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setString('library_sort', v);
+            if (context.mounted) Navigator.pop(context);
+          },
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final m in const [
+                ['added', 'Date added'],
+                ['title', 'Title'],
+                ['artist', 'Artist'],
+                ['duration', 'Duration'],
+              ])
+                RadioListTile<String>(
+                  title: Text(m[1]),
+                  value: m[0],
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -1214,10 +1337,24 @@ class _LibraryScreenState extends State<LibraryScreen>
   }
 
   void _showPlaylistOptions(BuildContext context, String playlistId) {
-    final scheme = Theme.of(context).colorScheme;
+    // desktop convention: centered dialog; mobile keeps the bottom sheet
+    if (isDesktop) {
+      showDialog(
+        context: context,
+        builder: (dialogContext) => Dialog(
+          backgroundColor: Colors.transparent,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: _playlistOptionsCard(dialogContext, playlistId),
+          ),
+        ),
+      );
+      return;
+    }
     showModalBottomSheet(
       context: context,
-      builder: (context) {
+      builder: (sheetContext) {
+        final scheme = Theme.of(sheetContext).colorScheme;
         return SafeArea(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -1233,105 +1370,110 @@ class _LibraryScreenState extends State<LibraryScreen>
               ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                child: Material(
-                  color: scheme.surfaceContainerHigh,
-                  borderRadius: EShape.radius(EShape.lg),
-                  clipBehavior: Clip.antiAlias,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      ListTile(
-                        leading: const Icon(Icons.edit_rounded),
-                        title: const Text('Rename Playlist'),
-                        onTap: () {
-                          Navigator.pop(context);
-                          final current = Provider.of<LibraryProvider>(
-                            context,
-                            listen: false,
-                          )
-                              .playlists
-                              .firstWhere((p) => p.id == playlistId)
-                              .name;
-                          _showRenameDialog(context, playlistId, current);
-                        },
-                      ),
-                      Divider(
-                          height: 1,
-                          indent: 56,
-                          color: scheme.outlineVariant.withValues(alpha: 0.4)),
-                      ListTile(
-                        leading: const Icon(Icons.image_outlined),
-                        title: const Text('Change Cover'),
-                        onTap: () async {
-                          Navigator.pop(context);
-                          final picked = await FilePicker.platform
-                              .pickFiles(type: FileType.image);
-                          final src = picked?.files.single.path;
-                          if (src == null) return;
-                          final dir = await getApplicationDocumentsDirectory();
-                          final f =
-                              File('${dir.path}/playlist_$playlistId.jpg');
-                          await f.writeAsBytes(await File(src).readAsBytes());
-                          if (context.mounted) {
-                            Provider.of<LibraryProvider>(context, listen: false)
-                                .setPlaylistCover(playlistId, f.path);
-                          }
-                        },
-                      ),
-                      Divider(
-                          height: 1,
-                          indent: 56,
-                          color: scheme.outlineVariant.withValues(alpha: 0.4)),
-                      ListTile(
-                        leading: const Icon(Icons.delete),
-                        title: const Text('Delete Playlist'),
-                        onTap: () async {
-                          Navigator.pop(context);
-                          final library = Provider.of<LibraryProvider>(
-                            context,
-                            listen: false,
-                          );
-                          final name = library.playlists
-                              .firstWhere((p) => p.id == playlistId)
-                              .name;
-                          final remove = await showDialog<bool>(
-                            context: context,
-                            builder: (dialogContext) => AlertDialog(
-                              title: Text(
+                child: _playlistOptionsCard(sheetContext, playlistId),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _playlistOptionsCard(BuildContext context, String playlistId) {
+    final scheme = Theme.of(context).colorScheme;
+    return Material(
+      color: scheme.surfaceContainerHigh,
+      borderRadius: EShape.radius(EShape.lg),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(
+            leading: const Icon(Icons.edit_rounded),
+            title: const Text('Rename Playlist'),
+            onTap: () {
+              Navigator.pop(context);
+              final current = Provider.of<LibraryProvider>(
+                context,
+                listen: false,
+              )
+                  .playlists
+                  .firstWhere((p) => p.id == playlistId)
+                  .name;
+              _showRenameDialog(context, playlistId, current);
+            },
+          ),
+          Divider(
+              height: 1,
+              indent: 56,
+              color: scheme.outlineVariant.withValues(alpha: 0.4)),
+          ListTile(
+            leading: const Icon(Icons.image_outlined),
+            title: const Text('Change Cover'),
+            onTap: () async {
+              Navigator.pop(context);
+              final picked =
+                  await FilePicker.pickFiles(type: FileType.image);
+              final src = picked.isEmpty ? null : picked.single.path;
+              if (src == null) return;
+              final dir = await getApplicationDocumentsDirectory();
+              final f =
+                  File('${dir.path}/playlist_$playlistId.jpg');
+              await f.writeAsBytes(await File(src).readAsBytes());
+              if (context.mounted) {
+                Provider.of<LibraryProvider>(context, listen: false)
+                    .setPlaylistCover(playlistId, f.path);
+              }
+            },
+          ),
+          Divider(
+              height: 1,
+              indent: 56,
+              color: scheme.outlineVariant.withValues(alpha: 0.4)),
+          ListTile(
+            leading: const Icon(Icons.delete),
+            title: const Text('Delete Playlist'),
+            onTap: () async {
+              Navigator.pop(context);
+              final library = Provider.of<LibraryProvider>(
+                context,
+                listen: false,
+              );
+              final name = library.playlists
+                  .firstWhere((p) => p.id == playlistId)
+                  .name;
+              final remove = await showDialog<bool>(
+                context: context,
+                builder: (dialogContext) => AlertDialog(
+                  title: Text(
               'Delete playlist?',
               style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                     fontWeight: FontWeight.w800,
                     letterSpacing: -0.5,
                   ),
             ),
-                              content: Text(name),
-                              actions: [
-                                TextButton(
-                                  onPressed: () =>
-                                      Navigator.pop(dialogContext, false),
-                                  child: const Text('Cancel'),
-                                ),
-                                FilledButton(
-                                  onPressed: () =>
-                                      Navigator.pop(dialogContext, true),
-                                  child: const Text('Delete'),
-                                ),
-                              ],
-                            ),
-                          );
-                          if (remove == true) {
-                            library.deletePlaylist(playlistId);
-                          }
-                        },
-                      ),
-                    ],
-                  ),
+                  content: Text(name),
+                  actions: [
+                    TextButton(
+                      onPressed: () =>
+                          Navigator.pop(dialogContext, false),
+                      child: const Text('Cancel'),
+                    ),
+                    FilledButton(
+                      onPressed: () =>
+                          Navigator.pop(dialogContext, true),
+                      child: const Text('Delete'),
+                    ),
+                  ],
                 ),
-              ),
-            ],
+              );
+              if (remove == true) {
+                library.deletePlaylist(playlistId);
+              }
+            },
           ),
-        );
-      },
+        ],
+      ),
     );
   }
 }

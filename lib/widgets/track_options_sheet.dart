@@ -6,14 +6,42 @@ import '../models/track.dart';
 import '../providers/library_provider.dart';
 import '../screens/artist_screen.dart';
 import '../screens/metadata_editor_screen.dart';
-import '../theme/app_theme.dart';
 import '../theme/radii.dart';
+import '../utils/platform.dart';
 import 'sheet_handle.dart';
 import 'square_art.dart';
 
 void showTrackOptionsSheet(BuildContext context, Track track,
     {String? playlistId}) {
   final isOnline = (track.sourceUrl ?? track.path).startsWith('http');
+  // on desktop a centered, width-constrained dialog replaces the bottom sheet
+  if (isDesktop) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => Dialog(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 400),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _headerTile(track, isOnline,
+                    trailing: IconButton(
+                      icon: const Icon(Icons.close_rounded),
+                      tooltip: 'Close',
+                      onPressed: () => Navigator.pop(dialogContext),
+                    )),
+                const Divider(height: 1),
+                ..._optionTiles(dialogContext, track, isOnline, playlistId),
+                const SizedBox(height: 8),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    return;
+  }
   showModalBottomSheet(
     context: context,
     builder: (sheetContext) => SafeArea(
@@ -21,91 +49,101 @@ void showTrackOptionsSheet(BuildContext context, Track track,
         mainAxisSize: MainAxisSize.min,
         children: [
           sheetHandle(sheetContext),
-          ListTile(
-            leading: SquareArt(
-              bytes: track.albumArt,
-              url: isOnline
-                  ? 'https://i.ytimg.com/vi/${_videoId(track)}/mqdefault.jpg'
-                  : null,
-              size: 44,
-              radius: rSm,
-            ),
-            title: Text(track.title,
-                maxLines: 1, overflow: TextOverflow.ellipsis),
-            subtitle: Text(track.artist,
-                maxLines: 1, overflow: TextOverflow.ellipsis),
-          ),
+          _headerTile(track, isOnline),
           const Divider(height: 1),
-          if (!isOnline)
-            ListTile(
-              leading: const Icon(Icons.edit_rounded),
-              title: const Text('Edit Metadata'),
-              onTap: () {
-                Navigator.pop(sheetContext);
-                Navigator.push(
-                  sheetContext,
-                  MaterialPageRoute(
-                      builder: (_) => MetadataEditorScreen(track: track)),
-                );
-              },
-            ),
-          ListTile(
-            leading: const Icon(Icons.playlist_add_rounded),
-            title: const Text('Add to Playlist'),
-            onTap: () {
-              Navigator.pop(sheetContext);
-              _showAddToPlaylist(sheetContext, track);
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.share_rounded),
-            title: const Text('Share'),
-            onTap: () {
-              Navigator.pop(sheetContext);
-              final url = isOnline
-                  ? 'https://www.youtube.com/watch?v=${_videoId(track)}'
-                  : '${track.title} - ${track.artist}';
-              Share.share(url);
-            },
-          ),
-          if (isOnline && track.artistId != null)
-            ListTile(
-              leading: const Icon(Icons.person_rounded),
-              title: const Text('View artist'),
-              onTap: () {
-                Navigator.pop(sheetContext);
-                Navigator.push(
-                  sheetContext,
-                  MaterialPageRoute(
-                    builder: (_) => ArtistScreen(
-                        browseId: track.artistId!, name: track.artist),
-                  ),
-                );
-              },
-            ),
-          if (playlistId != null)
-            ListTile(
-              leading: const Icon(Icons.playlist_remove_rounded),
-              title: const Text('Remove from playlist'),
-              onTap: () {
-                Navigator.pop(sheetContext);
-                Provider.of<LibraryProvider>(sheetContext, listen: false)
-                    .removeFromPlaylist(playlistId, track);
-              },
-            ),
-          ListTile(
-            leading: const Icon(Icons.info_outline),
-            title: const Text('Track Info'),
-            onTap: () {
-              Navigator.pop(sheetContext);
-              _showTrackInfo(sheetContext, track, isOnline);
-            },
-          ),
+          ..._optionTiles(sheetContext, track, isOnline, playlistId),
           const SizedBox(height: 8),
         ],
       ),
     ),
   );
+}
+
+Widget _headerTile(Track track, bool isOnline, {Widget? trailing}) {
+  return ListTile(
+    leading: SquareArt(
+      bytes: track.albumArt,
+      url: isOnline
+          ? 'https://i.ytimg.com/vi/${_videoId(track)}/mqdefault.jpg'
+          : null,
+      size: 44,
+      radius: rSm,
+    ),
+    title: Text(track.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+    subtitle: Text(track.artist, maxLines: 1, overflow: TextOverflow.ellipsis),
+    trailing: trailing,
+  );
+}
+
+List<Widget> _optionTiles(BuildContext sheetContext, Track track,
+    bool isOnline, String? playlistId) {
+  return [
+    if (!isOnline)
+      ListTile(
+        leading: const Icon(Icons.edit_rounded),
+        title: const Text('Edit Metadata'),
+        onTap: () {
+          Navigator.pop(sheetContext);
+          Navigator.push(
+            sheetContext,
+            MaterialPageRoute(
+                builder: (_) => MetadataEditorScreen(track: track)),
+          );
+        },
+      ),
+    ListTile(
+      leading: const Icon(Icons.playlist_add_rounded),
+      title: const Text('Add to Playlist'),
+      onTap: () {
+        Navigator.pop(sheetContext);
+        _showAddToPlaylist(sheetContext, track);
+      },
+    ),
+    ListTile(
+      leading: const Icon(Icons.share_rounded),
+      title: const Text('Share'),
+      onTap: () {
+        Navigator.pop(sheetContext);
+        final url = isOnline
+            ? 'https://www.youtube.com/watch?v=${_videoId(track)}'
+            : '${track.title} - ${track.artist}';
+        SharePlus.instance.share(ShareParams(uri: Uri.parse(url)));
+      },
+    ),
+    if (isOnline && track.artistId != null)
+      ListTile(
+        leading: const Icon(Icons.person_rounded),
+        title: const Text('View artist'),
+        onTap: () {
+          Navigator.pop(sheetContext);
+          Navigator.push(
+            sheetContext,
+            MaterialPageRoute(
+              builder: (_) =>
+                  ArtistScreen(browseId: track.artistId!, name: track.artist),
+            ),
+          );
+        },
+      ),
+    if (playlistId != null)
+      ListTile(
+        leading: const Icon(Icons.playlist_remove_rounded),
+        title: const Text('Remove from playlist'),
+        onTap: () {
+          Navigator.pop(sheetContext);
+          Provider.of<LibraryProvider>(sheetContext, listen: false)
+              .removeFromPlaylist(playlistId, track);
+        },
+      ),
+    ListTile(
+      leading: const Icon(Icons.info_outline),
+      title: const Text('Track Info'),
+      onTap: () {
+        Navigator.pop(sheetContext);
+        _showTrackInfo(sheetContext, track, isOnline);
+      },
+    ),
+  ];
 }
 
 String? _videoId(Track track) {
@@ -214,15 +252,8 @@ void _showTrackInfo(BuildContext context, Track track, bool isOnline) {
   ];
   showDialog(
     context: context,
-    builder: (dialogContext) => AlertDialog(
-      title: Text(
-        'Track info',
-        style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-              fontWeight: FontWeight.w800,
-              letterSpacing: -0.5,
-            ),
-      ),
-      content: Column(
+    builder: (dialogContext) {
+      final rowsView = Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -240,13 +271,24 @@ void _showTrackInfo(BuildContext context, Track track, bool isOnline) {
               ),
             ),
         ],
-      ),
-      actions: [
-        FilledButton(
-          onPressed: () => Navigator.pop(dialogContext),
-          child: const Text('Close'),
+      );
+      return AlertDialog(
+        title: Text(
+          'Track info',
+          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.5,
+              ),
         ),
-      ],
-    ),
+        content:
+            isDesktop ? SingleChildScrollView(child: rowsView) : rowsView,
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Close'),
+          ),
+        ],
+      );
+    },
   );
 }

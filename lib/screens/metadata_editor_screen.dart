@@ -2,12 +2,14 @@ import 'dart:io';
 
 import 'package:audiotags/audiotags.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../widgets/loading_indicator.dart';
 import 'package:provider/provider.dart';
 
 import '../models/track.dart';
 import '../providers/audio_provider.dart';
 import '../providers/library_provider.dart';
+import '../utils/platform.dart';
 
 class MetadataEditorScreen extends StatefulWidget {
   final Track track;
@@ -83,9 +85,9 @@ class _MetadataEditorScreenState extends State<MetadataEditorScreen> {
     super.dispose();
   }
 
-  Future<bool> _onWillPop() async {
-    if (!_hasChanges) return true;
-
+  // PopScope replacement for the old WillPopScope gate: confirm with the user
+  // before dropping unsaved edits.
+  Future<void> _confirmPop() async {
     final result = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -106,7 +108,7 @@ class _MetadataEditorScreenState extends State<MetadataEditorScreen> {
       ),
     );
 
-    return result ?? false;
+    if (result == true && mounted) Navigator.pop(context);
   }
 
   Future<void> _saveMetadata() async {
@@ -192,8 +194,45 @@ class _MetadataEditorScreenState extends State<MetadataEditorScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return WillPopScope(
-      onWillPop: _onWillPop,
+    Widget body = LayoutBuilder(
+      builder: (context, constraints) {
+        // on wide desktop windows, center the form at a readable width and
+        // lay fields out in two columns instead of one long phone list
+        final twoColumns = isDesktop && constraints.maxWidth >= 720;
+        return Align(
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: twoColumns ? 800 : double.infinity,
+            ),
+            child: ListView(
+              padding: const EdgeInsets.all(16),
+              children: _buildFormChildren(context, twoColumns),
+            ),
+          ),
+        );
+      },
+    );
+
+    if (isDesktop) {
+      body = CallbackShortcuts(
+        bindings: {
+          const SingleActivator(LogicalKeyboardKey.keyS, control: true): () {
+            if (_hasChanges && _isEditable && !_isSaving) {
+              _saveMetadata();
+            }
+          },
+        },
+        child: Focus(autofocus: true, child: body),
+      );
+    }
+
+    return PopScope(
+      canPop: !_hasChanges,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        _confirmPop();
+      },
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Edit Metadata'),
@@ -216,177 +255,217 @@ class _MetadataEditorScreenState extends State<MetadataEditorScreen> {
               ),
           ],
         ),
-        body: ListView(
-          padding: const EdgeInsets.all(16),
+        body: body,
+      ),
+    );
+  }
+
+  List<Widget> _buildFormChildren(BuildContext context, bool twoColumns) {
+    final basicInfoFields = [
+      _buildEditableField(
+        controller: _titleController,
+        label: 'Title',
+        icon: Icons.music_note,
+      ),
+      _buildEditableField(
+        controller: _artistController,
+        label: 'Artist',
+        icon: Icons.person,
+      ),
+      _buildEditableField(
+        controller: _albumController,
+        label: 'Album',
+        icon: Icons.album,
+      ),
+      _buildEditableField(
+        controller: _albumArtistController,
+        label: 'Album Artist',
+        icon: Icons.people,
+      ),
+    ];
+
+    final additionalInfoFields = [
+      Row(
+        children: [
+          Expanded(
+            child: _buildEditableField(
+              controller: _yearController,
+              label: 'Year',
+              icon: Icons.calendar_today,
+              keyboardType: TextInputType.number,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: _buildEditableField(
+              controller: _trackNumberController,
+              label: 'Track #',
+              icon: Icons.numbers,
+              keyboardType: TextInputType.number,
+            ),
+          ),
+        ],
+      ),
+      _buildEditableField(
+        controller: _genreController,
+        label: 'Genre',
+        icon: Icons.category,
+      ),
+      _buildEditableField(
+        controller: _commentController,
+        label: 'Comment',
+        icon: Icons.comment,
+        maxLines: 3,
+      ),
+    ];
+
+    final fileInfoCards = [
+      _buildInfoCard(
+        'File Path',
+        widget.track.path,
+        Icons.folder,
+      ),
+      _buildInfoCard(
+        'Format',
+        widget.track.codec ?? 'Unknown',
+        Icons.audio_file,
+      ),
+      _buildInfoCard(
+        'Bitrate',
+        widget.track.bitrate != null
+            ? '${widget.track.bitrate} kbps'
+            : 'Unknown',
+        Icons.speed,
+      ),
+      _buildInfoCard(
+        'Sample Rate',
+        widget.track.sampleRate != null
+            ? '${widget.track.sampleRate} Hz'
+            : 'Unknown',
+        Icons.graphic_eq,
+      ),
+      _buildInfoCard(
+        'Duration',
+        _formatDuration(widget.track.duration),
+        Icons.timer,
+      ),
+    ];
+
+    return [
+      // Album Art Section
+      Center(
+        child: Stack(
           children: [
-            // Album Art Section
-            Center(
-              child: Stack(
-                children: [
-                  Container(
-                    width: 200,
-                    height: 200,
-                    decoration: BoxDecoration(
+            Container(
+              width: 200,
+              height: 200,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+              ),
+              child: widget.track.albumArt != null
+                  ? ClipRRect(
                       borderRadius: BorderRadius.circular(12),
-                      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                      child: Image.memory(
+                        widget.track.albumArt!,
+                        fit: BoxFit.cover,
+                      ),
+                    )
+                  : Icon(
+                      Icons.music_note,
+                      size: 80,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
-                    child: widget.track.albumArt != null
-                        ? ClipRRect(
-                            borderRadius: BorderRadius.circular(12),
-                            child: Image.memory(
-                              widget.track.albumArt!,
-                              fit: BoxFit.cover,
-                            ),
-                          )
-                        : Icon(
-                            Icons.music_note,
-                            size: 80,
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+            Positioned(
+              right: 8,
+              bottom: 8,
+              child: FloatingActionButton.small(
+                onPressed: _isEditable
+                    ? () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Select album art from gallery'),
                           ),
-                  ),
-                  Positioned(
-                    right: 8,
-                    bottom: 8,
-                    child: FloatingActionButton.small(
-                      onPressed: _isEditable
-                          ? () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Select album art from gallery'),
-                                ),
-                              );
-                            }
-                          : null,
-                      child: const Icon(Icons.edit),
-                    ),
-                  ),
-                ],
+                        );
+                      }
+                    : null,
+                tooltip: isDesktop ? 'Edit album art' : null,
+                child: const Icon(Icons.edit),
               ),
             ),
-            const SizedBox(height: 32),
-
-            // Basic Info Section
-            Text(
-              'Basic Information',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-            ),
-            const SizedBox(height: 16),
-            _buildEditableField(
-              controller: _titleController,
-              label: 'Title',
-              icon: Icons.music_note,
-            ),
-            const SizedBox(height: 16),
-            _buildEditableField(
-              controller: _artistController,
-              label: 'Artist',
-              icon: Icons.person,
-            ),
-            const SizedBox(height: 16),
-            _buildEditableField(
-              controller: _albumController,
-              label: 'Album',
-              icon: Icons.album,
-            ),
-            const SizedBox(height: 16),
-            _buildEditableField(
-              controller: _albumArtistController,
-              label: 'Album Artist',
-              icon: Icons.people,
-            ),
-            const SizedBox(height: 32),
-
-            // Additional Info Section
-            Text(
-              'Additional Information',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildEditableField(
-                    controller: _yearController,
-                    label: 'Year',
-                    icon: Icons.calendar_today,
-                    keyboardType: TextInputType.number,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: _buildEditableField(
-                    controller: _trackNumberController,
-                    label: 'Track #',
-                    icon: Icons.numbers,
-                    keyboardType: TextInputType.number,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            _buildEditableField(
-              controller: _genreController,
-              label: 'Genre',
-              icon: Icons.category,
-            ),
-            const SizedBox(height: 16),
-            _buildEditableField(
-              controller: _commentController,
-              label: 'Comment',
-              icon: Icons.comment,
-              maxLines: 3,
-            ),
-            const SizedBox(height: 32),
-
-            // File Info Section (Read-only)
-            Text(
-              'File Information',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-            ),
-            const SizedBox(height: 16),
-            _buildInfoCard(
-              'File Path',
-              widget.track.path,
-              Icons.folder,
-            ),
-            const SizedBox(height: 8),
-            _buildInfoCard(
-              'Format',
-              widget.track.codec ?? 'Unknown',
-              Icons.audio_file,
-            ),
-            const SizedBox(height: 8),
-            _buildInfoCard(
-              'Bitrate',
-              widget.track.bitrate != null
-                  ? '${widget.track.bitrate} kbps'
-                  : 'Unknown',
-              Icons.speed,
-            ),
-            const SizedBox(height: 8),
-            _buildInfoCard(
-              'Sample Rate',
-              widget.track.sampleRate != null
-                  ? '${widget.track.sampleRate} Hz'
-                  : 'Unknown',
-              Icons.graphic_eq,
-            ),
-            const SizedBox(height: 8),
-            _buildInfoCard(
-              'Duration',
-              _formatDuration(widget.track.duration),
-              Icons.timer,
-            ),
-            const SizedBox(height: 32),
           ],
         ),
       ),
+      const SizedBox(height: 32),
+
+      // Basic Info Section
+      Text(
+        'Basic Information',
+        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+      ),
+      const SizedBox(height: 16),
+      _buildFieldGroup(basicInfoFields, twoColumns),
+      const SizedBox(height: 32),
+
+      // Additional Info Section
+      Text(
+        'Additional Information',
+        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+      ),
+      const SizedBox(height: 16),
+      _buildFieldGroup(additionalInfoFields, twoColumns),
+      const SizedBox(height: 32),
+
+      // File Info Section (Read-only)
+      Text(
+        'File Information',
+        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+      ),
+      const SizedBox(height: 16),
+      _buildFieldGroup(fileInfoCards, twoColumns, spacing: 8),
+      const SizedBox(height: 32),
+    ];
+  }
+
+  Widget _buildFieldGroup(
+    List<Widget> items,
+    bool twoColumns, {
+    double spacing = 16,
+  }) {
+    if (twoColumns) {
+      final rows = <Widget>[];
+      for (var i = 0; i < items.length; i += 2) {
+        rows.add(
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: items[i]),
+              if (i + 1 < items.length) ...[
+                const SizedBox(width: 16),
+                Expanded(child: items[i + 1]),
+              ],
+            ],
+          ),
+        );
+        if (i + 2 < items.length) rows.add(SizedBox(height: spacing));
+      }
+      return Column(children: rows);
+    }
+
+    return Column(
+      children: [
+        for (var i = 0; i < items.length; i++) ...[
+          items[i],
+          if (i + 1 < items.length) SizedBox(height: spacing),
+        ],
+      ],
     );
   }
 
@@ -493,7 +572,7 @@ class _DisabledField extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
             color: theme.colorScheme.surfaceContainerHighest,
-            border: Border.all(color: theme.colorScheme.outline.withOpacity(0.2)),
+            border: Border.all(color: theme.colorScheme.outline.withValues(alpha: 0.2)),
           ),
           child: Row(
             crossAxisAlignment:

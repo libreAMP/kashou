@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_displaymode/flutter_displaymode.dart';
 
 import 'utils/app_messenger.dart';
+import 'utils/now_playing_modal.dart';
+import 'utils/platform.dart';
 import 'utils/toast.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -10,12 +12,11 @@ import 'package:dynamic_color/dynamic_color.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_chrome_cast/flutter_chrome_cast.dart';
 import 'dart:convert';
+import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 import 'dart:io';
 import 'dart:math';
-import 'dart:typed_data';
-
 import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
+
 import 'models/track.dart';
 import 'providers/audio_provider.dart';
 import 'providers/theme_provider.dart';
@@ -45,6 +46,11 @@ Color _launchShift(Color c) {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // just_audio has no desktop backend of its own, mpv fills in
+  if (Platform.isLinux || Platform.isWindows) {
+    JustAudioMediaKit.ensureInitialized();
+  }
+
   if (Platform.isAndroid) {
     try {
       await FlutterDisplayMode.setHighRefreshRate();
@@ -53,27 +59,33 @@ void main() async {
 
   await YoutubeService.instance.initialize();
 
-  const appId = GoogleCastDiscoveryCriteria.kDefaultApplicationId;
-  GoogleCastOptions? options;
+  // chromecast only exists on mobile
+  if (Platform.isIOS || Platform.isAndroid) {
+    const appId = GoogleCastDiscoveryCriteria.kDefaultApplicationId;
+    final GoogleCastOptions options;
 
-  if (Platform.isIOS) {
-    options = IOSGoogleCastOptions(
-      GoogleCastDiscoveryCriteriaInitialize.initWithApplicationID(appId),
-    );
-  } else if (Platform.isAndroid) {
-    options = GoogleCastOptionsAndroid(
-      appId: appId,
-    );
+    if (Platform.isIOS) {
+      options = IOSGoogleCastOptions(
+        GoogleCastDiscoveryCriteriaInitialize.initWithApplicationID(appId),
+      );
+    } else {
+      options = GoogleCastOptionsAndroid(
+        appId: appId,
+      );
+    }
+
+    GoogleCastContext.instance.setSharedInstanceWithOptions(options);
   }
 
-  GoogleCastContext.instance.setSharedInstanceWithOptions(options!);
-
-  SystemChrome.setSystemUIOverlayStyle(
-    const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      systemNavigationBarColor: Colors.transparent,
-    ),
-  );
+  // no status/nav bars to tint on desktop
+  if (!isDesktop) {
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        systemNavigationBarColor: Colors.transparent,
+      ),
+    );
+  }
 
   runApp(const KashouApp());
 }
@@ -110,7 +122,15 @@ class KashouApp extends StatelessWidget {
         child: Consumer2<ThemeProvider, SettingsProvider>(
         builder: (context, themeProvider, settingsProvider, child) {
           return DynamicColorBuilder(
-            builder: (ColorScheme? lightDynamic, ColorScheme? darkDynamic) {
+            // dynamic_color 2.x types its schemes from package:material_ui
+            // rather than flutter/material, so the two ColorScheme types are
+            // unrelated. Only the seed colour is wanted, and Color is the
+            // shared dart:ui type, so read that field off the plugin's own
+            // scheme and rebuild a flutter ColorScheme from it.
+            builder: (dynamic lightDynamic, dynamic darkDynamic) {
+              final lightPrimary = lightDynamic?.primary as Color?;
+              final darkPrimary = darkDynamic?.primary as Color?;
+
               ColorScheme lightColorScheme;
               ColorScheme darkColorScheme;
 
@@ -119,15 +139,15 @@ class KashouApp extends StatelessWidget {
                   ? artSeed
                   : themeProvider.accentColor;
               if (themeProvider.themeSource == 'system' &&
-                  lightDynamic != null &&
-                  darkDynamic != null) {
+                  lightPrimary != null &&
+                  darkPrimary != null) {
                 // reseed, the os scheme ships flat surfaces
                 lightColorScheme = ColorScheme.fromSeed(
-                  seedColor: _launchShift(lightDynamic.primary),
+                  seedColor: _launchShift(lightPrimary),
                   brightness: Brightness.light,
                 );
                 darkColorScheme = ColorScheme.fromSeed(
-                  seedColor: _launchShift(darkDynamic.primary),
+                  seedColor: _launchShift(darkPrimary),
                   brightness: Brightness.dark,
                 );
               } else {
@@ -286,18 +306,21 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       final audioProvider = Provider.of<AudioProvider>(context, listen: false);
       audioProvider.addListener(_onAudioProviderChange);
     });
-    const channel = MethodChannel('com.libreamp.kashou/intent');
-    channel.setMethodCallHandler((call) async {
-      if (call.method == 'link' && call.arguments is String) {
-        _handleLink(call.arguments as String);
-      }
-      return null;
-    });
-    channel.invokeMethod<String>('consumeLink').then((link) {
-      if (link != null && mounted) {
-        WidgetsBinding.instance.addPostFrameCallback((_) => _handleLink(link));
-      }
-    });
+    // deep-link intent channel only exists on the android host
+    if (!isDesktop) {
+      const channel = MethodChannel('com.libreamp.kashou/intent');
+      channel.setMethodCallHandler((call) async {
+        if (call.method == 'link' && call.arguments is String) {
+          _handleLink(call.arguments as String);
+        }
+        return null;
+      });
+      channel.invokeMethod<String>('consumeLink').then((link) {
+        if (link != null && mounted) {
+          WidgetsBinding.instance.addPostFrameCallback((_) => _handleLink(link));
+        }
+      });
+    }
   }
 
   void _handleLink(String url) {
@@ -343,13 +366,17 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   }
 
   Future<void> _importPlaylistLink(String list) async {
+    // resolve both before the first await so neither crosses an async gap
+    final library = Provider.of<LibraryProvider>(context, listen: false);
+    final messenger = ScaffoldMessenger.of(context);
+
     const ytm = YtMusicService();
     final songs = await ytm.getPlaylistSongs(list);
     if (songs.isEmpty || !mounted) return;
     final name = await ytm.getPlaylistTitle(list) ?? 'YouTube import';
     final cover = await ytm.getPlaylistThumb(list);
     if (!mounted) return;
-    await Provider.of<LibraryProvider>(context, listen: false).importPlaylist(
+    await library.importPlaylist(
       name,
       [
         for (final s in songs)
@@ -365,7 +392,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       ],
       coverImage: cover,
     );
-    ScaffoldMessenger.of(context).showSnackBar(
+    messenger.showSnackBar(
       SnackBar(content: Text('Imported $name')),
     );
   }
@@ -404,44 +431,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     setState(() {
       _showMiniPlayer = false;
     });
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      enableDrag: true,
-      isDismissible: true,
-      backgroundColor: Colors.transparent,
-      barrierColor: Colors.black.withOpacity(0.5),
-      transitionAnimationController: AnimationController(
-        vsync: Navigator.of(context),
-        duration: const Duration(milliseconds: 350),
-        reverseDuration: const Duration(milliseconds: 300),
-      ),
-      clipBehavior: Clip.none,
-      builder: (sheetContext) {
-        final mediaQuery = MediaQuery.of(sheetContext);
-        final topInset = mediaQuery.viewPadding.top;
-        return DraggableScrollableSheet(
-          initialChildSize: 1.0,
-          minChildSize: 0.0,
-          maxChildSize: 1.0,
-          snap: true,
-          snapSizes: const [1.0],
-          expand: false,
-          builder: (context, scrollController) {
-            return AnimatedPadding(
-              duration: const Duration(milliseconds: 220),
-              curve: Curves.easeOutCubic,
-              padding: EdgeInsets.only(
-                top: topInset,
-                bottom: mediaQuery.viewInsets.bottom,
-              ),
-              child: const NowPlayingScreen(),
-            );
-          },
-        );
-      },
-    ).whenComplete(() {
+    openNowPlaying(context).whenComplete(() {
       if (!mounted) return;
       setState(() {
         _showMiniPlayer = true;
@@ -449,43 +439,84 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     });
   }
 
+  static const List<NavItem> _navItems = [
+    NavItem(
+      Icons.music_note_outlined,
+      Icons.music_note,
+      'Stream',
+    ),
+    NavItem(Icons.folder_outlined, Icons.folder, 'Local'),
+    NavItem(
+      Icons.library_music_outlined,
+      Icons.library_music,
+      'Library',
+    ),
+  ];
+
   @override
   Widget build(BuildContext context) {
+    final body = AnimatedSwitcher(
+      duration: const Duration(milliseconds: 200),
+      switchInCurve: Curves.easeInOut,
+      switchOutCurve: Curves.easeInOut,
+      child: IndexedStack(
+        key: ValueKey(_selectedIndex),
+        index: _selectedIndex,
+        children: _screens,
+      ),
+    );
+
+    if (isDesktop) {
+      return Scaffold(
+        resizeToAvoidBottomInset: false,
+        body: Column(
+          children: [
+            Expanded(
+              child: Row(
+                children: [
+                  PlayerNavRail(
+                    items: _navItems,
+                    selectedIndex: _selectedIndex,
+                    onDestinationSelected: _onItemTapped,
+                  ),
+                  Expanded(child: body),
+                ],
+              ),
+            ),
+            Consumer<AudioProvider>(
+              builder: (context, audioProvider, child) {
+                final route = ModalRoute.of(context);
+                final isModalOpen = route != null && !route.isFirst;
+                final hasPlayer = audioProvider.currentTrack != null &&
+                    _showMiniPlayer &&
+                    !isModalOpen;
+                return PlayerDockBar(
+                  hasPlayer: hasPlayer,
+                  onPlayerTap: _openNowPlaying,
+                  onPlayerDismiss: _dismissMiniPlayer,
+                );
+              },
+            ),
+          ],
+        ),
+      );
+    }
+
     return Scaffold(
       resizeToAvoidBottomInset: false,
       extendBody: true,
-      body: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 200),
-        switchInCurve: Curves.easeInOut,
-        switchOutCurve: Curves.easeInOut,
-        child: IndexedStack(
-          key: ValueKey(_selectedIndex),
-          index: _selectedIndex,
-          children: _screens,
-        ),
-      ),
+      body: body,
       bottomNavigationBar: Consumer<AudioProvider>(
         builder: (context, audioProvider, child) {
           final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
           if (keyboardHeight > 0) return const SizedBox.shrink();
           final route = ModalRoute.of(context);
           final isModalOpen = route != null && !route.isFirst;
-          final hasPlayer =
-              audioProvider.currentTrack != null && _showMiniPlayer && !isModalOpen;
+          final hasPlayer = audioProvider.currentTrack != null &&
+              _showMiniPlayer &&
+              !isModalOpen;
           return PlayerNavBar(
-            items: const [
-              NavItem(
-                Icons.music_note_outlined,
-                Icons.music_note,
-                'Stream',
-              ),
-              NavItem(Icons.folder_outlined, Icons.folder, 'Local'),
-              NavItem(
-                Icons.library_music_outlined,
-                Icons.library_music,
-                'Library',
-              ),
-            ],
+            items: _navItems,
             selectedIndex: _selectedIndex,
             onDestinationSelected: _onItemTapped,
             hasPlayer: hasPlayer,

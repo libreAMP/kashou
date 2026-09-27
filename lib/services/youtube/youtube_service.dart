@@ -62,7 +62,11 @@ class YoutubeService {
         loudnessDb: streamInfo.loudnessDb,
       );
 
-    _cacheStreams(videoId, result);
+      // don't poison the cache with empty desktop results (no PoToken):
+      // callers retry with forceRefresh + explode fallback instead.
+      if (result.audioStreams.isNotEmpty || result.videoStreams.isNotEmpty) {
+        _cacheStreams(videoId, result);
+      }
 
     return result;
     } catch (e) {

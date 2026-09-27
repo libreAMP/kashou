@@ -214,30 +214,55 @@ class _BubbleNavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final tint = selected ? scheme.onPrimaryContainer : scheme.onSurfaceVariant;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
-      child: AnimatedContainer(
-        duration: EMotion.medium,
-        curve: EMotion.emphasized,
-        padding: EdgeInsets.symmetric(
-          horizontal: selected ? 20 : 16,
-          vertical: 15,
-        ),
-        decoration: BoxDecoration(
-          color: selected ? scheme.primaryContainer : Colors.transparent,
-          borderRadius: BorderRadius.circular(EShape.xl),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              selected ? item.selectedIcon : item.icon,
-              color: tint,
-              size: 26,
-            ),
+      child: _NavBubble(item: item, selected: selected, hovered: false),
+    );
+  }
+}
+
+class _NavBubble extends StatelessWidget {
+  const _NavBubble({
+    required this.item,
+    required this.selected,
+    required this.hovered,
+    this.showLabel = true,
+  });
+
+  final NavItem item;
+  final bool selected;
+  final bool hovered;
+  final bool showLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final tint = selected ? scheme.onPrimaryContainer : scheme.onSurfaceVariant;
+    return AnimatedContainer(
+      duration: EMotion.medium,
+      curve: EMotion.emphasized,
+      padding: EdgeInsets.symmetric(
+        horizontal: selected ? 20 : 16,
+        vertical: 15,
+      ),
+      decoration: BoxDecoration(
+        color: selected
+            ? scheme.primaryContainer
+            : (hovered
+                ? scheme.onSurface.withValues(alpha: 0.08)
+                : Colors.transparent),
+        borderRadius: BorderRadius.circular(EShape.xl),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            selected ? item.selectedIcon : item.icon,
+            color: tint,
+            size: 26,
+          ),
+          if (showLabel)
             AnimatedSize(
               duration: EMotion.medium,
               curve: EMotion.emphasized,
@@ -254,7 +279,167 @@ class _BubbleNavItem extends StatelessWidget {
                     )
                   : const SizedBox.shrink(),
             ),
+        ],
+      ),
+    );
+  }
+}
+
+// desktop side rail: compact icon-only pill, same bubble language as the
+// bottom bar. Navigation only - the player lives in the full-width dock below.
+class PlayerNavRail extends StatelessWidget {
+  const PlayerNavRail({
+    super.key,
+    required this.items,
+    required this.selectedIndex,
+    required this.onDestinationSelected,
+  });
+
+  final List<NavItem> items;
+  final int selectedIndex;
+  final ValueChanged<int> onDestinationSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final padding = MediaQuery.of(context).padding;
+    final radius = BorderRadius.circular(EShape.xl);
+
+    return Padding(
+      padding:
+          EdgeInsets.fromLTRB(12, 12 + padding.top, 0, 12 + padding.bottom),
+      child: Container(
+        width: 72,
+        decoration: BoxDecoration(
+          borderRadius: radius,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.25),
+              blurRadius: 20,
+              offset: const Offset(0, 6),
+            ),
           ],
+        ),
+        child: ClipRRect(
+          borderRadius: radius,
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+            child: Container(
+              color: scheme.surfaceContainerHigh.withValues(alpha: 0.7),
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (var i = 0; i < items.length; i++) ...[
+                    if (i > 0) const SizedBox(height: 8),
+                    Tooltip(
+                      message: items[i].label,
+                      waitDuration: const Duration(milliseconds: 400),
+                      child: _RailNavItem(
+                        item: items[i],
+                        selected: i == selectedIndex,
+                        onTap: () => onDestinationSelected(i),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// desktop: full-window-width player dock pinned under the rail and content,
+// the desktop counterpart of the mobile floating pill bar
+class PlayerDockBar extends StatelessWidget {
+  const PlayerDockBar({
+    super.key,
+    required this.hasPlayer,
+    required this.onPlayerTap,
+    required this.onPlayerDismiss,
+  });
+
+  final bool hasPlayer;
+  final VoidCallback onPlayerTap;
+  final VoidCallback onPlayerDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final radius = const BorderRadius.vertical(top: Radius.circular(EShape.xl));
+
+    return ClipRect(
+      child: AnimatedAlign(
+        alignment: Alignment.bottomCenter,
+        heightFactor: hasPlayer ? 1.0 : 0.0,
+        duration: EMotion.fast,
+        curve: EMotion.standard,
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: radius,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.25),
+                blurRadius: 20,
+                offset: const Offset(0, -6),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: radius,
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+              child: Container(
+                color: scheme.surfaceContainerHigh.withValues(alpha: 0.7),
+                child: MiniPlayer(
+                  embedded: true,
+                  onTap: onPlayerTap,
+                  onDismiss: onPlayerDismiss,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RailNavItem extends StatefulWidget {
+  const _RailNavItem({
+    required this.item,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final NavItem item;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  State<_RailNavItem> createState() => _RailNavItemState();
+}
+
+class _RailNavItemState extends State<_RailNavItem> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.onTap,
+        child: _NavBubble(
+          item: widget.item,
+          selected: widget.selected,
+          hovered: _hovered,
+          showLabel: false,
         ),
       ),
     );

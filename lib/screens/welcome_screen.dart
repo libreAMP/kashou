@@ -8,8 +8,12 @@ import 'package:url_launcher/url_launcher.dart';
 import '../providers/library_provider.dart';
 import '../theme/radii.dart';
 import '../theme/shapes.dart';
+import '../utils/platform.dart';
 
 const _repoUrl = 'https://github.com/libreAMP/kashou';
+
+// max width of the centered content column on desktop windows
+const double _kDesktopContentWidth = 600;
 
 class WelcomeScreen extends StatefulWidget {
   const WelcomeScreen({super.key});
@@ -22,7 +26,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
   final _pageController = PageController();
   int _page = 0;
 
-  static const _pageCount = 4;
+  int get _pageCount => isDesktop ? 3 : 4;
 
   @override
   void dispose() {
@@ -48,6 +52,25 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
     }
   }
 
+  void _previous() {
+    if (_page > 0) {
+      _pageController.previousPage(
+          duration: const Duration(milliseconds: 280), curve: Curves.easeOut);
+    }
+  }
+
+  // constrains and centers content on wide desktop windows; a no-op on
+  // mobile so the phone layout keeps stretching edge to edge
+  Widget _centered(Widget child) {
+    if (!isDesktop) return child;
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: _kDesktopContentWidth),
+        child: child,
+      ),
+    );
+  }
+
   // lowercase display type is the kashou voice, not a typo
   TextStyle? _displayStyle(BuildContext context) {
     return Theme.of(context).textTheme.displaySmall?.copyWith(
@@ -62,59 +85,70 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
     final scheme = Theme.of(context).colorScheme;
     final last = _page == _pageCount - 1;
 
+    final body = SafeArea(
+      child: Column(
+        children: [
+          _centered(Align(
+            alignment: Alignment.centerRight,
+            child: Padding(
+              padding: const EdgeInsets.only(right: 8, top: 4),
+              child: TextButton(
+                onPressed: _finish,
+                child: const Text('skip'),
+              ),
+            ),
+          )),
+          Expanded(
+            child: _centered(PageView(
+              controller: _pageController,
+              onPageChanged: (p) => setState(() => _page = p),
+              children: [
+                _brandPage(context),
+                _featuresPage(context),
+                // desktops have no runtime permission prompts,
+                // so the permissions page is mobile-only
+                if (!isDesktop) const _PermissionsPage(),
+                _connectPage(context),
+              ],
+            )),
+          ),
+          _dots(scheme),
+          _centered(Padding(
+            padding: const EdgeInsets.fromLTRB(24, 8, 24, 28),
+            child: Row(
+              children: [
+                if (_page > 0)
+                  TextButton(
+                    onPressed: _previous,
+                    child: const Text('back'),
+                  ),
+                const Spacer(),
+                FilledButton(
+                  onPressed: _next,
+                  style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 30, vertical: 16)),
+                  child: Text(last ? 'start listening' : 'next'),
+                ),
+              ],
+            ),
+          )),
+        ],
+      ),
+    );
+
     return Scaffold(
       backgroundColor: scheme.surface,
-      body: SafeArea(
-        child: Column(
-          children: [
-            Align(
-              alignment: Alignment.centerRight,
-              child: Padding(
-                padding: const EdgeInsets.only(right: 8, top: 4),
-                child: TextButton(
-                  onPressed: _finish,
-                  child: const Text('skip'),
-                ),
-              ),
-            ),
-            Expanded(
-              child: PageView(
-                controller: _pageController,
-                onPageChanged: (p) => setState(() => _page = p),
-                children: [
-                  _brandPage(context),
-                  _featuresPage(context),
-                  const _PermissionsPage(),
-                  _connectPage(context),
-                ],
-              ),
-            ),
-            _dots(scheme),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 8, 24, 28),
-              child: Row(
-                children: [
-                  if (_page > 0)
-                    TextButton(
-                      onPressed: () => _pageController.previousPage(
-                          duration: const Duration(milliseconds: 280),
-                          curve: Curves.easeOut),
-                      child: const Text('back'),
-                    ),
-                  const Spacer(),
-                  FilledButton(
-                    onPressed: _next,
-                    style: FilledButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 30, vertical: 16)),
-                    child: Text(last ? 'start listening' : 'next'),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
+      // desktop pointer users expect arrow keys to page through onboarding
+      body: isDesktop
+          ? CallbackShortcuts(
+              bindings: {
+                const SingleActivator(LogicalKeyboardKey.arrowRight): _next,
+                const SingleActivator(LogicalKeyboardKey.arrowLeft): _previous,
+              },
+              child: Focus(autofocus: true, child: body),
+            )
+          : body,
     );
   }
 

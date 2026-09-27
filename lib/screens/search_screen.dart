@@ -3,7 +3,9 @@ import 'package:provider/provider.dart';
 
 import '../providers/library_provider.dart';
 import '../theme/radii.dart';
+import '../utils/platform.dart';
 import '../widgets/track_list_item.dart';
+import '../widgets/track_options_sheet.dart';
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -25,52 +27,60 @@ class _SearchScreenState extends State<SearchScreen> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final content = Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+          child: SizedBox(
+            height: 48,
+            child: TextField(
+              controller: _searchController,
+              autofocus: true,
+              onChanged: (value) => setState(() => _searchQuery = value),
+              textInputAction: TextInputAction.search,
+              decoration: InputDecoration(
+                hintText: 'Search your music',
+                prefixIcon: IconButton(
+                  icon: const Icon(Icons.arrow_back_rounded),
+                  tooltip: 'Back',
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+                suffixIcon: _searchQuery.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.close_rounded),
+                        tooltip: 'Clear',
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() => _searchQuery = '');
+                        },
+                      )
+                    : null,
+                filled: true,
+                fillColor: scheme.surfaceContainerHigh,
+                contentPadding: EdgeInsets.zero,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(rMd),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+          ),
+        ),
+        Expanded(child: _buildResults(context)),
+      ],
+    );
     return Scaffold(
       backgroundColor: scheme.surface,
       body: SafeArea(
         bottom: false,
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
-              child: SizedBox(
-                height: 48,
-                child: TextField(
-                  controller: _searchController,
-                  autofocus: true,
-                  onChanged: (value) => setState(() => _searchQuery = value),
-                  textInputAction: TextInputAction.search,
-                  decoration: InputDecoration(
-                    hintText: 'Search your music',
-                    prefixIcon: IconButton(
-                      icon: const Icon(Icons.arrow_back_rounded),
-                      tooltip: 'Back',
-                      onPressed: () => Navigator.of(context).pop(),
-                    ),
-                    suffixIcon: _searchQuery.isNotEmpty
-                        ? IconButton(
-                            icon: const Icon(Icons.close_rounded),
-                            tooltip: 'Clear',
-                            onPressed: () {
-                              _searchController.clear();
-                              setState(() => _searchQuery = '');
-                            },
-                          )
-                        : null,
-                    filled: true,
-                    fillColor: scheme.surfaceContainerHigh,
-                    contentPadding: EdgeInsets.zero,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(rMd),
-                      borderSide: BorderSide.none,
-                    ),
-                  ),
+        child: isDesktop
+            ? Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 720),
+                  child: content,
                 ),
-              ),
-            ),
-            Expanded(child: _buildResults(context)),
-          ],
-        ),
+              )
+            : content,
       ),
     );
   }
@@ -99,7 +109,16 @@ class _SearchScreenState extends State<SearchScreen> {
         return ListView.builder(
           padding: const EdgeInsets.symmetric(vertical: 8),
           itemCount: results.length,
-          itemBuilder: (context, index) => TrackListItem(track: results[index]),
+          itemBuilder: (context, index) {
+            final item = TrackListItem(track: results[index]);
+            if (!isDesktop) return item;
+            return GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onSecondaryTapUp: (_) =>
+                  showTrackOptionsSheet(context, results[index]),
+              child: item,
+            );
+          },
         );
       },
     );

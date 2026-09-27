@@ -2,7 +2,11 @@ import 'package:flutter/material.dart';
 
 import '../services/download_manager.dart';
 import '../theme/radii.dart';
+import '../utils/platform.dart';
 import '../widgets/back_chip.dart';
+
+// downloads list stays a single column on desktop, just centered
+const double _maxContentWidth = 720;
 
 class DownloadsScreen extends StatelessWidget {
   const DownloadsScreen({super.key});
@@ -11,6 +15,11 @@ class DownloadsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final manager = DownloadManager.instance;
     final scheme = Theme.of(context).colorScheme;
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final horizontalPadding =
+        isDesktop && screenWidth > _maxContentWidth
+            ? (screenWidth - _maxContentWidth) / 2
+            : 0.0;
     return Scaffold(
       body: CustomScrollView(
         slivers: [
@@ -22,35 +31,38 @@ class DownloadsScreen extends StatelessWidget {
             scrolledUnderElevation: 0,
             leading: const BackChip(),
           ),
-          ListenableBuilder(
-            listenable: manager,
-            builder: (context, _) {
-              final jobs = manager.jobs;
-              if (jobs.isEmpty) {
-                return const SliverFillRemaining(
-                  child: Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.download_rounded, size: 64),
-                        SizedBox(height: 16),
-                        Text('Nothing downloading yet'),
-                      ],
+          SliverPadding(
+            padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+            sliver: ListenableBuilder(
+              listenable: manager,
+              builder: (context, _) {
+                final jobs = manager.jobs;
+                if (jobs.isEmpty) {
+                  return const SliverFillRemaining(
+                    child: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.download_rounded, size: 64),
+                          SizedBox(height: 16),
+                          Text('Nothing downloading yet'),
+                        ],
+                      ),
                     ),
-                  ),
-                );
-              }
-              return SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) {
-                    final job = jobs[index];
-    final busy = job.status == 'downloading' || job.status == 'queued';
-                    final subtitle = job.status == 'done'
-                        ? (job.artFailed ? 'Saved without album art' : 'Saved')
-                        : 'Failed, tap to retry';
-                    return Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 3, 16, 3),
-                      child: Material(
+                  );
+                }
+                return SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) {
+                      final job = jobs[index];
+                      final busy = job.status == 'downloading' ||
+                          job.status == 'queued';
+                      final subtitle = job.status == 'done'
+                          ? (job.artFailed ? 'Saved without album art' : 'Saved')
+                          : isDesktop
+                              ? 'Failed, click to retry'
+                              : 'Failed, tap to retry';
+                      final card = Material(
                         color: scheme.surfaceContainerHigh,
                         borderRadius: BorderRadius.circular(rMd),
                         child: InkWell(
@@ -111,22 +123,36 @@ class DownloadsScreen extends StatelessWidget {
                                     ],
                                   ),
                                 ),
+                                // tap-to-retry is not discoverable with a
+                                // mouse, so failed jobs get a real button
+                                if (isDesktop && job.status == 'failed')
+                                  IconButton(
+                                    icon: const Icon(Icons.refresh_rounded,
+                                        size: 20),
+                                    tooltip: 'Retry',
+                                    onPressed: () => manager.retry(job),
+                                  ),
                                 IconButton(
                                   icon: const Icon(Icons.close_rounded,
                                       size: 20),
+                                  tooltip: isDesktop ? 'Remove' : null,
                                   onPressed: () => manager.remove(job),
                                 ),
                               ],
                             ),
                           ),
                         ),
-                      ),
-                    );
-                  },
-                  childCount: jobs.length,
-                ),
-              );
-            },
+                      );
+                      return Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 3, 16, 3),
+                        child: card,
+                      );
+                    },
+                    childCount: jobs.length,
+                  ),
+                );
+              },
+            ),
           ),
           const SliverToBoxAdapter(child: SizedBox(height: 24)),
         ],
@@ -134,4 +160,3 @@ class DownloadsScreen extends StatelessWidget {
     );
   }
 }
-
