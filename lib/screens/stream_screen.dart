@@ -10,6 +10,7 @@ import '../providers/recommendation_provider.dart';
 import '../providers/settings_provider.dart';
 import '../services/ytdl_service.dart';
 import '../services/ytmusic_service.dart';
+import '../theme/app_theme.dart';
 import '../theme/radii.dart';
 import '../utils/platform.dart';
 import '../widgets/art_card.dart';
@@ -791,62 +792,6 @@ class _StreamScreenState extends State<StreamScreen>
     );
   }
 
-  Widget _quickPicksSkeleton(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final bar = BoxDecoration(
-      color: scheme.surfaceContainerHigh,
-      borderRadius: BorderRadius.circular(6),
-    );
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
-          child: Container(width: 96, height: 18, decoration: bar),
-        ),
-        for (var i = 0; i < 4; i++)
-          SizedBox(
-            height: 72,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Row(
-                children: [
-                  Container(
-                    width: 56,
-                    height: 56,
-                    decoration: BoxDecoration(
-                      color: scheme.surfaceContainerHigh,
-                      borderRadius: BorderRadius.circular(rSm),
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Container(width: 140, height: 14, decoration: bar),
-                        const SizedBox(height: 8),
-                        Container(
-                          width: 90,
-                          height: 12,
-                          decoration: BoxDecoration(
-                            color: scheme.surfaceContainerHigh
-                                .withValues(alpha: 0.6),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-
   Widget _buildDiscover(BuildContext context) {
     if (_isLoading) return const Center(child: KashouLoader());
     if (_error != null) {
@@ -874,11 +819,26 @@ class _StreamScreenState extends State<StreamScreen>
             builder: (context, rec, _) => Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (rec.recommendations.isEmpty && rec.isLoading)
-                  _quickPicksSkeleton(context),
-                if (rec.recommendations.isNotEmpty)
-                  _buildQuickPicks(
-                      {'title': 'Quick picks', 'items': rec.recommendations}),
+                AnimatedSwitcher(
+                  duration: EMotion.medium,
+                  switchInCurve: Curves.easeOutCubic,
+                  switchOutCurve: Curves.easeInCubic,
+                  child: rec.recommendations.isEmpty && rec.isLoading
+                      ? const KeyedSubtree(
+                          key: ValueKey('quick_picks_skeleton'),
+                          child: _QuickPicksSkeleton(),
+                        )
+                      : (rec.recommendations.isNotEmpty
+                          ? KeyedSubtree(
+                              key: const ValueKey('quick_picks_content'),
+                              child: _buildQuickPicks({
+                                'title': 'Quick picks',
+                                'items': rec.recommendations,
+                              }),
+                            )
+                          : const SizedBox.shrink(
+                              key: ValueKey('quick_picks_empty'))),
+                ),
                 if (rec.relatedVideos.isNotEmpty)
                   _buildRecCarousel(
                       'More like what you played', rec.relatedVideos),
@@ -1055,9 +1015,12 @@ class _StreamScreenState extends State<StreamScreen>
   }
 
   String _songSubtitle(Map<String, dynamic> video) {
-    final channel = video['channel'] as String? ?? '';
-    final views = video['views'] as String?;
-    if (views == null || views.isEmpty) return channel;
+    final rawChannel = video['channel'] as String? ?? '';
+    final channel =
+        rawChannel.replaceAll('Â·', '•').replaceAll('Â', '').trim();
+    final rawViews = video['views'] as String?;
+    if (rawViews == null || rawViews.isEmpty) return channel;
+    final views = rawViews.replaceAll('Â·', '•').replaceAll('Â', '').trim();
     return '$channel • $views';
   }
 
@@ -1267,6 +1230,162 @@ class _StreamScreenState extends State<StreamScreen>
     final safe = MediaQuery.of(context).padding.bottom;
     final mini = audio.currentTrack != null ? 96.0 : 24.0;
     return safe + mini;
+  }
+}
+
+class _QuickPicksSkeleton extends StatefulWidget {
+  const _QuickPicksSkeleton();
+
+  @override
+  State<_QuickPicksSkeleton> createState() => _QuickPicksSkeletonState();
+}
+
+class _QuickPicksSkeletonState extends State<_QuickPicksSkeleton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pulseController;
+  late final Animation<double> _pulseAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat(reverse: true);
+    _pulseAnim = Tween<double>(begin: 0.35, end: 0.75).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
+    return AnimatedBuilder(
+      animation: _pulseAnim,
+      builder: (context, _) {
+        final alpha = _pulseAnim.value;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+              child: Text(
+                'Quick picks',
+                style: Theme.of(context)
+                    .textTheme
+                    .titleLarge
+                    ?.copyWith(fontWeight: FontWeight.bold),
+              ),
+            ),
+            if (isDesktop)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final columns =
+                        (constraints.maxWidth / 340).floor().clamp(2, 4);
+                    return GridView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      padding: EdgeInsets.zero,
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: columns,
+                        mainAxisExtent: 72,
+                        crossAxisSpacing: 8,
+                        mainAxisSpacing: 8,
+                      ),
+                      itemCount: columns * 4,
+                      itemBuilder: (_, __) => _buildSkeletonRow(scheme, alpha),
+                    );
+                  },
+                ),
+              )
+            else
+              SizedBox(
+                height: 4 * 72,
+                child: GridView.builder(
+                  scrollDirection: Axis.horizontal,
+                  physics: const NeverScrollableScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 4,
+                    mainAxisExtent: MediaQuery.of(context).size.width - 56,
+                    mainAxisSpacing: 16,
+                  ),
+                  itemCount: 8,
+                  itemBuilder: (_, __) => _buildSkeletonRow(scheme, alpha),
+                ),
+              ),
+            const SizedBox(height: 24),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildSkeletonRow(ColorScheme scheme, double alpha) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 8, 4, 8),
+      child: Row(
+        children: [
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: scheme.surfaceContainerHighest.withValues(alpha: alpha),
+              borderRadius: BorderRadius.circular(16),
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  height: 14,
+                  width: double.infinity,
+                  margin: const EdgeInsets.only(right: 28),
+                  decoration: BoxDecoration(
+                    color:
+                        scheme.surfaceContainerHighest.withValues(alpha: alpha),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Container(
+                  height: 12,
+                  width: 110,
+                  decoration: BoxDecoration(
+                    color: scheme.surfaceContainerHighest
+                        .withValues(alpha: alpha * 0.6),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            width: 40,
+            height: 40,
+            margin: const EdgeInsets.symmetric(horizontal: 4),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: scheme.surfaceContainerHighest
+                  .withValues(alpha: alpha * 0.35),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
