@@ -30,7 +30,16 @@ import '../utils/platform.dart';
 import 'artist_screen.dart';
 
 class NowPlayingScreen extends StatefulWidget {
-  const NowPlayingScreen({super.key});
+  final VoidCallback? onCollapse;
+  final ValueChanged<double>? onCollapseDragUpdate;
+  final ValueChanged<double>? onCollapseDragEnd;
+
+  const NowPlayingScreen({
+    super.key,
+    this.onCollapse,
+    this.onCollapseDragUpdate,
+    this.onCollapseDragEnd,
+  });
 
   @override
   State<NowPlayingScreen> createState() => _NowPlayingScreenState();
@@ -300,94 +309,145 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                 // Content overlay
                 Column(
                   children: [
-                    // Drag handle, a touch sheet affordance hidden on desktop
-                    if (!isDesktop)
-                      SafeArea(
-                        bottom: false,
-                        child: Center(
-                          child: Container(
-                            margin: const EdgeInsets.only(top: 8, bottom: 4),
-                            width: 40,
-                            height: 4,
-                            decoration: BoxDecoration(
-                              color:
-                                  colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
-                              borderRadius: BorderRadius.circular(2),
-                            ),
+                    GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onVerticalDragUpdate: (details) {
+                        final dy = details.primaryDelta ?? 0;
+                        if (dy > 0 || widget.onCollapseDragUpdate != null) {
+                          widget.onCollapseDragUpdate?.call(dy);
+                        }
+                      },
+                      onVerticalDragEnd: (details) {
+                        widget.onCollapseDragEnd
+                            ?.call(details.primaryVelocity ?? 0);
+                      },
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (!isDesktop)
+                            SafeArea(
+                              bottom: false,
+                              child: Center(
+                                child: Container(
+                                  margin:
+                                      const EdgeInsets.only(top: 8, bottom: 4),
+                                  width: 40,
+                                  height: 4,
+                                  decoration: BoxDecoration(
+                                    color: colorScheme.onSurfaceVariant
+                                        .withValues(alpha: 0.4),
+                                    borderRadius: BorderRadius.circular(2),
+                                  ),
+                                ),
+                              ),
+                            )
+                          else
+                            const SizedBox(height: 12),
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                            child: _buildTopBar(context, track),
                           ),
-                        ),
-                      )
-                    else
-                      const SizedBox(height: 12),
+                        ],
+                      ),
+                    ),
                     Expanded(
                       child: SafeArea(
                         top: false,
                         bottom: false,
                         child: Column(
                           children: [
-                            Padding(
-                              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                              child: _buildTopBar(context, track),
-                            ),
                             Expanded(
                               child: wideDesktop
                                   ? _buildDesktopWideBody(
                                       context, audio, library, track, size)
                                   : AnimatedSwitcher(
-                                duration: EMotion.medium,
-                                switchInCurve: Curves.easeOutCubic,
-                                switchOutCurve: Curves.easeInCubic,
-                                transitionBuilder: (child, anim) =>
-                                    FadeTransition(
-                                  opacity: anim,
-                                  child: ScaleTransition(
-                                    scale: Tween<double>(begin: 0.9, end: 1).animate(anim),
-                                    child: child,
-                                  ),
-                                ),
-                                layoutBuilder: (current, previous) => Stack(
-                                  alignment: Alignment.center,
-                                  children: [
-                                    ...previous,
-                                    if (current != null) current,
-                                  ],
-                                ),
-                                child: _lyricsOpen
-                                    ? KeyedSubtree(
-                                        key: const ValueKey('lyrics'),
-                                        child: _buildLyricsView(
-                                            context, audio, track),
-                                      )
-                                    : KeyedSubtree(
-                                        key: const ValueKey('art'),
-                                        child: LayoutBuilder(
-                                          builder: (context, constraints) =>
-                                              SingleChildScrollView(
-                                            physics:
-                                                const BouncingScrollPhysics(),
-                                            child: ConstrainedBox(
-                                              constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                                              child: Center(
-                                                child: Padding(
-                                                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                                                  child: RepaintBoundary(
-                                                      child:
-                                                          _buildArtworkCard(
-                                                              context,
-                                                              track,
-                                                              size,
-                                                              artSize: isDesktop
-                                                                  ? math.min(
-                                                                      (size.width - 40) * 0.92,
-                                                                      460)
-                                                                  : null)),
-                                                ),
-                                              ),
-                                            ),
-                                          ),
+                                      duration: EMotion.medium,
+                                      switchInCurve: Curves.easeOutCubic,
+                                      switchOutCurve: Curves.easeInCubic,
+                                      transitionBuilder: (child, anim) =>
+                                          FadeTransition(
+                                        opacity: anim,
+                                        child: ScaleTransition(
+                                          scale: Tween<double>(
+                                                  begin: 0.9, end: 1)
+                                              .animate(anim),
+                                          child: child,
                                         ),
                                       ),
-                              ),
+                                      layoutBuilder: (current, previous) =>
+                                          Stack(
+                                        alignment: Alignment.center,
+                                        children: [
+                                          ...previous,
+                                          if (current != null) current,
+                                        ],
+                                      ),
+                                      child: _lyricsOpen
+                                          ? KeyedSubtree(
+                                              key: const ValueKey('lyrics'),
+                                              child: _buildLyricsView(
+                                                  context, audio, track),
+                                            )
+                                          : KeyedSubtree(
+                                              key: const ValueKey('art'),
+                                              child: LayoutBuilder(
+                                                builder:
+                                                    (context, constraints) {
+                                                  final maxW =
+                                                      (size.width - 40) * 0.92;
+                                                  final availableH =
+                                                      constraints.maxHeight;
+                                                  final dimension = isDesktop
+                                                      ? math.min(maxW, 460.0)
+                                                      : (availableH > 0
+                                                          ? math.min(
+                                                              maxW, availableH)
+                                                          : maxW);
+                                                  return GestureDetector(
+                                                    behavior: HitTestBehavior
+                                                        .translucent,
+                                                    onVerticalDragUpdate:
+                                                        (details) {
+                                                      final dy = details
+                                                              .primaryDelta ??
+                                                          0;
+                                                      if (dy > 0 ||
+                                                          widget.onCollapseDragUpdate !=
+                                                              null) {
+                                                        widget
+                                                            .onCollapseDragUpdate
+                                                            ?.call(dy);
+                                                      }
+                                                    },
+                                                    onVerticalDragEnd:
+                                                        (details) {
+                                                      widget.onCollapseDragEnd
+                                                          ?.call(details
+                                                                  .primaryVelocity ??
+                                                              0);
+                                                    },
+                                                    child: Center(
+                                                      child: Padding(
+                                                        padding:
+                                                            const EdgeInsets
+                                                                .symmetric(
+                                                                horizontal: 20),
+                                                        child: RepaintBoundary(
+                                                          child:
+                                                              _buildArtworkCard(
+                                                            context,
+                                                            track,
+                                                            size,
+                                                            artSize: dimension,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  );
+                                                },
+                                              ),
+                                            ),
+                                    ),
                             ),
                             if (!wideDesktop)
                               SafeArea(
@@ -580,7 +640,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           icon: Icons.keyboard_arrow_down_rounded,
           tooltip: 'Collapse player',
           first: true,
-          onTap: () => Navigator.of(context).pop(),
+          onTap: () => widget.onCollapse != null
+              ? widget.onCollapse!()
+              : Navigator.of(context).maybePop(),
         ),
         const SizedBox(width: 4),
         _buildBarIcon(
@@ -1436,7 +1498,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
               child: ReorderableListView.builder(
                 scrollController: scrollController,
                 itemCount: audio.queue.length,
-                onReorderItem: audio.moveQueueItem,
+                onReorder: audio.moveQueueItem,
                 itemBuilder: (context, index) {
                   final track = audio.queue[index];
                   final isCurrent = index == audio.currentIndex;

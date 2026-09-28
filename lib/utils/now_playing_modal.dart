@@ -42,7 +42,7 @@ Future<void> openNowPlaying(BuildContext context) {
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
-    useSafeArea: true,
+    useSafeArea: false,
     enableDrag: true,
     isDismissible: true,
     backgroundColor: Colors.transparent,
@@ -54,8 +54,6 @@ Future<void> openNowPlaying(BuildContext context) {
     ),
     clipBehavior: Clip.none,
     builder: (sheetContext) {
-      final mediaQuery = MediaQuery.of(sheetContext);
-      final topInset = mediaQuery.viewPadding.top;
       return DraggableScrollableSheet(
         initialChildSize: 1.0,
         minChildSize: 0.0,
@@ -64,15 +62,7 @@ Future<void> openNowPlaying(BuildContext context) {
         snapSizes: const [1.0],
         expand: false,
         builder: (context, scrollController) {
-          return AnimatedPadding(
-            duration: const Duration(milliseconds: 220),
-            curve: Curves.easeOutCubic,
-            padding: EdgeInsets.only(
-              top: topInset,
-              bottom: mediaQuery.viewInsets.bottom,
-            ),
-            child: const NowPlayingScreen(),
-          );
+          return const NowPlayingScreen();
         },
       );
     },

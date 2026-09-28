@@ -289,9 +289,12 @@ class MainNavigationScreen extends StatefulWidget {
   State<MainNavigationScreen> createState() => _MainNavigationScreenState();
 }
 
-class _MainNavigationScreenState extends State<MainNavigationScreen> {
+class _MainNavigationScreenState extends State<MainNavigationScreen>
+    with SingleTickerProviderStateMixin {
   int _selectedIndex = 0;
   bool _showMiniPlayer = true;
+  late final AnimationController _sheetController;
+  bool get _isSheetOpen => _sheetController.value > 0.05;
 
   static const List<Widget> _screens = [
     StreamScreen(),
@@ -302,6 +305,10 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   @override
   void initState() {
     super.initState();
+    _sheetController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 260),
+    );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final audioProvider = Provider.of<AudioProvider>(context, listen: false);
       audioProvider.addListener(_onAudioProviderChange);
@@ -399,6 +406,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
   @override
   void dispose() {
+    _sheetController.dispose();
     final audioProvider = Provider.of<AudioProvider>(context, listen: false);
     audioProvider.removeListener(_onAudioProviderChange);
     super.dispose();
@@ -428,15 +436,77 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   }
 
   void _openNowPlaying() {
-    setState(() {
-      _showMiniPlayer = false;
-    });
-    openNowPlaying(context).whenComplete(() {
-      if (!mounted) return;
+    if (isDesktop) {
       setState(() {
-        _showMiniPlayer = true;
+        _showMiniPlayer = false;
       });
-    });
+      openNowPlaying(context).whenComplete(() {
+        if (!mounted) return;
+        setState(() {
+          _showMiniPlayer = true;
+        });
+      });
+      return;
+    }
+    _sheetController.animateTo(
+      1.0,
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  void _collapseNowPlaying() {
+    _sheetController.animateTo(
+      0.0,
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  void _onPlayerExpandDragUpdate(double dy) {
+    final screenH = MediaQuery.of(context).size.height;
+    if (screenH <= 0) return;
+    _sheetController.value =
+        (_sheetController.value - dy / screenH).clamp(0.0, 1.0);
+  }
+
+  void _onPlayerExpandDragEnd(double velocity) {
+    if (velocity < -300 || _sheetController.value > 0.35) {
+      _sheetController.animateTo(
+        1.0,
+        duration: const Duration(milliseconds: 240),
+        curve: Curves.easeOutCubic,
+      );
+    } else {
+      _sheetController.animateTo(
+        0.0,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOutCubic,
+      );
+    }
+  }
+
+  void _onNowPlayingCollapseDragUpdate(double dy) {
+    final screenH = MediaQuery.of(context).size.height;
+    if (screenH <= 0) return;
+    _sheetController.value =
+        (_sheetController.value - dy / screenH).clamp(0.0, 1.0);
+  }
+
+  void _onNowPlayingCollapseDragEnd(double velocity) {
+    if (velocity > 300 || _sheetController.value < 0.65) {
+      _sheetController.animateTo(
+        0.0,
+        duration: const Duration(milliseconds: 240),
+        curve: Curves.easeOutCubic,
+      );
+    } else {
+      _sheetController.animateTo(
+        1.0,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOutCubic,
+      );
+    }
   }
 
   static const List<NavItem> _navItems = [
@@ -502,28 +572,85 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       );
     }
 
-    return Scaffold(
-      resizeToAvoidBottomInset: false,
-      extendBody: true,
-      body: body,
-      bottomNavigationBar: Consumer<AudioProvider>(
-        builder: (context, audioProvider, child) {
-          final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
-          if (keyboardHeight > 0) return const SizedBox.shrink();
-          final route = ModalRoute.of(context);
-          final isModalOpen = route != null && !route.isFirst;
-          final hasPlayer = audioProvider.currentTrack != null &&
-              _showMiniPlayer &&
-              !isModalOpen;
-          return PlayerNavBar(
-            items: _navItems,
-            selectedIndex: _selectedIndex,
-            onDestinationSelected: _onItemTapped,
-            hasPlayer: hasPlayer,
-            onPlayerTap: _openNowPlaying,
-            onPlayerDismiss: _dismissMiniPlayer,
-          );
-        },
+    final screenHeight = MediaQuery.of(context).size.height;
+
+    return PopScope(
+      canPop: !_isSheetOpen,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _sheetController.value > 0) {
+          _collapseNowPlaying();
+        }
+      },
+      child: Scaffold(
+        resizeToAvoidBottomInset: false,
+        extendBody: true,
+        body: Stack(
+          children: [
+            body,
+            AnimatedBuilder(
+              animation: _sheetController,
+              builder: (context, _) {
+                final t = _sheetController.value;
+                if (t == 0) return const SizedBox.shrink();
+                final mq = MediaQuery.of(context);
+                return Transform.translate(
+                  offset: Offset(0, (1.0 - t) * screenHeight),
+                  child: RepaintBoundary(
+                    child: MediaQuery(
+                      data: mq.copyWith(padding: mq.viewPadding),
+                      child: SizedBox(
+                        height: screenHeight,
+                        width: mq.size.width,
+                        child: NowPlayingScreen(
+                          onCollapse: _collapseNowPlaying,
+                          onCollapseDragUpdate: _onNowPlayingCollapseDragUpdate,
+                          onCollapseDragEnd: _onNowPlayingCollapseDragEnd,
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+        bottomNavigationBar: AnimatedBuilder(
+          animation: _sheetController,
+          builder: (context, child) {
+            final t = _sheetController.value;
+            if (t >= 1.0) return const SizedBox.shrink();
+            return Transform.translate(
+              offset: Offset(0, t * 140),
+              child: Opacity(
+                opacity: (1.0 - t * 2.5).clamp(0.0, 1.0),
+                child: IgnorePointer(
+                  ignoring: t > 0.1,
+                  child: child,
+                ),
+              ),
+            );
+          },
+          child: Selector<AudioProvider, bool>(
+            selector: (_, audio) => audio.currentTrack != null,
+            builder: (context, hasTrack, child) {
+              final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
+              if (keyboardHeight > 0) return const SizedBox.shrink();
+              final route = ModalRoute.of(context);
+              final isModalOpen = route != null && !route.isFirst;
+              final hasPlayer = hasTrack && _showMiniPlayer && !isModalOpen;
+              return PlayerNavBar(
+                items: _navItems,
+                selectedIndex: _selectedIndex,
+                onDestinationSelected: _onItemTapped,
+                hasPlayer: hasPlayer,
+                onPlayerTap: _openNowPlaying,
+                onPlayerDismiss: _dismissMiniPlayer,
+                onPlayerExpandDragUpdate: _onPlayerExpandDragUpdate,
+                onPlayerExpandDragEnd: _onPlayerExpandDragEnd,
+              );
+            },
+          ),
+        ),
       ),
     );
   }
