@@ -1169,7 +1169,7 @@ class _LibraryScreenState extends State<LibraryScreen>
               width: double.maxFinite,
               child: ReorderableListView(
                 shrinkWrap: true,
-                onReorderItem: (old, neu) {
+                onReorder: (old, neu) {
                   setState(() {
                     final moved = _tabOrder.removeAt(old);
                     _tabOrder.insert(neu, moved);
