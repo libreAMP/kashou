@@ -1058,7 +1058,7 @@ class _StreamScreenState extends State<StreamScreen>
     final channel = video['channel'] as String? ?? '';
     final views = video['views'] as String?;
     if (views == null || views.isEmpty) return channel;
-    return '$channel Â· $views';
+    return '$channel • $views';
   }
 
   Widget _buildSongRow(Map<String, dynamic> video) {

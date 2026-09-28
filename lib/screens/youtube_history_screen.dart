@@ -323,7 +323,7 @@ class _YoutubeHistoryScreenState extends State<YoutubeHistoryScreen> {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          '${track.artist} Â· ${_formatTimestamp(entry.timestamp)}',
+                          '${track.artist} • ${_formatTimestamp(entry.timestamp)}',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: theme.textTheme.bodySmall?.copyWith(

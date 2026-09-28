@@ -5,6 +5,7 @@ import 'package:flutter_displaymode/flutter_displaymode.dart';
 import 'utils/app_messenger.dart';
 import 'utils/now_playing_modal.dart';
 import 'utils/platform.dart';
+import 'utils/smooth_scroll.dart';
 import 'utils/toast.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -222,6 +223,7 @@ class KashouApp extends StatelessWidget {
 
               return MaterialApp(
                 title: 'Kashou',
+                scrollBehavior: const KashouScrollBehavior(),
                 navigatorKey: toastNavigatorKey,
                 scaffoldMessengerKey: appMessenger,
                 debugShowCheckedModeBanner: false,

@@ -546,18 +546,20 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       LibraryProvider library, Track track, Size size) {
     return LayoutBuilder(
       builder: (context, constraints) {
+        final scheme = Theme.of(context).colorScheme;
         final artSize = math.min(
-          math.min(constraints.maxWidth * 0.38, constraints.maxHeight * 0.86),
-          560.0,
+          math.min(constraints.maxWidth * 0.44, constraints.maxHeight * 0.85),
+          520.0,
         );
         return Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 1120),
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(40, 4, 40, 28),
+              padding: const EdgeInsets.fromLTRB(36, 4, 36, 24),
               child: Row(
                 children: [
                   Expanded(
+                    flex: 5,
                     child: AnimatedSwitcher(
                       duration: EMotion.medium,
                       switchInCurve: Curves.easeOutCubic,
@@ -580,7 +582,19 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                       child: _lyricsOpen
                           ? KeyedSubtree(
                               key: const ValueKey('lyrics'),
-                              child: _buildLyricsView(context, audio, track),
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: scheme.surfaceContainerHigh
+                                      .withValues(alpha: 0.4),
+                                  borderRadius: BorderRadius.circular(24),
+                                  border: Border.all(
+                                    color: scheme.outlineVariant
+                                        .withValues(alpha: 0.3),
+                                  ),
+                                ),
+                                clipBehavior: Clip.antiAlias,
+                                child: _buildLyricsView(context, audio, track),
+                              ),
                             )
                           : KeyedSubtree(
                               key: const ValueKey('art'),
@@ -594,29 +608,32 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                             ),
                     ),
                   ),
-                  const SizedBox(width: 48),
-                  SizedBox(
-                    width: 440,
+                  const SizedBox(width: 40),
+                  Expanded(
+                    flex: 5,
                     child: Center(
-                      child: SingleChildScrollView(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            MouseRegion(
-                              cursor: SystemMouseCursors.click,
-                              child: GestureDetector(
-                                onTap: () => _toggleLyrics(track),
-                                child: _buildTrackMeta(context, track, audio),
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 440),
+                        child: SingleChildScrollView(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              MouseRegion(
+                                cursor: SystemMouseCursors.click,
+                                child: GestureDetector(
+                                  onTap: () => _toggleLyrics(track),
+                                  child: _buildTrackMeta(context, track, audio),
+                                ),
                               ),
-                            ),
-                            const SizedBox(height: 24),
-                            RepaintBoundary(
-                                child: _buildProgressStrip(context, audio)),
-                            const SizedBox(height: 24),
-                            _buildPrimaryControls(context, audio),
-                            const SizedBox(height: 28),
-                            _buildSecondaryControlRow(context, audio, library),
-                          ],
+                              const SizedBox(height: 24),
+                              RepaintBoundary(
+                                  child: _buildProgressStrip(context, audio)),
+                              const SizedBox(height: 24),
+                              _buildPrimaryControls(context, audio),
+                              const SizedBox(height: 28),
+                              _buildSecondaryControlRow(context, audio, library),
+                            ],
+                          ),
                         ),
                       ),
                     ),
@@ -930,21 +947,20 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            colorScheme.surface.withValues(alpha: 0.7),
-            colorScheme.surface.withValues(alpha: 0.85),
-            colorScheme.surface.withValues(alpha: 0.95),
+            colorScheme.surface.withValues(alpha: 0.88),
+            colorScheme.surface.withValues(alpha: 0.94),
+            colorScheme.surface,
           ],
         ),
       ),
     );
 
-    // a 40px decode stretched over the screen is blurry on its own
     Widget? art;
     if (track.albumArt != null) {
       art = Image.memory(
         track.albumArt!,
         fit: BoxFit.cover,
-        cacheWidth: 96,
+        cacheWidth: 160,
         gaplessPlayback: true,
         errorBuilder: (_, __, ___) => fallbackGradient,
       );
@@ -952,14 +968,24 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       art = Image.network(
         youtubeThumbnailUrl,
         fit: BoxFit.cover,
-        cacheWidth: 96,
+        cacheWidth: 160,
         frameBuilder: (context, child, frame, wasSync) =>
             frame != null || wasSync ? child : fallbackGradient,
         errorBuilder: (_, __, ___) => fallbackGradient,
       );
     }
     if (art == null) return fallbackGradient;
-    return Stack(fit: StackFit.expand, children: [art, scrim]);
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        ImageFiltered(
+          imageFilter: ImageFilter.blur(
+              sigmaX: 48, sigmaY: 48, tileMode: TileMode.decal),
+          child: art,
+        ),
+        scrim,
+      ],
+    );
   }
 
   Widget _buildTrackMeta(

@@ -12,23 +12,20 @@ Future<void> openNowPlaying(BuildContext context) {
   if (isDesktop) {
     return showDialog<void>(
       context: context,
-      barrierColor: Colors.black.withValues(alpha: 0.5),
+      barrierColor: Colors.black.withValues(alpha: 0.65),
       builder: (dialogContext) {
         final size = MediaQuery.of(dialogContext).size;
-        // wide enough for NowPlayingScreen's two-column desktop layout
-        final w = math.min(960.0, size.width - 48);
-        final h = math.min(720.0, size.height - 48);
+        final w = math.min(1080.0, math.max(860.0, size.width - 64));
+        final h = math.min(760.0, math.max(600.0, size.height - 64));
         return Dialog(
           backgroundColor: Colors.transparent,
-          insetPadding: const EdgeInsets.all(24),
+          insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
           clipBehavior: Clip.antiAlias,
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
           child: SizedBox(
             width: w,
             height: h,
-            // NowPlayingScreen sizes its artwork off MediaQuery, so report
-            // the dialog bounds instead of the window bounds
             child: MediaQuery(
               data: MediaQuery.of(dialogContext).copyWith(size: Size(w, h)),
               child: const NowPlayingScreen(),

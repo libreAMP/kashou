@@ -229,13 +229,11 @@ class _NavBubble extends StatelessWidget {
     required this.item,
     required this.selected,
     required this.hovered,
-    this.showLabel = true,
   });
 
   final NavItem item;
   final bool selected;
   final bool hovered;
-  final bool showLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -264,23 +262,22 @@ class _NavBubble extends StatelessWidget {
             color: tint,
             size: 26,
           ),
-          if (showLabel)
-            AnimatedSize(
-              duration: EMotion.medium,
-              curve: EMotion.emphasized,
-              child: selected
-                  ? Padding(
-                      padding: const EdgeInsets.only(left: 10),
-                      child: Text(
-                        item.label,
-                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                          color: tint,
-                          fontWeight: FontWeight.w600,
-                        ),
+          AnimatedSize(
+            duration: EMotion.medium,
+            curve: EMotion.emphasized,
+            child: selected
+                ? Padding(
+                    padding: const EdgeInsets.only(left: 10),
+                    child: Text(
+                      item.label,
+                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                        color: tint,
+                        fontWeight: FontWeight.w600,
                       ),
-                    )
-                  : const SizedBox.shrink(),
-            ),
+                    ),
+                  )
+                : const SizedBox.shrink(),
+          ),
         ],
       ),
     );
@@ -305,48 +302,46 @@ class PlayerNavRail extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final padding = MediaQuery.of(context).padding;
-    final radius = BorderRadius.circular(EShape.xl);
+    final radius = BorderRadius.circular(32);
 
     return Padding(
       padding:
           EdgeInsets.fromLTRB(12, 12 + padding.top, 0, 12 + padding.bottom),
-      child: Container(
-        width: 72,
-        decoration: BoxDecoration(
-          borderRadius: radius,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.25),
-              blurRadius: 20,
-              offset: const Offset(0, 6),
+      child: Center(
+        child: Container(
+          width: 64,
+          decoration: BoxDecoration(
+            color: scheme.surfaceContainerHigh,
+            borderRadius: radius,
+            border: Border.all(
+              color: scheme.outlineVariant.withValues(alpha: 0.4),
+              width: 1,
             ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: radius,
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-            child: Container(
-              color: scheme.surfaceContainerHigh.withValues(alpha: 0.7),
-              padding: const EdgeInsets.symmetric(vertical: 10),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  for (var i = 0; i < items.length; i++) ...[
-                    if (i > 0) const SizedBox(height: 8),
-                    Tooltip(
-                      message: items[i].label,
-                      waitDuration: const Duration(milliseconds: 400),
-                      child: _RailNavItem(
-                        item: items[i],
-                        selected: i == selectedIndex,
-                        onTap: () => onDestinationSelected(i),
-                      ),
-                    ),
-                  ],
-                ],
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.06),
+                blurRadius: 10,
+                offset: const Offset(0, 2),
               ),
-            ),
+            ],
+          ),
+          padding: const EdgeInsets.all(7),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (var i = 0; i < items.length; i++) ...[
+                if (i > 0) const SizedBox(height: 8),
+                Tooltip(
+                  message: items[i].label,
+                  waitDuration: const Duration(milliseconds: 400),
+                  child: _RailNavItem(
+                    item: items[i],
+                    selected: i == selectedIndex,
+                    onTap: () => onDestinationSelected(i),
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
       ),
@@ -430,6 +425,11 @@ class _RailNavItemState extends State<_RailNavItem> {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final tint = widget.selected
+        ? scheme.onPrimaryContainer
+        : (_hovered ? scheme.onSurface : scheme.onSurfaceVariant);
+
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hovered = true),
@@ -437,11 +437,26 @@ class _RailNavItemState extends State<_RailNavItem> {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: widget.onTap,
-        child: _NavBubble(
-          item: widget.item,
-          selected: widget.selected,
-          hovered: _hovered,
-          showLabel: false,
+        child: AnimatedContainer(
+          duration: EMotion.medium,
+          curve: EMotion.emphasized,
+          width: 50,
+          height: 50,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: widget.selected
+                ? scheme.primaryContainer
+                : (_hovered
+                    ? scheme.onSurface.withValues(alpha: 0.08)
+                    : Colors.transparent),
+          ),
+          child: Center(
+            child: Icon(
+              widget.selected ? widget.item.selectedIcon : widget.item.icon,
+              color: tint,
+              size: 24,
+            ),
+          ),
         ),
       ),
     );
