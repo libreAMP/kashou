@@ -22,6 +22,8 @@ class PlayerNavBar extends StatefulWidget {
     required this.hasPlayer,
     required this.onPlayerTap,
     required this.onPlayerDismiss,
+    this.onPlayerExpandDragUpdate,
+    this.onPlayerExpandDragEnd,
   });
 
   final List<NavItem> items;
@@ -30,6 +32,8 @@ class PlayerNavBar extends StatefulWidget {
   final bool hasPlayer;
   final VoidCallback onPlayerTap;
   final VoidCallback onPlayerDismiss;
+  final ValueChanged<double>? onPlayerExpandDragUpdate;
+  final ValueChanged<double>? onPlayerExpandDragEnd;
 
   @override
   State<PlayerNavBar> createState() => _PlayerNavBarState();
@@ -107,43 +111,41 @@ class _PlayerNavBarState extends State<PlayerNavBar>
         ? null
         : (compact == null ? maxW : compact + (maxW - compact) * t);
 
-    final pill = ClipRRect(
+    final pill = Material(
+      color: scheme.surfaceContainerHigh,
       borderRadius: radius,
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-        child: Container(
-          color: scheme.surfaceContainerHigh.withValues(alpha: 0.7),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (t > 0)
-                ClipRect(
-                  child: Align(
-                    alignment: Alignment.topCenter,
-                    heightFactor: t,
-                    child: MiniPlayer(
-                      embedded: true,
-                      onTap: widget.onPlayerTap,
-                      onDismiss: widget.onPlayerDismiss,
-                      onSlideProgress: (v) => setState(() => _slide = v),
-                    ),
-                  ),
-                ),
-              SizedBox(
-                key: _navKey,
-                child: _BubbleNavBar(
-                  items: widget.items,
-                  selectedIndex: widget.selectedIndex,
-                  onSelected: widget.onDestinationSelected,
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (t > 0)
+            ClipRect(
+              child: Align(
+                alignment: Alignment.topCenter,
+                heightFactor: t,
+                child: MiniPlayer(
+                  embedded: true,
+                  onTap: widget.onPlayerTap,
+                  onDismiss: widget.onPlayerDismiss,
+                  onSlideProgress: (v) => setState(() => _slide = v),
+                  onExpandDragUpdate: widget.onPlayerExpandDragUpdate,
+                  onExpandDragEnd: widget.onPlayerExpandDragEnd,
                 ),
               ),
-            ],
+            ),
+          SizedBox(
+            key: _navKey,
+            child: _BubbleNavBar(
+              items: widget.items,
+              selectedIndex: widget.selectedIndex,
+              onSelected: widget.onDestinationSelected,
+            ),
           ),
-        ),
+        ],
       ),
     );
 
-    final shadowed = Container(
+    final shadowed = DecoratedBox(
       decoration: BoxDecoration(
         borderRadius: radius,
         boxShadow: [

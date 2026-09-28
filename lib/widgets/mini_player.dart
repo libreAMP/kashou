@@ -22,6 +22,8 @@ class MiniPlayer extends StatefulWidget {
   final VoidCallback onDismiss;
   final bool embedded;
   final ValueChanged<double>? onSlideProgress;
+  final ValueChanged<double>? onExpandDragUpdate;
+  final ValueChanged<double>? onExpandDragEnd;
 
   const MiniPlayer({
     super.key,
@@ -29,6 +31,8 @@ class MiniPlayer extends StatefulWidget {
     required this.onDismiss,
     this.embedded = false,
     this.onSlideProgress,
+    this.onExpandDragUpdate,
+    this.onExpandDragEnd,
   });
 
   @override
@@ -40,15 +44,11 @@ class _MiniPlayerSnapshot {
     required this.track,
     required this.isLoading,
     required this.isPlaying,
-    required this.position,
-    required this.duration,
   });
 
   final Track? track;
   final bool isLoading;
   final bool isPlaying;
-  final Duration position;
-  final Duration duration;
 
   @override
   bool operator ==(Object other) {
@@ -56,14 +56,11 @@ class _MiniPlayerSnapshot {
     if (other is! _MiniPlayerSnapshot) return false;
     return identical(track, other.track) &&
         isLoading == other.isLoading &&
-        isPlaying == other.isPlaying &&
-        position == other.position &&
-        duration == other.duration;
+        isPlaying == other.isPlaying;
   }
 
   @override
-  int get hashCode =>
-      Object.hash(track, isLoading, isPlaying, position, duration);
+  int get hashCode => Object.hash(track, isLoading, isPlaying);
 }
 
 class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
@@ -319,22 +316,33 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
     return null;
   }
 
+  bool _isExpanding = false;
+
   void _handleVerticalDragUpdate(DragUpdateDetails details) {
     if (_isSwipingHorizontal) return;
+    final dy = details.primaryDelta ?? 0;
+    if (_isExpanding || (_dragDistance <= 0 && dy < 0)) {
+      _isExpanding = true;
+      _dragDistance += dy;
+      widget.onExpandDragUpdate?.call(dy);
+      return;
+    }
     setState(() {
-      _dragDistance += details.primaryDelta ?? 0;
+      _dragDistance += dy;
       if (_dragDistance > 0) {
         _slideController.value = (_dragDistance / 160).clamp(0.0, 1.0);
-      } else if (_dragDistance < -90) {
-        widget.onTap();
-        _dragDistance = 0;
-        _slideController.value = 0;
       }
     });
   }
 
   void _handleVerticalDragEnd(DragEndDetails details) {
     if (_isSwipingHorizontal) return;
+    if (_isExpanding) {
+      _isExpanding = false;
+      _dragDistance = 0;
+      widget.onExpandDragEnd?.call(details.primaryVelocity ?? 0);
+      return;
+    }
     if (_dragDistance > 70 ||
         details.primaryVelocity != null && details.primaryVelocity! > 500) {
       _slideController.forward().then((_) {
@@ -415,8 +423,6 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
         track: provider.currentTrack,
         isLoading: provider.isLoadingTrack,
         isPlaying: provider.isPlaying,
-        position: provider.position,
-        duration: provider.duration,
       ),
       shouldRebuild: (previous, next) => previous != next,
       builder: (context, snapshot, child) {
@@ -428,24 +434,7 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
         final theme = Theme.of(context);
         final colorScheme = theme.colorScheme;
         final isLoading = snapshot.isLoading;
-        final liveDur = snapshot.duration > Duration.zero
-            ? snapshot.duration
-            : track.duration;
-        final totalMillis = liveDur.inMilliseconds;
-        final progress = totalMillis > 0
-            ? snapshot.position.inMilliseconds / totalMillis
-            : 0.0;
-
         final settings = Provider.of<SettingsProvider>(context);
-
-        final progressBar = LinearProgressIndicator(
-          value: progress,
-          minHeight: 3,
-          backgroundColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
-          valueColor: AlwaysStoppedAnimation<Color>(
-            colorScheme.primary,
-          ),
-        );
 
         Widget barCard = Material(
                     color: widget.embedded
@@ -614,15 +603,42 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
                             ],
                           ),
                         ),
-                        AnimatedSize(
-                          duration: EMotion.medium,
-                          curve: Curves.easeOutCubic,
-                          alignment: Alignment.bottomCenter,
-                          child: totalMillis > 0 && !isLoading
-                              ? (isDesktop
-                                  ? _seekableProgress(totalMillis, progressBar)
-                                  : progressBar)
-                              : const SizedBox.shrink(),
+                        Selector<AudioProvider, ({double progress, int totalMillis})>(
+                          selector: (_, audio) {
+                            final dur = audio.duration > Duration.zero
+                                ? audio.duration
+                                : (audio.currentTrack?.duration ?? Duration.zero);
+                            final total = dur.inMilliseconds;
+                            return (
+                              progress: total > 0
+                                  ? (audio.position.inMilliseconds / total)
+                                      .clamp(0.0, 1.0)
+                                  : 0.0,
+                              totalMillis: total,
+                            );
+                          },
+                          builder: (context, data, _) {
+                            final progressBar = LinearProgressIndicator(
+                              value: data.progress,
+                              minHeight: 3,
+                              backgroundColor: colorScheme
+                                  .surfaceContainerHighest
+                                  .withValues(alpha: 0.4),
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                colorScheme.primary,
+                              ),
+                            );
+                            return AnimatedSize(
+                              duration: EMotion.medium,
+                              curve: Curves.easeOutCubic,
+                              alignment: Alignment.bottomCenter,
+                              child: data.totalMillis > 0 && !isLoading
+                                  ? (isDesktop
+                                      ? _seekableProgress(data.totalMillis, progressBar)
+                                      : progressBar)
+                                  : const SizedBox.shrink(),
+                            );
+                          },
                         ),
                       ],
                     ),
