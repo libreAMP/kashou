@@ -8,12 +8,21 @@ import '../screens/artist_screen.dart';
 import '../screens/metadata_editor_screen.dart';
 import '../theme/radii.dart';
 import '../utils/platform.dart';
+import 'm3e_menu.dart';
 import 'sheet_handle.dart';
 import 'square_art.dart';
 
 void showTrackOptionsSheet(BuildContext context, Track track,
-    {String? playlistId}) {
+    {String? playlistId, Offset? anchor}) {
   final isOnline = (track.sourceUrl ?? track.path).startsWith('http');
+  if (isDesktop && anchor != null) {
+    showM3EMenu(
+      context,
+      globalPosition: anchor,
+      children: _menuRows(context, track, isOnline, playlistId),
+    );
+    return;
+  }
   // on desktop a centered, width-constrained dialog replaces the bottom sheet
   if (isDesktop) {
     showDialog(
@@ -75,8 +84,8 @@ Widget _headerTile(Track track, bool isOnline, {Widget? trailing}) {
   );
 }
 
-List<Widget> _optionTiles(BuildContext sheetContext, Track track,
-    bool isOnline, String? playlistId) {
+List<Widget> _optionTiles(
+    BuildContext sheetContext, Track track, bool isOnline, String? playlistId) {
   return [
     if (!isOnline)
       ListTile(
@@ -152,6 +161,70 @@ String? _videoId(Track track) {
       (uri?.host.contains('youtu.be') == true && uri!.pathSegments.isNotEmpty
           ? uri.pathSegments.first
           : null);
+}
+
+List<Widget> _menuRows(
+    BuildContext context, Track track, bool isOnline, String? playlistId) {
+  void close() => Navigator.of(context, rootNavigator: true).pop();
+  final shareUrl = isOnline
+      ? 'https://www.youtube.com/watch?v=${_videoId(track)}'
+      : '${track.title} - ${track.artist}';
+
+  M3EMenuRow row(
+    String label,
+    IconData icon,
+    VoidCallback onTap, {
+    bool destructive = false,
+  }) =>
+      M3EMenuRow(
+        item: M3EMenuItem(
+          label: label,
+          icon: icon,
+          destructive: destructive,
+          onTap: () {
+            close();
+            onTap();
+          },
+        ),
+      );
+
+  return [
+    if (!isOnline)
+      row('Edit Metadata', Icons.edit_rounded, () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => MetadataEditorScreen(track: track)),
+        );
+      }),
+    row('Add to Playlist', Icons.playlist_add_rounded, () {
+      _showAddToPlaylist(context, track);
+    }),
+    row('Share', Icons.share_rounded, () {
+      SharePlus.instance.share(ShareParams(uri: Uri.parse(shareUrl)));
+    }),
+    if (isOnline && track.artistId != null) const M3EMenuSeparator(),
+    if (isOnline && track.artistId != null)
+      row('View artist', Icons.person_rounded, () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) =>
+                ArtistScreen(browseId: track.artistId!, name: track.artist),
+          ),
+        );
+      }),
+    if (playlistId != null)
+      row(
+        'Remove from playlist',
+        Icons.playlist_remove_rounded,
+        () => Provider.of<LibraryProvider>(context, listen: false)
+            .removeFromPlaylist(playlistId, track),
+        destructive: true,
+      ),
+    row('Track Info', Icons.info_outline, () {
+      _showTrackInfo(context, track, isOnline);
+    }),
+  ];
 }
 
 void _showAddToPlaylist(BuildContext context, Track track) {
@@ -263,10 +336,8 @@ void _showTrackInfo(BuildContext context, Track track, bool isOnline) {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(row.key,
-                      style: Theme.of(context).textTheme.labelMedium),
-                  Text(row.value,
-                      style: Theme.of(context).textTheme.bodyLarge),
+                  Text(row.key, style: Theme.of(context).textTheme.labelMedium),
+                  Text(row.value, style: Theme.of(context).textTheme.bodyLarge),
                 ],
               ),
             ),
@@ -280,8 +351,7 @@ void _showTrackInfo(BuildContext context, Track track, bool isOnline) {
                 letterSpacing: -0.5,
               ),
         ),
-        content:
-            isDesktop ? SingleChildScrollView(child: rowsView) : rowsView,
+        content: isDesktop ? SingleChildScrollView(child: rowsView) : rowsView,
         actions: [
           FilledButton(
             onPressed: () => Navigator.pop(dialogContext),

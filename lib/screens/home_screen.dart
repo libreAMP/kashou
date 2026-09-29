@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/library_provider.dart';
 import '../providers/audio_provider.dart';
+import '../widgets/m3e_refresh.dart';
 import '../widgets/track_list_item.dart';
 import '../widgets/album_card.dart';
 import '../widgets/track_options_sheet.dart';
@@ -48,24 +49,22 @@ class HomeScreen extends StatelessWidget {
                   final showMiniPlayer = hasMiniPlayer && keyboardHeight == 0;
                   final safeArea = MediaQuery.of(context).padding.bottom;
 
-                  return RefreshIndicator(
+                  return M3ERefresh(
                     onRefresh: () => library.scanLibrary(force: true),
-                    child: ListView(
-                      padding: EdgeInsets.fromLTRB(
-                          _contentHorizontalPadding(context),
-                          4,
-                          _contentHorizontalPadding(context),
-                          showMiniPlayer ? safeArea + 96 : safeArea + 24),
-                      children: [
-                        _buildHeroHeader(context, library),
-                        const SizedBox(height: 24),
-                        _buildQuickActions(context),
-                        _buildRecentlyPlayed(context),
-                        _buildRecentlyAdded(context),
-                        _buildFavoriteSongs(context),
-                        _buildTopAlbums(context),
-                      ],
-                    ),
+                    padding: EdgeInsets.fromLTRB(
+                        _contentHorizontalPadding(context),
+                        4,
+                        _contentHorizontalPadding(context),
+                        showMiniPlayer ? safeArea + 96 : safeArea + 24),
+                    slivers: [
+                      _buildHeroHeader(context, library),
+                      const SizedBox(height: 24),
+                      _buildQuickActions(context),
+                      _buildRecentlyPlayed(context),
+                      _buildRecentlyAdded(context),
+                      _buildFavoriteSongs(context),
+                      _buildTopAlbums(context),
+                    ],
                   );
                 },
               ),
@@ -80,21 +79,22 @@ class HomeScreen extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final horizontal = _contentHorizontalPadding(context);
     return Padding(
-      padding: EdgeInsets.fromLTRB(
-          horizontal, 8, isDesktop ? horizontal : 12, 8),
+      padding:
+          EdgeInsets.fromLTRB(horizontal, 8, isDesktop ? horizontal : 12, 8),
       child: Row(
         children: [
           Expanded(
             child: Material(
               color: scheme.surfaceContainerHigh,
-              borderRadius: BorderRadius.circular(rMd),
+              borderRadius: BorderRadius.circular(rLg),
               child: InkWell(
-                borderRadius: BorderRadius.circular(rMd),
+                borderRadius: BorderRadius.circular(rLg),
                 onTap: () => Navigator.push(
                   context,
                   PageRouteBuilder(
                     transitionDuration: const Duration(milliseconds: 280),
-                    reverseTransitionDuration: const Duration(milliseconds: 220),
+                    reverseTransitionDuration:
+                        const Duration(milliseconds: 220),
                     pageBuilder: (_, animation, __) => const SearchScreen(),
                     transitionsBuilder: (_, animation, __, child) {
                       final move = Tween(
@@ -229,8 +229,6 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-
-
   Widget _buildRecentlyPlayed(BuildContext context) {
     return Consumer2<LibraryProvider, AudioProvider>(
       builder: (context, library, audio, child) {
@@ -250,7 +248,8 @@ class HomeScreen extends StatelessWidget {
               actionLabel: 'See all',
               onActionTap: () => Navigator.of(context).push(MaterialPageRoute(
                 builder: (_) => TrackListPage(
-                    title: 'Recently played', tracks: audio.getRecentlyPlayedTracks(library)),
+                    title: 'Recently played',
+                    tracks: audio.getRecentlyPlayedTracks(library)),
               )),
             ),
             const SizedBox(height: 12),
@@ -280,7 +279,8 @@ class HomeScreen extends StatelessWidget {
               actionLabel: 'See all',
               onActionTap: () => Navigator.of(context).push(MaterialPageRoute(
                 builder: (_) => TrackListPage(
-                    title: 'Recently added', tracks: library.allTracks.take(50).toList()),
+                    title: 'Recently added',
+                    tracks: library.allTracks.take(50).toList()),
               )),
             ),
             const SizedBox(height: 12),
@@ -358,7 +358,8 @@ class HomeScreen extends StatelessWidget {
               actionLabel: 'See all',
               onActionTap: () => Navigator.of(context).push(MaterialPageRoute(
                 builder: (_) => TrackListPage(
-                    title: 'Your favorite songs', tracks: library.favoriteTracks),
+                    title: 'Your favorite songs',
+                    tracks: library.favoriteTracks),
               )),
             ),
             const SizedBox(height: 12),

@@ -13,6 +13,7 @@ import '../services/download_store.dart';
 import '../services/ytmusic_service.dart';
 import '../theme/app_theme.dart';
 import '../theme/radii.dart';
+import '../widgets/m3e_list.dart';
 import '../widgets/settings_tiles.dart';
 import '../utils/app_messenger.dart';
 import '../utils/platform.dart';
@@ -69,9 +70,7 @@ class _LibraryScreenState extends State<LibraryScreen>
         setState(() {
           _sortMode = prefs.getString('library_sort') ?? 'added';
           final saved = prefs.getStringList('library_tab_order');
-          if (saved != null &&
-              saved.length == 6 &&
-              saved.toSet().length == 6) {
+          if (saved != null && saved.length == 6 && saved.toSet().length == 6) {
             _tabOrder = saved;
           }
         });
@@ -79,8 +78,7 @@ class _LibraryScreenState extends State<LibraryScreen>
     });
   }
 
-  Widget _tabFor(
-      String label, LibraryProvider library, double bottomPadding) {
+  Widget _tabFor(String label, LibraryProvider library, double bottomPadding) {
     final controller = _scrollControllerFor(label);
     switch (label) {
       case 'Liked':
@@ -203,9 +201,7 @@ class _LibraryScreenState extends State<LibraryScreen>
                       Text(
                         labels[i],
                         style: TextStyle(
-                          color: i == sel
-                              ? scheme.onPrimary
-                              : scheme.onSurface,
+                          color: i == sel ? scheme.onPrimary : scheme.onSurface,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -222,8 +218,8 @@ class _LibraryScreenState extends State<LibraryScreen>
             child: isDesktop
                 ? Center(
                     child: ConstrainedBox(
-                      constraints: const BoxConstraints(
-                          maxWidth: _desktopContentWidth),
+                      constraints:
+                          const BoxConstraints(maxWidth: _desktopContentWidth),
                       // desktop: chips wrap instead of scrolling sideways
                       child: Padding(
                         padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
@@ -322,8 +318,7 @@ class _LibraryScreenState extends State<LibraryScreen>
                                       : Alignment.topLeft,
                                   child: ConstrainedBox(
                                     constraints: BoxConstraints(
-                                      maxWidth:
-                                          isWide ? cap : double.infinity,
+                                      maxWidth: isWide ? cap : double.infinity,
                                     ),
                                     child: Column(
                                       crossAxisAlignment:
@@ -360,7 +355,8 @@ class _LibraryScreenState extends State<LibraryScreen>
                                                       icon: const Icon(
                                                           Icons.clear),
                                                       onPressed: () {
-                                                        _searchController.clear();
+                                                        _searchController
+                                                            .clear();
                                                         setState(() {});
                                                       },
                                                     ),
@@ -511,7 +507,8 @@ class _LibraryScreenState extends State<LibraryScreen>
     // resolved stream urls live in path while sourceUrl keeps the origin
     bool isOnline(Track track) =>
         (track.sourceUrl ?? track.path).startsWith('http');
-    final localTracks = favoriteTracks.where((track) => !isOnline(track)).toList();
+    final localTracks =
+        favoriteTracks.where((track) => !isOnline(track)).toList();
     final onlineTracks = favoriteTracks.where(isOnline).toList();
 
     return _wrapTabScrollable(
@@ -528,7 +525,7 @@ class _LibraryScreenState extends State<LibraryScreen>
               subtitle: '${onlineTracks.length} tracks',
             ),
             const SizedBox(height: 8),
-            ...onlineTracks.map((track) => TrackListItem(track: track)),
+            _trackGroup(onlineTracks),
             if (localTracks.isNotEmpty) const SizedBox(height: 24),
           ],
           if (localTracks.isNotEmpty) ...[
@@ -539,11 +536,20 @@ class _LibraryScreenState extends State<LibraryScreen>
               subtitle: '${localTracks.length} tracks',
             ),
             const SizedBox(height: 8),
-            ...localTracks.map((track) => TrackListItem(track: track)),
+            _trackGroup(localTracks),
           ],
         ],
       ),
     );
+  }
+
+  Widget _trackGroup(List<Track> tracks) {
+    final rows = <Widget>[];
+    for (var i = 0; i < tracks.length; i++) {
+      if (i > 0) rows.add(const M3EListDivider(indent: 62));
+      rows.add(TrackListItem(track: tracks[i], grouped: true));
+    }
+    return M3EListGroup(children: rows);
   }
 
   Widget _buildSectionHeader(
@@ -595,7 +601,9 @@ class _LibraryScreenState extends State<LibraryScreen>
 
   Widget _buildSongsTab(LibraryProvider library, double bottomPadding,
       ScrollController? controller) {
-    final tracks = _sorted(_searchController.text.isEmpty ? library.allTracks : library.searchTracks(_searchController.text));
+    final tracks = _sorted(_searchController.text.isEmpty
+        ? library.allTracks
+        : library.searchTracks(_searchController.text));
 
     if (tracks.isEmpty) {
       return Center(
@@ -757,7 +765,8 @@ class _LibraryScreenState extends State<LibraryScreen>
     );
   }
 
-  Widget _buildDownloadsTab(double bottomPadding, ScrollController? controller) {
+  Widget _buildDownloadsTab(
+      double bottomPadding, ScrollController? controller) {
     return FutureBuilder<List<Track>>(
       future: DownloadStore.tracks(),
       builder: (context, snapshot) {
@@ -808,7 +817,11 @@ class _LibraryScreenState extends State<LibraryScreen>
   Widget _buildPlaylistsTab(LibraryProvider library, double bottomPadding,
       ScrollController? controller) {
     final q = _searchController.text.trim().toLowerCase();
-    final playlists = q.isEmpty ? library.playlists : library.playlists.where((p) => p.name.toLowerCase().contains(q)).toList();
+    final playlists = q.isEmpty
+        ? library.playlists
+        : library.playlists
+            .where((p) => p.name.toLowerCase().contains(q))
+            .toList();
     if (playlists.isEmpty) {
       return Center(
         child: Column(
@@ -844,48 +857,44 @@ class _LibraryScreenState extends State<LibraryScreen>
       );
     }
 
+    final rows = <Widget>[];
+    for (var i = 0; i < playlists.length; i++) {
+      final playlist = playlists[i];
+      if (i > 0) rows.add(const M3EListDivider(indent: 60));
+      rows.add(
+        GestureDetector(
+          onSecondaryTapUp: isDesktop
+              ? (_) => _showPlaylistOptions(context, playlist.id)
+              : null,
+          onLongPress: () => _showPlaylistOptions(context, playlist.id),
+          child: M3EListRow(
+            label: playlist.name,
+            supportingText: 'Playlist',
+            leading: _playlistArt(playlist, Theme.of(context).colorScheme),
+            trailingText: '${playlist.tracks.length}',
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => TrackListPage(
+                title: playlist.name,
+                tracks: playlist.tracks,
+                cover: playlist.coverImage,
+                playlistId: playlist.id,
+                onOptions: () => _showPlaylistOptions(context, playlist.id),
+              ),
+            )),
+          ),
+        ),
+      );
+    }
+
     return _wrapTabScrollable(
       controller,
-      ListView.builder(
+      ListView(
         controller: controller,
         padding: EdgeInsets.fromLTRB(16, 16, 16, bottomPadding),
-        itemCount: playlists.length,
-        itemBuilder: (context, index) {
-          final playlist = playlists[index];
-          return GestureDetector(
-            // desktop: right-click mirrors the long-press options menu
-            onSecondaryTapUp: isDesktop
-                ? (_) => _showPlaylistOptions(context, playlist.id)
-                : null,
-            child: ListTile(
-              title: Text(playlist.name),
-              subtitle: Text('${playlist.tracks.length} songs'),
-              leading: _playlistArt(playlist, Theme.of(context).colorScheme),
-              // desktop has no long-press discoverability, so show the
-              // options button explicitly
-              trailing: isDesktop
-                  ? IconButton(
-                      tooltip: 'Playlist options',
-                      icon: const Icon(Icons.more_vert),
-                      onPressed: () =>
-                          _showPlaylistOptions(context, playlist.id),
-                    )
-                  : null,
-              onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) =>
-                    TrackListPage(
-                      title: playlist.name,
-                      tracks: playlist.tracks,
-                      cover: playlist.coverImage,
-                      playlistId: playlist.id,
-                      onOptions: () =>
-                          _showPlaylistOptions(context, playlist.id),
-                    ),
-              )),
-              onLongPress: () => _showPlaylistOptions(context, playlist.id),
-            ),
-          );
-        },
+        children: [
+          M3EListGroup(children: rows),
+          const SizedBox(height: 24),
+        ],
       ),
     );
   }
@@ -982,7 +991,11 @@ class _LibraryScreenState extends State<LibraryScreen>
     }
 
     const ytm = YtMusicService();
-    final name = useYtName ? (await ytm.getPlaylistTitle(id) ?? 'YouTube import') : nameController.text.trim().isEmpty ? 'YouTube import' : nameController.text.trim();
+    final name = useYtName
+        ? (await ytm.getPlaylistTitle(id) ?? 'YouTube import')
+        : nameController.text.trim().isEmpty
+            ? 'YouTube import'
+            : nameController.text.trim();
     final cover = await ytm.getPlaylistThumb(id);
     await library.importPlaylist(
         name,
@@ -1064,8 +1077,7 @@ class _LibraryScreenState extends State<LibraryScreen>
             onTap: () {
               Navigator.pop(context);
               Navigator.of(context).push(
-                MaterialPageRoute(
-                    builder: (_) => const YoutubeHistoryScreen()),
+                MaterialPageRoute(builder: (_) => const YoutubeHistoryScreen()),
               );
             },
           ),
@@ -1212,12 +1224,12 @@ class _LibraryScreenState extends State<LibraryScreen>
       context: context,
       builder: (context) => AlertDialog(
         title: Text(
-              'Sort Songs',
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.5,
-                  ),
-            ),
+          'Sort Songs',
+          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.5,
+              ),
+        ),
         content: RadioGroup<String>(
           groupValue: _sortMode,
           onChanged: (v) async {
@@ -1255,12 +1267,12 @@ class _LibraryScreenState extends State<LibraryScreen>
       builder: (context) => AlertDialog(
         insetPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 24),
         title: Text(
-              'Rename Playlist',
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.5,
-                  ),
-            ),
+          'Rename Playlist',
+          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.5,
+              ),
+        ),
         content: TextField(
           controller: controller,
           autofocus: true,
@@ -1299,12 +1311,12 @@ class _LibraryScreenState extends State<LibraryScreen>
       builder: (context) {
         return AlertDialog(
           title: Text(
-              'New Playlist',
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.5,
-                  ),
-            ),
+            'New Playlist',
+            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.5,
+                ),
+          ),
           content: TextField(
             controller: controller,
             decoration: const InputDecoration(
@@ -1396,10 +1408,7 @@ class _LibraryScreenState extends State<LibraryScreen>
               final current = Provider.of<LibraryProvider>(
                 context,
                 listen: false,
-              )
-                  .playlists
-                  .firstWhere((p) => p.id == playlistId)
-                  .name;
+              ).playlists.firstWhere((p) => p.id == playlistId).name;
               _showRenameDialog(context, playlistId, current);
             },
           ),
@@ -1412,13 +1421,11 @@ class _LibraryScreenState extends State<LibraryScreen>
             title: const Text('Change Cover'),
             onTap: () async {
               Navigator.pop(context);
-              final picked =
-                  await FilePicker.pickFiles(type: FileType.image);
+              final picked = await FilePicker.pickFiles(type: FileType.image);
               final src = picked.isEmpty ? null : picked.single.path;
               if (src == null) return;
               final dir = await getApplicationDocumentsDirectory();
-              final f =
-                  File('${dir.path}/playlist_$playlistId.jpg');
+              final f = File('${dir.path}/playlist_$playlistId.jpg');
               await f.writeAsBytes(await File(src).readAsBytes());
               if (context.mounted) {
                 Provider.of<LibraryProvider>(context, listen: false)
@@ -1439,29 +1446,26 @@ class _LibraryScreenState extends State<LibraryScreen>
                 context,
                 listen: false,
               );
-              final name = library.playlists
-                  .firstWhere((p) => p.id == playlistId)
-                  .name;
+              final name =
+                  library.playlists.firstWhere((p) => p.id == playlistId).name;
               final remove = await showDialog<bool>(
                 context: context,
                 builder: (dialogContext) => AlertDialog(
                   title: Text(
-              'Delete playlist?',
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.5,
+                    'Delete playlist?',
+                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.5,
+                        ),
                   ),
-            ),
                   content: Text(name),
                   actions: [
                     TextButton(
-                      onPressed: () =>
-                          Navigator.pop(dialogContext, false),
+                      onPressed: () => Navigator.pop(dialogContext, false),
                       child: const Text('Cancel'),
                     ),
                     FilledButton(
-                      onPressed: () =>
-                          Navigator.pop(dialogContext, true),
+                      onPressed: () => Navigator.pop(dialogContext, true),
                       child: const Text('Delete'),
                     ),
                   ],
@@ -1477,4 +1481,3 @@ class _LibraryScreenState extends State<LibraryScreen>
     );
   }
 }
-

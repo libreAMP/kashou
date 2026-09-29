@@ -288,8 +288,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           final size = mediaQuery.size;
           final theme = Theme.of(context);
           final colorScheme = theme.colorScheme;
-          // wide desktop windows get a side-by-side player layout
-          final wideDesktop = isDesktop && size.width >= 920;
+          // wide desktop windows and landscape phones get a side-by-side player
+          final wideLayout = size.width > size.height && size.width >= 640 ||
+              (isDesktop && size.width >= 920);
 
           return Container(
             decoration: BoxDecoration(
@@ -357,8 +358,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                         child: Column(
                           children: [
                             Expanded(
-                              child: wideDesktop
-                                  ? _buildDesktopWideBody(
+                              child: wideLayout
+                                  ? _buildWideLayout(
                                       context, audio, library, track, size)
                                   : AnimatedSwitcher(
                                       duration: EMotion.medium,
@@ -449,7 +450,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                             ),
                                     ),
                             ),
-                            if (!wideDesktop)
+                            if (!wideLayout)
                               SafeArea(
                               top: false,
                               minimum: const EdgeInsets.only(bottom: 12),
@@ -540,26 +541,36 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     audio.seek(target);
   }
 
-  // side-by-side player for wide desktop windows: art (or lyrics) on the
-  // left, metadata and transport controls in a fixed column on the right
-  Widget _buildDesktopWideBody(BuildContext context, AudioProvider audio,
+  // side-by-side player for wide desktop windows and landscape phones: art
+  // (or lyrics) on the left, metadata and transport controls on the right
+  Widget _buildWideLayout(BuildContext context, AudioProvider audio,
       LibraryProvider library, Track track, Size size) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final scheme = Theme.of(context).colorScheme;
+        // landscape phones are short, so the art yields height to the controls
+        final isShort = constraints.maxHeight < 480;
         final artSize = math.min(
-          math.min(constraints.maxWidth * 0.44, constraints.maxHeight * 0.85),
+          math.min(
+            constraints.maxWidth * (isShort ? 0.34 : 0.44),
+            constraints.maxHeight * (isShort ? 0.9 : 0.85),
+          ),
           520.0,
         );
         return Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 1120),
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(36, 4, 36, 24),
+              padding: EdgeInsets.fromLTRB(
+                isShort ? 20 : 36,
+                4,
+                isShort ? 20 : 36,
+                isShort ? 8 : 24,
+              ),
               child: Row(
                 children: [
                   Expanded(
-                    flex: 5,
+                    flex: isShort ? 4 : 5,
                     child: AnimatedSwitcher(
                       duration: EMotion.medium,
                       switchInCurve: Curves.easeOutCubic,
@@ -608,9 +619,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                             ),
                     ),
                   ),
-                  const SizedBox(width: 40),
+                  SizedBox(width: isShort ? 16 : 40),
                   Expanded(
-                    flex: 5,
+                    flex: isShort ? 6 : 5,
                     child: Center(
                       child: ConstrainedBox(
                         constraints: const BoxConstraints(maxWidth: 440),

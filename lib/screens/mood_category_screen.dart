@@ -130,7 +130,7 @@ class _MoodCategoryScreenState extends State<MoodCategoryScreen> {
           )
         else
           SizedBox(
-            height: 214,
+            height: 246,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               itemCount: items.length,
@@ -140,6 +140,7 @@ class _MoodCategoryScreenState extends State<MoodCategoryScreen> {
                 title: items[i]['title'] as String? ?? '',
                 subtitle: items[i]['subtitle'] as String?,
                 onTap: () => _openPlaylist(items[i]),
+                emphasized: i == 0,
               ),
             ),
           ),

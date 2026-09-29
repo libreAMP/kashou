@@ -10,6 +10,8 @@ class ArtCard extends StatelessWidget {
   final VoidCallback onTap;
   final double width;
 
+  final bool emphasized;
+
   const ArtCard({
     super.key,
     required this.thumbnail,
@@ -17,19 +19,25 @@ class ArtCard extends StatelessWidget {
     required this.onTap,
     this.subtitle,
     this.width = 152,
+    this.emphasized = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final cardWidth = emphasized ? width * 1.28 : width;
     return GestureDetector(
       onTap: onTap,
       child: SizedBox(
-        width: width,
+        width: cardWidth,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SquareArt(url: thumbnail, size: width, radius: rMd),
+            SquareArt(
+              url: thumbnail,
+              size: cardWidth,
+              radius: emphasized ? rLg : rMd,
+            ),
             const SizedBox(height: 8),
             Text(
               title,

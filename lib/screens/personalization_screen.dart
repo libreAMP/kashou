@@ -6,6 +6,7 @@ import '../providers/settings_provider.dart';
 import '../theme/app_theme.dart';
 import '../utils/platform.dart';
 import '../widgets/back_chip.dart';
+import '../widgets/m3e_dropdown.dart';
 import '../widgets/settings_tiles.dart';
 
 class PersonalizationScreen extends StatelessWidget {
@@ -101,11 +102,7 @@ class PersonalizationScreen extends StatelessWidget {
                     for (final m in const [
                       ['system', 'System', 'Colors from your system theme'],
                       ['accent', 'Accent', 'Pick your own seed color'],
-                      [
-                        'art',
-                        'Now playing',
-                        'Dominant color of the album art'
-                      ],
+                      ['art', 'Now playing', 'Dominant color of the album art'],
                     ])
                       RadioListTile<String>(
                         secondary: Icon(m[0] == 'system'
@@ -189,15 +186,12 @@ class PersonalizationScreen extends StatelessWidget {
               builder: (context, settings, child) => ListTile(
                 leading: const Icon(Icons.font_download_outlined),
                 title: const Text('Font Family'),
-                trailing: DropdownButton<String>(
+                trailing: M3EDropdown<String>(
                   value: settings.fontFamily,
-                  items: [
-                    for (final font in _popularFonts)
-                      DropdownMenuItem(value: font, child: Text(font)),
-                  ],
-                  onChanged: (value) {
-                    if (value != null) settings.setFontFamily(value);
-                  },
+                  labelOf: (value) => value,
+                  items: _popularFonts,
+                  onChanged: settings.setFontFamily,
+                  menuWidth: 180,
                 ),
               ),
             ),

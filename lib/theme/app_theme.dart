@@ -27,7 +27,7 @@ class M3ESliderThumbShape extends SliderComponentShape {
 
   @override
   Size getPreferredSize(bool isEnabled, bool isDiscrete) =>
-      const Size.fromRadius(13);
+      const Size.fromHeight(28);
 
   @override
   void paint(
@@ -44,20 +44,19 @@ class M3ESliderThumbShape extends SliderComponentShape {
     required double textScaleFactor,
     required Size sizeWithOverflow,
   }) {
-    final canvas = context.canvas;
-    canvas.drawCircle(
-      center,
-      13,
+    final rect = Rect.fromCenter(center: center, width: 4, height: 24);
+    context.canvas.drawRRect(
+      RRect.fromRectAndRadius(rect, const Radius.circular(2)),
       Paint()..color = sliderTheme.thumbColor ?? Colors.black,
     );
-    canvas.drawCircle(center, 5.5, Paint()..color = holeColor);
   }
 }
 
 SliderThemeData m3eSliderTheme(BuildContext context, {Color? holeColor}) {
   final scheme = Theme.of(context).colorScheme;
   return SliderThemeData(
-    trackHeight: 12,
+    trackHeight: 16,
+    trackShape: const RoundedRectSliderTrackShape(),
     activeTrackColor: scheme.primary,
     inactiveTrackColor: scheme.surfaceContainerHighest,
     thumbColor: scheme.primary,
@@ -102,10 +101,35 @@ ThemeData buildKashouTheme(ColorScheme scheme, TextTheme text) {
         borderRadius: BorderRadius.vertical(top: Radius.circular(EShape.lg)),
       ),
     ),
+    dividerTheme: DividerThemeData(
+      color: scheme.outlineVariant,
+      thickness: 1,
+      space: 1,
+    ),
     popupMenuTheme: PopupMenuThemeData(
       color: scheme.surfaceContainerHigh,
-      shape: RoundedRectangleBorder(borderRadius: EShape.radius(20)),
-      textStyle: boldText.bodyLarge?.copyWith(color: scheme.onSurface),
+      surfaceTintColor: Colors.transparent,
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: EShape.radius(EShape.md),
+        side: BorderSide(color: scheme.outlineVariant.withValues(alpha: 0.4)),
+      ),
+      textStyle: boldText.bodyMedium?.copyWith(color: scheme.onSurface),
+    ),
+    menuTheme: MenuThemeData(
+      style: MenuStyle(
+        backgroundColor: WidgetStatePropertyAll(scheme.surfaceContainerHigh),
+        surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
+        elevation: const WidgetStatePropertyAll(0),
+        shape: WidgetStatePropertyAll(
+          RoundedRectangleBorder(
+            borderRadius: EShape.radius(EShape.md),
+            side: BorderSide(
+              color: scheme.outlineVariant.withValues(alpha: 0.4),
+            ),
+          ),
+        ),
+      ),
     ),
     pageTransitionsTheme: const PageTransitionsTheme(
       builders: {

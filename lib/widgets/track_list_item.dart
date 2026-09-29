@@ -13,12 +13,15 @@ class TrackListItem extends StatelessWidget {
   final List<Track>? playlist;
   final String? playlistId;
 
+  final bool grouped;
+
   const TrackListItem({
     super.key,
     required this.track,
     this.index,
     this.playlist,
     this.playlistId,
+    this.grouped = false,
   });
 
   @override
@@ -30,7 +33,7 @@ class TrackListItem extends StatelessWidget {
         final colorScheme = Theme.of(context).colorScheme;
 
         return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 4),
+          padding: EdgeInsets.symmetric(vertical: grouped ? 0 : 4),
           child: Material(
             color: Colors.transparent,
             borderRadius: BorderRadius.circular(rMd),
@@ -47,14 +50,14 @@ class TrackListItem extends StatelessWidget {
               borderRadius: BorderRadius.circular(rMd),
               splashColor: colorScheme.primary.withValues(alpha: 0.05),
               highlightColor: colorScheme.primary.withValues(alpha: 0.03),
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: isCurrent
-                        ? colorScheme.primary.withValues(alpha: 0.12)
-                        : Colors.transparent,
-                    borderRadius: BorderRadius.circular(rMd),
-                  ),
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: isCurrent
+                      ? colorScheme.primary.withValues(alpha: 0.12)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(rMd),
+                ),
                 child: Row(
                   children: [
                     if (index != null) ...[
@@ -63,7 +66,9 @@ class TrackListItem extends StatelessWidget {
                         child: Text(
                           '$index',
                           textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.bodyMedium
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodyMedium
                               ?.copyWith(color: colorScheme.onSurfaceVariant),
                         ),
                       ),
@@ -100,44 +105,64 @@ class TrackListItem extends StatelessWidget {
                         children: [
                           Text(
                             track.title,
-                            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                              color: isCurrent ? colorScheme.primary : colorScheme.onSurface,
-                              fontWeight: isCurrent ? FontWeight.w600 : FontWeight.w500,
-                              height: 1.2,
-                            ),
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleSmall
+                                ?.copyWith(
+                                  color: isCurrent
+                                      ? colorScheme.primary
+                                      : colorScheme.onSurface,
+                                  fontWeight: isCurrent
+                                      ? FontWeight.w600
+                                      : FontWeight.w500,
+                                  height: 1.2,
+                                ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
                           const SizedBox(height: 2),
                           Text(
                             _subtitle(track),
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: colorScheme.onSurfaceVariant,
-                              fontSize: 12,
-                              height: 1.3,
-                            ),
+                            style:
+                                Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      color: colorScheme.onSurfaceVariant,
+                                      fontSize: 12,
+                                      height: 1.3,
+                                    ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
                         ],
                       ),
                     ),
-                    Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-                        shape: BoxShape.circle,
-                      ),
-                      child: IconButton(
-                        onPressed: () => showTrackOptionsSheet(context, track,
-                            playlistId: playlistId),
-                        icon: Icon(
-                          Icons.more_vert,
-                          size: 18,
-                          color: colorScheme.onSurfaceVariant,
+                    Builder(
+                      builder: (buttonContext) => Tooltip(
+                        message: 'More options',
+                        child: Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: colorScheme.surfaceContainerHighest
+                                .withValues(alpha: 0.5),
+                            shape: BoxShape.circle,
+                          ),
+                          child: IconButton(
+                            onPressed: () {
+                              final box = buttonContext.findRenderObject()
+                                  as RenderBox?;
+                              showTrackOptionsSheet(context, track,
+                                  playlistId: playlistId,
+                                  anchor: box?.localToGlobal(
+                                      box.size.bottomLeft(Offset.zero)));
+                            },
+                            icon: Icon(
+                              Icons.more_vert,
+                              size: 18,
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                            padding: EdgeInsets.zero,
+                          ),
                         ),
-                        padding: EdgeInsets.zero,
                       ),
                     ),
                   ],
@@ -196,5 +221,4 @@ class TrackListItem extends StatelessWidget {
     return Icon(Icons.music_note,
         color: colorScheme.onSurfaceVariant, size: 24);
   }
-
 }

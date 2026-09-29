@@ -166,7 +166,9 @@ class _MetadataEditorScreenState extends State<MetadataEditorScreen> {
       trackArtist: _artistController.text.trim(),
       album: _albumController.text.trim(),
       albumArtist: _albumArtistController.text.trim(),
-      genre: _genreController.text.trim().isEmpty ? null : _genreController.text.trim(),
+      genre: _genreController.text.trim().isEmpty
+          ? null
+          : _genreController.text.trim(),
       year: int.tryParse(_yearController.text.trim()),
       trackNumber: int.tryParse(_trackNumberController.text.trim()),
       trackTotal: existing?.trackTotal,
@@ -186,7 +188,9 @@ class _MetadataEditorScreenState extends State<MetadataEditorScreen> {
       title: _titleController.text.trim(),
       artist: _artistController.text.trim(),
       album: _albumController.text.trim(),
-      genre: _genreController.text.trim().isEmpty ? null : _genreController.text.trim(),
+      genre: _genreController.text.trim().isEmpty
+          ? null
+          : _genreController.text.trim(),
       year: int.tryParse(_yearController.text.trim()),
       trackNumber: int.tryParse(_trackNumberController.text.trim()),
     );
@@ -484,6 +488,13 @@ class _MetadataEditorScreenState extends State<MetadataEditorScreen> {
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
         ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(
+            color: Theme.of(context).colorScheme.primary,
+            width: 2,
+          ),
+        ),
       ),
       keyboardType: keyboardType,
       maxLines: maxLines,
@@ -541,7 +552,7 @@ class _MetadataEditorScreenState extends State<MetadataEditorScreen> {
   }
 }
 
-class _DisabledField extends StatelessWidget {
+class _DisabledField extends StatefulWidget {
   const _DisabledField({
     required this.label,
     required this.icon,
@@ -555,45 +566,63 @@ class _DisabledField extends StatelessWidget {
   final int maxLines;
 
   @override
+  State<_DisabledField> createState() => _DisabledFieldState();
+}
+
+class _DisabledFieldState extends State<_DisabledField> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(
+      text: widget.value.isEmpty ? 'Not available' : widget.value,
+    );
+  }
+
+  @override
+  void didUpdateWidget(_DisabledField old) {
+    super.didUpdateWidget(old);
+    final next = widget.value.isEmpty ? 'Not available' : widget.value;
+    if (next != _controller.text) _controller.text = next;
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: theme.textTheme.labelMedium?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
+    final scheme = theme.colorScheme;
+    final muted = scheme.onSurfaceVariant.withValues(alpha: 0.6);
+    final radius = BorderRadius.circular(12);
+
+    return TextField(
+      controller: _controller,
+      enabled: false,
+      style:
+          theme.textTheme.bodyLarge?.copyWith(color: scheme.onSurfaceVariant),
+      decoration: InputDecoration(
+        labelText: widget.label,
+        labelStyle: theme.textTheme.labelMedium?.copyWith(color: muted),
+        prefixIcon: Icon(widget.icon, color: muted),
+        filled: true,
+        fillColor: scheme.surfaceContainerHighest.withValues(alpha: 0.4),
+        border: OutlineInputBorder(borderRadius: radius),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: radius,
+          borderSide: BorderSide(color: scheme.outlineVariant, width: 1),
         ),
-        const SizedBox(height: 6),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            color: theme.colorScheme.surfaceContainerHighest,
-            border: Border.all(color: theme.colorScheme.outline.withValues(alpha: 0.2)),
-          ),
-          child: Row(
-            crossAxisAlignment:
-                maxLines > 1 ? CrossAxisAlignment.start : CrossAxisAlignment.center,
-            children: [
-              Icon(icon, color: theme.colorScheme.onSurfaceVariant),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  value.isEmpty ? 'Unavailable for online tracks' : value,
-                  maxLines: maxLines,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ),
-            ],
-          ),
+        disabledBorder: OutlineInputBorder(
+          borderRadius: radius,
+          borderSide: BorderSide(color: scheme.outlineVariant, width: 1),
         ),
-      ],
+        contentPadding: const EdgeInsets.symmetric(vertical: 16),
+      ),
+      maxLines: widget.maxLines,
     );
   }
 }

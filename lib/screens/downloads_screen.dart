@@ -4,6 +4,7 @@ import '../services/download_manager.dart';
 import '../theme/radii.dart';
 import '../utils/platform.dart';
 import '../widgets/back_chip.dart';
+import '../widgets/m3e_progress.dart';
 
 // downloads list stays a single column on desktop, just centered
 const double _maxContentWidth = 720;
@@ -104,12 +105,11 @@ class DownloadsScreen extends StatelessWidget {
                                       ),
                                       const SizedBox(height: 4),
                                       if (busy)
-                                        LinearProgressIndicator(
-                                          value: job.status == 'queued'
-                                              ? null
-                                              : job.progress,
-                                          minHeight: 3,
-                                        )
+                                        job.status == 'queued'
+                                            ? const M3EIndeterminateBar(
+                                                height: 10)
+                                            : M3EProgressBar(
+                                                value: job.progress, height: 10)
                                       else
                                         Text(
                                           subtitle,

@@ -8,11 +8,15 @@ import '../models/track.dart';
 import '../providers/audio_provider.dart';
 import '../providers/recommendation_provider.dart';
 import '../providers/settings_provider.dart';
+import '../services/download_manager.dart';
 import '../services/ytdl_service.dart';
 import '../services/ytmusic_service.dart';
 import '../theme/app_theme.dart';
 import '../theme/radii.dart';
 import '../utils/platform.dart';
+import '../widgets/m3e_badge.dart';
+import '../widgets/m3e_list.dart';
+import '../widgets/m3e_refresh.dart';
 import '../widgets/art_card.dart';
 import '../widgets/square_art.dart';
 import '../widgets/loading_indicator.dart';
@@ -71,6 +75,8 @@ class _StreamScreenState extends State<StreamScreen>
     _searchFocus.addListener(() {
       if (_searchFocus.hasFocus && !_exploreOpen) {
         setState(() => _exploreOpen = true);
+      } else if (mounted) {
+        setState(() {});
       }
     });
     _loadDiscover();
@@ -242,9 +248,9 @@ class _StreamScreenState extends State<StreamScreen>
   Future<void> _playVideo(Map<String, dynamic> video) async {
     _rememberSearch();
     final audioProvider = Provider.of<AudioProvider>(context, listen: false);
-      final videoId = video['id']?.toString() ?? UniqueKey().toString();
-      final videoUrl = video['url'] ?? 'https://www.youtube.com/watch?v=$videoId';
-      final durationSeconds = _asInt(video['duration']) ?? 0;
+    final videoId = video['id']?.toString() ?? UniqueKey().toString();
+    final videoUrl = video['url'] ?? 'https://www.youtube.com/watch?v=$videoId';
+    final durationSeconds = _asInt(video['duration']) ?? 0;
 
     final placeholder = Track(
       id: videoId,
@@ -399,90 +405,118 @@ class _StreamScreenState extends State<StreamScreen>
     return _centeredContent(
       Padding(
         padding: const EdgeInsets.fromLTRB(20, 8, 12, 8),
-      child: Row(
-        children: [
-          Expanded(
-            child: SizedBox(
-              height: 48,
-              child: TextField(
-                controller: _searchController,
-                focusNode: _searchFocus,
-                onChanged: _onSearchChanged,
-                textInputAction: TextInputAction.search,
-                onSubmitted: (q) {
-                  context.read<SettingsProvider>().addSearchTerm(q);
-                  _search(q);
-                },
-                style: Theme.of(context).textTheme.bodyLarge,
-                decoration: InputDecoration(
-                  hintText: 'Search songs, artists',
-                  prefixIcon: const Padding(
-                    padding: EdgeInsets.fromLTRB(14, 0, 12, 0),
-                    child: Icon(Icons.search_rounded),
-                  ),
-                  prefixIconConstraints: const BoxConstraints(
-                      minWidth: 50, maxWidth: 50, minHeight: 0),
-                  hintStyle: Theme.of(context)
-                      .textTheme
-                      .bodyLarge
-                      ?.copyWith(color: scheme.onSurfaceVariant),
-                  suffixIcon: searching
-                      ? IconButton(
-                          icon: const Icon(Icons.close_rounded),
-                          onPressed: _closeSearch,
-                        )
-                      : null,
-                  filled: true,
-                  fillColor: scheme.surfaceContainerHigh,
-                  contentPadding: EdgeInsets.zero,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(rMd),
-                    borderSide: BorderSide.none,
+        child: Row(
+          children: [
+            Expanded(
+              child: SizedBox(
+                height: 48,
+                child: TextField(
+                  controller: _searchController,
+                  focusNode: _searchFocus,
+                  onChanged: _onSearchChanged,
+                  textInputAction: TextInputAction.search,
+                  onSubmitted: (q) {
+                    context.read<SettingsProvider>().addSearchTerm(q);
+                    _search(q);
+                  },
+                  style: Theme.of(context).textTheme.bodyLarge,
+                  decoration: InputDecoration(
+                    hintText: 'Search songs, artists',
+                    prefixIcon: const Padding(
+                      padding: EdgeInsets.fromLTRB(14, 0, 12, 0),
+                      child: Icon(Icons.search_rounded),
+                    ),
+                    prefixIconConstraints: const BoxConstraints(
+                        minWidth: 50, maxWidth: 50, minHeight: 0),
+                    hintStyle: Theme.of(context)
+                        .textTheme
+                        .bodyLarge
+                        ?.copyWith(color: scheme.onSurfaceVariant),
+                    suffixIcon: searching
+                        ? IconButton(
+                            icon: const Icon(Icons.close_rounded),
+                            onPressed: _closeSearch,
+                          )
+                        : null,
+                    filled: true,
+                    fillColor: scheme.surfaceContainerHigh,
+                    contentPadding: EdgeInsets.zero,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(rMd),
+                      borderSide: BorderSide.none,
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
-          ...[
-            const SizedBox(width: 4),
-            // pull-to-refresh needs a pointer-friendly counterpart
-            if (isDesktop)
-              IconButton(
-                icon: const Icon(Icons.refresh_rounded),
-                tooltip: 'Refresh',
-                onPressed: _loadDiscover,
+            ClipRect(
+              child: AnimatedSize(
+                duration: EMotion.fast,
+                curve: EMotion.standard,
+                alignment: Alignment.centerRight,
+                child: searching
+                    ? const SizedBox.shrink()
+                    : Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const SizedBox(width: 4),
+                          if (isDesktop)
+                            IconButton(
+                              icon: const Icon(Icons.refresh_rounded),
+                              tooltip: 'Refresh',
+                              onPressed: _loadDiscover,
+                            ),
+                          ListenableBuilder(
+                            listenable: DownloadManager.instance,
+                            builder: (context, _) {
+                              final active = DownloadManager.instance.jobs
+                                  .where((j) =>
+                                      j.status != 'done' &&
+                                      j.status != 'failed')
+                                  .length;
+                              return M3EBadge(
+                                count: active,
+                                child: IconButton(
+                                  icon: const Icon(Icons.download_rounded),
+                                  tooltip: 'Downloads',
+                                  onPressed: () => Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                        builder: (_) =>
+                                            const DownloadsScreen()),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                          Consumer<SettingsProvider>(
+                            builder: (context, settings, _) {
+                              if (!settings.enableYouTubeIntegration) {
+                                return const SizedBox.shrink();
+                              }
+                              return IconButton(
+                                icon: const Icon(Icons.history_rounded),
+                                tooltip: 'History',
+                                onPressed: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                      builder: (_) =>
+                                          const YoutubeHistoryScreen()),
+                                ),
+                              );
+                            },
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.settings_outlined),
+                            tooltip: 'Settings',
+                            onPressed: () =>
+                                Navigator.pushNamed(context, '/settings'),
+                          ),
+                        ],
+                      ),
               ),
-            IconButton(
-              icon: const Icon(Icons.download_rounded),
-              tooltip: 'Downloads',
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const DownloadsScreen()),
-              ),
-            ),
-            Consumer<SettingsProvider>(
-              builder: (context, settings, _) {
-                if (!settings.enableYouTubeIntegration) {
-                  return const SizedBox.shrink();
-                }
-                return IconButton(
-                  icon: const Icon(Icons.history_rounded),
-                  tooltip: 'History',
-                  onPressed: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (_) => const YoutubeHistoryScreen()),
-                  ),
-                );
-              },
-            ),
-            IconButton(
-              icon: const Icon(Icons.settings_outlined),
-              tooltip: 'Settings',
-              onPressed: () => Navigator.pushNamed(context, '/settings'),
             ),
           ],
-        ],
         ),
       ),
     );
@@ -501,8 +535,8 @@ class _StreamScreenState extends State<StreamScreen>
     if (_searchResults.isEmpty &&
         _searchPlaylists.isEmpty &&
         _searchAlbums.isEmpty) {
-      return _emptyState(Icons.search_off_rounded, 'No results',
-          'Try a different search');
+      return _emptyState(
+          Icons.search_off_rounded, 'No results', 'Try a different search');
     }
     final bottom = _bottomInset(context);
     return ListView(
@@ -516,9 +550,8 @@ class _StreamScreenState extends State<StreamScreen>
             padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
             child: _sectionTitle('Songs'),
           ),
-          for (final video in _songsExpanded
-              ? _searchResults
-              : _searchResults.take(5))
+          for (final video
+              in _songsExpanded ? _searchResults : _searchResults.take(5))
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: _buildSongRow(video),
@@ -560,7 +593,7 @@ class _StreamScreenState extends State<StreamScreen>
             )
           else
             SizedBox(
-              height: 214,
+              height: 246,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -571,6 +604,7 @@ class _StreamScreenState extends State<StreamScreen>
                   title: _searchPlaylists[i]['title'] as String? ?? '',
                   subtitle: _searchPlaylists[i]['subtitle'] as String?,
                   onTap: () => _openPlaylist(_searchPlaylists[i]),
+                  emphasized: i == 0,
                 ),
               ),
             ),
@@ -604,7 +638,7 @@ class _StreamScreenState extends State<StreamScreen>
             )
           else
             SizedBox(
-              height: 214,
+              height: 246,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -615,6 +649,7 @@ class _StreamScreenState extends State<StreamScreen>
                   title: _searchAlbums[i]['title'] as String? ?? '',
                   subtitle: _searchAlbums[i]['subtitle'] as String?,
                   onTap: () => _openPlaylist(_searchAlbums[i]),
+                  emphasized: i == 0,
                 ),
               ),
             ),
@@ -683,8 +718,9 @@ class _StreamScreenState extends State<StreamScreen>
 
   Widget _buildExplore(BuildContext context) {
     final settings = context.watch<SettingsProvider>();
-    final recent =
-        settings.enableSearchHistory ? settings.searchHistory : const <String>[];
+    final recent = settings.enableSearchHistory
+        ? settings.searchHistory
+        : const <String>[];
     if (_moodSections.isEmpty && recent.isEmpty) {
       return const Center(child: KashouLoader());
     }
@@ -703,7 +739,8 @@ class _StreamScreenState extends State<StreamScreen>
         for (final section in _moodSections) ...[
           _sectionTitle(section['section'] as String? ?? 'Explore'),
           const SizedBox(height: 12),
-          _buildMoodGrid((section['items'] as List).cast<Map<String, dynamic>>()),
+          _buildMoodGrid(
+              (section['items'] as List).cast<Map<String, dynamic>>()),
           const SizedBox(height: 24),
         ],
       ],
@@ -755,8 +792,7 @@ class _StreamScreenState extends State<StreamScreen>
         final columns = isDesktop
             ? (constraints.maxWidth / 220).floor().clamp(3, 6).toInt()
             : 2;
-        final cardWidth =
-            (constraints.maxWidth - 12 * (columns - 1)) / columns;
+        final cardWidth = (constraints.maxWidth - 12 * (columns - 1)) / columns;
         return Wrap(
           spacing: 12,
           runSpacing: 12,
@@ -800,58 +836,56 @@ class _StreamScreenState extends State<StreamScreen>
     }
 
     final bottom = _bottomInset(context);
-    return RefreshIndicator(
+    return M3ERefresh(
       onRefresh: _loadDiscover,
-      child: ListView(
-        padding: EdgeInsets.fromLTRB(0, 4, 0, bottom),
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
-            child: Text(
-              'Discover',
-              style: Theme.of(context)
-                  .textTheme
-                  .headlineMedium
-                  ?.copyWith(fontWeight: FontWeight.w800, letterSpacing: -0.5),
-            ),
+      padding: EdgeInsets.fromLTRB(0, 4, 0, bottom),
+      slivers: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+          child: Text(
+            'Discover',
+            style: Theme.of(context)
+                .textTheme
+                .headlineMedium
+                ?.copyWith(fontWeight: FontWeight.w800, letterSpacing: -0.5),
           ),
-          Consumer<RecommendationProvider>(
-            builder: (context, rec, _) => Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                AnimatedSwitcher(
-                  duration: EMotion.medium,
-                  switchInCurve: Curves.easeOutCubic,
-                  switchOutCurve: Curves.easeInCubic,
-                  child: rec.recommendations.isEmpty && rec.isLoading
-                      ? const KeyedSubtree(
-                          key: ValueKey('quick_picks_skeleton'),
-                          child: _QuickPicksSkeleton(),
-                        )
-                      : (rec.recommendations.isNotEmpty
-                          ? KeyedSubtree(
-                              key: const ValueKey('quick_picks_content'),
-                              child: _buildQuickPicks({
-                                'title': 'Quick picks',
-                                'items': rec.recommendations,
-                              }),
-                            )
-                          : const SizedBox.shrink(
-                              key: ValueKey('quick_picks_empty'))),
+        ),
+        Consumer<RecommendationProvider>(
+          builder: (context, rec, _) => Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              AnimatedSwitcher(
+                duration: EMotion.medium,
+                switchInCurve: Curves.easeOutCubic,
+                switchOutCurve: Curves.easeInCubic,
+                child: rec.recommendations.isEmpty && rec.isLoading
+                    ? const KeyedSubtree(
+                        key: ValueKey('quick_picks_skeleton'),
+                        child: _QuickPicksSkeleton(),
+                      )
+                    : (rec.recommendations.isNotEmpty
+                        ? KeyedSubtree(
+                            key: const ValueKey('quick_picks_content'),
+                            child: _buildQuickPicks({
+                              'title': 'Quick picks',
+                              'items': rec.recommendations,
+                            }),
+                          )
+                        : const SizedBox.shrink(
+                            key: ValueKey('quick_picks_empty'))),
+              ),
+              if (rec.relatedVideos.isNotEmpty)
+                _buildRecCarousel(
+                    'More like what you played', rec.relatedVideos),
+              for (var i = 0; i < _homeShelves.length; i++)
+                FadeRise(
+                  index: i,
+                  child: _buildPlaylistShelf(_homeShelves[i]),
                 ),
-                if (rec.relatedVideos.isNotEmpty)
-                  _buildRecCarousel(
-                      'More like what you played', rec.relatedVideos),
-                for (var i = 0; i < _homeShelves.length; i++)
-                  FadeRise(
-                    index: i,
-                    child: _buildPlaylistShelf(_homeShelves[i]),
-                  ),
-              ],
-            ),
+            ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -888,7 +922,7 @@ class _StreamScreenState extends State<StreamScreen>
           )
         else
           SizedBox(
-            height: 214,
+            height: 246,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -899,6 +933,7 @@ class _StreamScreenState extends State<StreamScreen>
                 title: items[i]['title'] as String? ?? '',
                 subtitle: items[i]['subtitle'] as String?,
                 onTap: () => _openPlaylist(items[i]),
+                emphasized: i == 0,
               ),
             ),
           ),
@@ -910,56 +945,25 @@ class _StreamScreenState extends State<StreamScreen>
   // four song rows per page
   Widget _buildQuickPicks(Map<String, dynamic> shelf) {
     final items = (shelf['items'] as List).cast<Map<String, dynamic>>();
+    final rows = <Widget>[];
+    for (var i = 0; i < items.length; i++) {
+      if (i > 0) rows.add(const M3EListDivider(indent: 68));
+      rows.add(_buildSongRow(items[i]));
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
-          child: _sectionTitle(
-              (shelf['title'] as String?)?.isNotEmpty == true
-                  ? shelf['title'] as String
-                  : 'Quick picks'),
+          child: _sectionTitle((shelf['title'] as String?)?.isNotEmpty == true
+              ? shelf['title'] as String
+              : 'Quick picks'),
         ),
-        if (isDesktop)
-          // desktop: a multi-column list reads naturally; the mobile paging
-          // carousel does not
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final columns =
-                    (constraints.maxWidth / 340).floor().clamp(2, 4);
-                return GridView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  padding: EdgeInsets.zero,
-                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: columns,
-                    mainAxisExtent: 72,
-                    crossAxisSpacing: 8,
-                    mainAxisSpacing: 8,
-                  ),
-                  itemCount: items.length,
-                  itemBuilder: (_, i) => _buildSongRow(items[i]),
-                );
-              },
-            ),
-          )
-        else
-          SizedBox(
-            height: 4 * 72,
-            child: GridView.builder(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 4,
-                mainAxisExtent: MediaQuery.of(context).size.width - 56,
-                mainAxisSpacing: 16,
-              ),
-              itemCount: items.length,
-              itemBuilder: (_, i) => _buildSongRow(items[i]),
-            ),
-          ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: M3EListGroup(children: rows),
+        ),
         const SizedBox(height: 24),
       ],
     );
@@ -995,7 +999,7 @@ class _StreamScreenState extends State<StreamScreen>
           )
         else
           SizedBox(
-            height: 214,
+            height: 246,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -1006,6 +1010,7 @@ class _StreamScreenState extends State<StreamScreen>
                 title: items[i]['title'] as String? ?? '',
                 subtitle: items[i]['channel'] as String?,
                 onTap: () => _playVideo(items[i]),
+                emphasized: i == 0,
               ),
             ),
           ),
@@ -1016,8 +1021,7 @@ class _StreamScreenState extends State<StreamScreen>
 
   String _songSubtitle(Map<String, dynamic> video) {
     final rawChannel = video['channel'] as String? ?? '';
-    final channel =
-        rawChannel.replaceAll('Â·', '•').replaceAll('Â', '').trim();
+    final channel = rawChannel.replaceAll('Â·', '•').replaceAll('Â', '').trim();
     final rawViews = video['views'] as String?;
     if (rawViews == null || rawViews.isEmpty) return channel;
     final views = rawViews.replaceAll('Â·', '•').replaceAll('Â', '').trim();
@@ -1035,16 +1039,14 @@ class _StreamScreenState extends State<StreamScreen>
           color: isCurrent
               ? scheme.primary.withValues(alpha: 0.12)
               : Colors.transparent,
-          borderRadius: BorderRadius.circular(rMd),
           child: InkWell(
             onTap: () =>
                 isCurrent ? audio.togglePlayPause() : _playVideo(video),
             onLongPress: () => _showSongSheet(video),
             // right-click mirrors the long-press options on desktop
             onSecondaryTap: isDesktop ? () => _showSongSheet(video) : null,
-            borderRadius: BorderRadius.circular(rMd),
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(8, 8, 4, 8),
+              padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
               child: Row(
                 children: [
                   Stack(
@@ -1073,16 +1075,12 @@ class _StreamScreenState extends State<StreamScreen>
                       children: [
                         ScrollingText(
                           text: video['title'] as String? ?? 'Unknown',
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodyMedium
-                              ?.copyWith(
-                                fontWeight: FontWeight.w600,
-                                height: 1.25,
-                                color: isCurrent
-                                    ? scheme.primary
-                                    : null,
-                              ),
+                          style:
+                              Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                    height: 1.25,
+                                    color: isCurrent ? scheme.primary : null,
+                                  ),
                         ),
                         const SizedBox(height: 2),
                         Text(
@@ -1100,17 +1098,13 @@ class _StreamScreenState extends State<StreamScreen>
                   const SizedBox(width: 8),
                   IconButton(
                     icon: Icon(
-                      playing
-                          ? Icons.pause_rounded
-                          : Icons.play_arrow_rounded,
-                      color: isCurrent
-                          ? scheme.primary
-                          : scheme.onSurfaceVariant,
+                      playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                      color:
+                          isCurrent ? scheme.primary : scheme.onSurfaceVariant,
                     ),
                     tooltip: isDesktop ? (playing ? 'Pause' : 'Play') : null,
-                    onPressed: () => isCurrent
-                        ? audio.togglePlayPause()
-                        : _playVideo(video),
+                    onPressed: () =>
+                        isCurrent ? audio.togglePlayPause() : _playVideo(video),
                   ),
                 ],
               ),
@@ -1134,8 +1128,8 @@ class _StreamScreenState extends State<StreamScreen>
                     SquareArt(url: _videoThumb(video), size: 44, radius: rSm),
                 title: Text(video['title'] as String? ?? '',
                     maxLines: 1, overflow: TextOverflow.ellipsis),
-                subtitle: Text(channel,
-                    maxLines: 1, overflow: TextOverflow.ellipsis),
+                subtitle:
+                    Text(channel, maxLines: 1, overflow: TextOverflow.ellipsis),
               ),
               const Divider(height: 1),
               ListTile(
@@ -1388,4 +1382,3 @@ class _QuickPicksSkeletonState extends State<_QuickPicksSkeleton>
     );
   }
 }
-

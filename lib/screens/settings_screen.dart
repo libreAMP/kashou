@@ -8,6 +8,7 @@ import '../screens/personalization_screen.dart';
 import '../theme/app_theme.dart';
 import '../utils/platform.dart';
 import '../widgets/back_chip.dart';
+import '../widgets/m3e_dropdown.dart';
 import '../widgets/settings_tiles.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -160,39 +161,23 @@ class SettingsScreen extends StatelessWidget {
               leading: const Icon(Icons.tune),
               title: const Text('Buffer Size'),
               subtitle: const Text('Applies on next launch'),
-              trailing: DropdownButton<int>(
+              trailing: M3EDropdown<int>(
                 value: settings.bufferSize,
-                items: const [
-                  DropdownMenuItem(value: 1024, child: Text('1024')),
-                  DropdownMenuItem(value: 2048, child: Text('2048')),
-                  DropdownMenuItem(value: 4096, child: Text('4096')),
-                ],
-                onChanged: (value) {
-                  if (value != null) settings.setBufferSize(value);
-                },
+                labelOf: (value) => '$value',
+                items: const [1024, 2048, 4096],
+                onChanged: settings.setBufferSize,
+                menuWidth: 160,
               ),
             ),
             ListTile(
               leading: const Icon(Icons.high_quality),
               title: const Text('Resampler Quality'),
               subtitle: const Text('Float output on high, next launch'),
-              trailing: DropdownButton<String>(
+              trailing: M3EDropdown<String>(
                 value: settings.resamplerQuality,
-                items: const [
-                  DropdownMenuItem(value: 'Low', child: Text('Low')),
-                  DropdownMenuItem(
-                    value: 'Medium',
-                    child: Text('Medium'),
-                  ),
-                  DropdownMenuItem(value: 'High', child: Text('High')),
-                  DropdownMenuItem(
-                    value: 'Very High',
-                    child: Text('Very High'),
-                  ),
-                ],
-                onChanged: (value) {
-                  if (value != null) settings.setResamplerQuality(value);
-                },
+                labelOf: (value) => value,
+                items: const ['Low', 'Medium', 'High', 'Very High'],
+                onChanged: settings.setResamplerQuality,
               ),
             ),
             SettingsSwitchTile(
@@ -281,7 +266,13 @@ class SettingsScreen extends StatelessWidget {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Music Folders'),
+        title: Text(
+          'Music Folders',
+          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.5,
+              ),
+        ),
         content: SizedBox(
           width: isDesktop ? 480 : double.maxFinite,
           child: Column(

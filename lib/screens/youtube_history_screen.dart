@@ -7,11 +7,14 @@ import '../models/stream_history_entry.dart';
 import '../models/track.dart';
 import '../providers/audio_provider.dart';
 import '../providers/settings_provider.dart';
+import '../services/download_manager.dart';
 import '../services/ytdl_service.dart';
 import '../theme/radii.dart';
 import '../utils/platform.dart';
 import '../widgets/back_chip.dart';
 import '../widgets/loading_indicator.dart';
+import '../widgets/m3e_menu.dart';
+import '../widgets/m3e_swipe_actions.dart';
 import '../widgets/square_art.dart';
 
 // max width of the history list on wide desktop windows
@@ -93,12 +96,12 @@ class _YoutubeHistoryScreenState extends State<YoutubeHistoryScreen> {
       builder: (context) {
         return AlertDialog(
           title: Text(
-              'Clear history?',
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.5,
-                  ),
-            ),
+            'Clear history?',
+            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.5,
+                ),
+          ),
           content: const Text('This will remove all YouTube stream history.'),
           actions: [
             TextButton(
@@ -167,8 +170,8 @@ class _YoutubeHistoryScreenState extends State<YoutubeHistoryScreen> {
                       children: [
                         Icon(Icons.history,
                             size: 48,
-                            color:
-                                colorScheme.onSurfaceVariant.withValues(alpha: 0.5)),
+                            color: colorScheme.onSurfaceVariant
+                                .withValues(alpha: 0.5)),
                         const SizedBox(height: 16),
                         Text(
                           'No history yet',
@@ -180,8 +183,8 @@ class _YoutubeHistoryScreenState extends State<YoutubeHistoryScreen> {
                         Text(
                           'What you play from Stream shows up here.',
                           style: theme.textTheme.bodyMedium?.copyWith(
-                            color:
-                                colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+                            color: colorScheme.onSurfaceVariant
+                                .withValues(alpha: 0.7),
                           ),
                           textAlign: TextAlign.center,
                         ),
@@ -347,29 +350,27 @@ class _YoutubeHistoryScreenState extends State<YoutubeHistoryScreen> {
       padding: const EdgeInsets.fromLTRB(16, 3, 16, 3),
       child: isDesktop
           ? GestureDetector(
-              // right-click mirrors the swipe-to-dismiss on touch devices
+              // right-click mirrors the swipe actions on touch devices
               onSecondaryTapUp: (details) =>
                   _showRemoveMenu(details.globalPosition, track),
               child: tile,
             )
-          : Dismissible(
-              key: ValueKey(track.sourceUrl ?? track.id),
-              direction: DismissDirection.endToStart,
-              background: Container(
-                alignment: Alignment.centerRight,
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                decoration: BoxDecoration(
-                  color: colorScheme.errorContainer,
-                  borderRadius: BorderRadius.circular(rMd),
+          : M3ESwipeActions(
+              actions: [
+                M3ESwipeAction(
+                  icon: Icons.download_rounded,
+                  label: 'Download',
+                  onPressed: () => DownloadManager.instance.enqueue(track),
                 ),
-                child: Icon(Icons.delete_outline,
-                    color: colorScheme.onErrorContainer),
-              ),
-              onDismissed: (_) {
-                context
-                    .read<AudioProvider>()
-                    .removeFromStreamHistory(track.sourceUrl ?? track.path);
-              },
+                M3ESwipeAction(
+                  icon: Icons.delete_outline,
+                  label: 'Remove from history',
+                  filled: true,
+                  onPressed: () => context
+                      .read<AudioProvider>()
+                      .removeFromStreamHistory(track.sourceUrl ?? track.path),
+                ),
+              ],
               child: tile,
             ),
     );
@@ -377,25 +378,25 @@ class _YoutubeHistoryScreenState extends State<YoutubeHistoryScreen> {
 
   void _showRemoveMenu(Offset position, Track track) {
     final audioProvider = context.read<AudioProvider>();
-    final overlay =
-        Overlay.of(context).context.findRenderObject()! as RenderBox;
-    showMenu<String>(
-      context: context,
-      position: RelativeRect.fromRect(
-        position & const Size(1, 1),
-        Offset.zero & overlay.size,
-      ),
-      items: const [
-        PopupMenuItem(
-          value: 'remove',
-          child: Text('Remove from history'),
+    showM3EMenu(
+      context,
+      globalPosition: position,
+      children: [
+        M3EMenuRow(
+          item: M3EMenuItem(
+            label: 'Remove from history',
+            icon: Icons.history_toggle_off_rounded,
+            destructive: true,
+            onTap: () {
+              Navigator.of(context, rootNavigator: true).pop();
+              audioProvider.removeFromStreamHistory(
+                track.sourceUrl ?? track.path,
+              );
+            },
+          ),
         ),
       ],
-    ).then((value) {
-      if (value == 'remove') {
-        audioProvider.removeFromStreamHistory(track.sourceUrl ?? track.path);
-      }
-    });
+    );
   }
 
   Widget _buildAlbumArt(Track track, ColorScheme colorScheme) {
@@ -455,4 +456,3 @@ class _YoutubeHistoryScreenState extends State<YoutubeHistoryScreen> {
     }
   }
 }
-
