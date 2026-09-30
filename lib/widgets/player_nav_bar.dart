@@ -312,48 +312,51 @@ class _PlayerNavRailState extends State<PlayerNavRail> {
     return Padding(
       padding:
           EdgeInsets.fromLTRB(12, 12 + padding.top, 12, 12 + padding.bottom),
-      child: MouseRegion(
-        onEnter: (_) => setState(() => _extended = true),
-        onExit: (_) => setState(() => _extended = false),
-        child: AnimatedContainer(
-          duration: EMotion.medium,
-          curve: EMotion.standard,
-          clipBehavior: Clip.antiAlias,
-          decoration: BoxDecoration(
-            color: scheme.surfaceContainerHigh,
-            borderRadius: BorderRadius.circular(32),
-            border: Border.all(
-              color: scheme.outlineVariant.withValues(alpha: 0.4),
+      child: AnimatedContainer(
+        duration: EMotion.medium,
+        curve: EMotion.standard,
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(
+          color: scheme.surfaceContainerHigh,
+          borderRadius: BorderRadius.circular(rXl),
+        ),
+        child: NavigationRail(
+          selectedIndex: widget.selectedIndex,
+          extended: _extended,
+          minWidth: 80,
+          minExtendedWidth: 240,
+          backgroundColor: Colors.transparent,
+          labelType: _extended
+              ? NavigationRailLabelType.none
+              : NavigationRailLabelType.selected,
+          groupAlignment: -1.0,
+          useIndicator: true,
+          indicatorColor: scheme.primaryContainer,
+          selectedIconTheme: IconThemeData(color: scheme.onPrimaryContainer),
+          unselectedIconTheme: IconThemeData(color: scheme.onSurfaceVariant),
+          selectedLabelTextStyle: TextStyle(
+            color: scheme.onSurface,
+            fontWeight: FontWeight.w600,
+          ),
+          onDestinationSelected: widget.onDestinationSelected,
+          leading: Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: IconButton(
+              icon: Icon(
+                _extended ? Icons.menu_open_rounded : Icons.menu_rounded,
+              ),
+              tooltip: _extended ? 'Collapse menu' : 'Expand menu',
+              onPressed: () => setState(() => _extended = !_extended),
             ),
           ),
-          child: NavigationRail(
-            selectedIndex: widget.selectedIndex,
-            extended: _extended,
-            minWidth: 64,
-            minExtendedWidth: 184,
-            backgroundColor: Colors.transparent,
-            labelType: _extended
-                ? NavigationRailLabelType.none
-                : NavigationRailLabelType.selected,
-            groupAlignment: -0.85,
-            useIndicator: true,
-            indicatorColor: scheme.primaryContainer,
-            selectedIconTheme: IconThemeData(color: scheme.onPrimaryContainer),
-            unselectedIconTheme: IconThemeData(color: scheme.onSurfaceVariant),
-            selectedLabelTextStyle: TextStyle(
-              color: scheme.onSurface,
-              fontWeight: FontWeight.w600,
-            ),
-            onDestinationSelected: widget.onDestinationSelected,
-            destinations: [
-              for (final item in widget.items)
-                NavigationRailDestination(
-                  icon: Icon(item.icon),
-                  selectedIcon: Icon(item.selectedIcon),
-                  label: Text(item.label),
-                ),
-            ],
-          ),
+          destinations: [
+            for (final item in widget.items)
+              NavigationRailDestination(
+                icon: Icon(item.icon),
+                selectedIcon: Icon(item.selectedIcon),
+                label: Text(item.label),
+              ),
+          ],
         ),
       ),
     );
