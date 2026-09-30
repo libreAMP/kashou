@@ -50,18 +50,16 @@ class HomeScreen extends StatelessWidget {
 
                   return M3ERefresh(
                     onRefresh: () => library.scanLibrary(force: true),
-                    padding: EdgeInsets.fromLTRB(
-                        _contentHorizontalPadding(context),
-                        4,
-                        _contentHorizontalPadding(context),
+                    // the shelves need the full width
+                    padding: EdgeInsets.fromLTRB(0, 4, 0,
                         showMiniPlayer ? safeArea + 96 : safeArea + 24),
                     slivers: [
-                      _buildHeroHeader(context, library),
+                      _padded(context, _buildHeroHeader(context, library)),
                       const SizedBox(height: 24),
-                      _buildQuickActions(context),
+                      _padded(context, _buildQuickActions(context)),
                       _buildRecentlyPlayed(context),
                       _buildRecentlyAdded(context),
-                      _buildFavoriteSongs(context),
+                      _padded(context, _buildFavoriteSongs(context)),
                       _buildTopAlbums(context),
                     ],
                   );
@@ -73,6 +71,12 @@ class HomeScreen extends StatelessWidget {
       ),
     );
   }
+
+  Widget _padded(BuildContext context, Widget child) => Padding(
+        padding: EdgeInsets.symmetric(
+            horizontal: _contentHorizontalPadding(context)),
+        child: child,
+      );
 
   Widget _buildSearchBar(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
@@ -132,8 +136,7 @@ class HomeScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 4),
-          // pull-to-refresh needs a touch drag, so offer a visible
-          // alternative on desktop
+          // desktop gets a refresh button
           if (isDesktop)
             IconButton(
               icon: const Icon(Icons.refresh_rounded),
@@ -197,9 +200,8 @@ class HomeScreen extends StatelessWidget {
                   context,
                   icon: Icons.play_arrow_rounded,
                   title: 'Play library',
-                  subtitle: tracks.isEmpty
-                      ? 'Add some music first'
-                      : 'Play in order',
+                  subtitle:
+                      tracks.isEmpty ? 'Add some music first' : 'Play in order',
                   onTap: playAll,
                   primary: true,
                 ),
@@ -271,15 +273,18 @@ class HomeScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: 24),
-            _buildSectionHeader(
+            _padded(
               context,
-              title: 'Recently played',
-              actionLabel: 'See all',
-              onActionTap: () => Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => TrackListPage(
-                    title: 'Recently played',
-                    tracks: audio.getRecentlyPlayedTracks(library)),
-              )),
+              _buildSectionHeader(
+                context,
+                title: 'Recently played',
+                actionLabel: 'See all',
+                onActionTap: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => TrackListPage(
+                      title: 'Recently played',
+                      tracks: audio.getRecentlyPlayedTracks(library)),
+                )),
+              ),
             ),
             const SizedBox(height: 12),
             _buildTrackCardShelf(context, recentTracks),
@@ -302,18 +307,21 @@ class HomeScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: 24),
-            _buildSectionHeader(
+            _padded(
               context,
-              title: 'Recently added',
-              actionLabel: 'See all',
-              onActionTap: () => Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => TrackListPage(
-                    title: 'Recently added',
-                    tracks: library.allTracks.take(50).toList()),
-              )),
+              _buildSectionHeader(
+                context,
+                title: 'Recently added',
+                actionLabel: 'See all',
+                onActionTap: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => TrackListPage(
+                      title: 'Recently added',
+                      tracks: library.allTracks.take(50).toList()),
+                )),
+              ),
             ),
             const SizedBox(height: 12),
-            _buildRecentlyAddedList(context, recentTracks),
+            _padded(context, _buildRecentlyAddedList(context, recentTracks)),
           ],
         );
       },
@@ -337,44 +345,59 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  // desktop: mouse users scroll vertically, so shelves become grids that use
-  // the full content width instead of sideways carousels
+  // desktop shelves become full width grids
   Widget _buildTrackCardShelf(BuildContext context, List<Track> tracks) {
     if (isDesktop) {
-      return LayoutBuilder(
-        builder: (context, constraints) {
-          final columns = (constraints.maxWidth / 140).floor().clamp(4, 12);
-          final cellWidth =
-              (constraints.maxWidth - (columns - 1) * 12) / columns;
-          return GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            padding: EdgeInsets.zero,
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: columns,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              // art is square; the extra height fits the two text lines
-              childAspectRatio: cellWidth / (cellWidth + 41),
-            ),
-            itemCount: tracks.length,
-            itemBuilder: (context, index) =>
-                _buildTrackCard(context, tracks[index]),
-          );
-        },
+      return _padded(
+        context,
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final columns = (constraints.maxWidth / 140).floor().clamp(4, 12);
+            final cellWidth =
+                (constraints.maxWidth - (columns - 1) * 12) / columns;
+            return GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              padding: EdgeInsets.zero,
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: columns,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+                // art is square plus two text lines
+                childAspectRatio: cellWidth / (cellWidth + 41),
+              ),
+              itemCount: tracks.length,
+              itemBuilder: (context, index) =>
+                  _buildTrackCard(context, tracks[index]),
+            );
+          },
+        ),
       );
     }
+    return _buildShelf(
+      context,
+      count: tracks.length,
+      item: (index) => _buildTrackCard(context, tracks[index]),
+    );
+  }
+
+  // the inset is the list padding now
+  Widget _buildShelf(
+    BuildContext context, {
+    required int count,
+    required Widget Function(int index) item,
+  }) {
+    final inset = _contentHorizontalPadding(context);
     return SizedBox(
       height: 160,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
-        itemCount: tracks.length,
-        itemBuilder: (context, index) {
-          return Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: _buildTrackCard(context, tracks[index]),
-          );
-        },
+        padding: EdgeInsets.symmetric(horizontal: inset),
+        itemCount: count,
+        itemBuilder: (context, index) => Padding(
+          padding: EdgeInsets.only(right: index == count - 1 ? 0 : 12),
+          child: item(index),
+        ),
       ),
     );
   }
@@ -417,8 +440,9 @@ class HomeScreen extends StatelessWidget {
   }
 
   Widget _buildFavoriteTracksList(BuildContext context, List<Track> tracks) {
-    final width = MediaQuery.sizeOf(context).width;
-    final contentWidth = math.min(width - 40, _maxContentWidth);
+    final inset = _contentHorizontalPadding(context);
+    final contentWidth = math.min(
+        MediaQuery.sizeOf(context).width - inset * 2, _maxContentWidth);
     final twoColumns = isDesktop && contentWidth >= 760;
 
     if (!twoColumns) {
@@ -456,49 +480,47 @@ class HomeScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: 24),
-            _buildSectionHeader(
+            _padded(
               context,
-              title: 'Top albums',
+              _buildSectionHeader(
+                context,
+                title: 'Top albums',
+              ),
             ),
             const SizedBox(height: 12),
             if (isDesktop)
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final columns =
-                      (constraints.maxWidth / 180).floor().clamp(3, 8);
-                  final cellWidth =
-                      (constraints.maxWidth - (columns - 1) * 12) / columns;
-                  return GridView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    padding: EdgeInsets.zero,
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: columns,
-                      crossAxisSpacing: 12,
-                      mainAxisSpacing: 12,
-                      // art is square; the extra height fits the two text lines
-                      childAspectRatio: cellWidth / (cellWidth + 41),
-                    ),
-                    itemCount: albums.length,
-                    itemBuilder: (context, index) =>
-                        AlbumCard(album: albums[index]),
-                  );
-                },
-              )
-            else
-              SizedBox(
-                height: 160,
-                child: ListView.builder(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: albums.length,
-                  itemBuilder: (context, index) {
-                    return Padding(
-                      padding: const EdgeInsets.only(right: 12),
-                      child: SizedBox(
-                          width: 118, child: AlbumCard(album: albums[index])),
+              _padded(
+                context,
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final columns =
+                        (constraints.maxWidth / 180).floor().clamp(3, 8);
+                    final cellWidth =
+                        (constraints.maxWidth - (columns - 1) * 12) / columns;
+                    return GridView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      padding: EdgeInsets.zero,
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: columns,
+                        crossAxisSpacing: 12,
+                        mainAxisSpacing: 12,
+                        // art is square plus two text lines
+                        childAspectRatio: cellWidth / (cellWidth + 41),
+                      ),
+                      itemCount: albums.length,
+                      itemBuilder: (context, index) =>
+                          AlbumCard(album: albums[index]),
                     );
                   },
                 ),
+              )
+            else
+              _buildShelf(
+                context,
+                count: albums.length,
+                item: (index) => SizedBox(
+                    width: 118, child: AlbumCard(album: albums[index])),
               ),
           ],
         );
