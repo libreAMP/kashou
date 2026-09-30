@@ -29,6 +29,26 @@ import 'mood_category_screen.dart';
 import 'section_page.dart';
 import 'youtube_history_screen.dart';
 
+// the skeleton shares these so the two states do not jump
+const int _quickPicksRows = 4;
+const double _quickPicksRowHeight = 74;
+const double _quickPicksGap = 2;
+const double _quickPicksHeight = _quickPicksRows * _quickPicksRowHeight +
+    (_quickPicksRows - 1) * _quickPicksGap +
+    4;
+const EdgeInsets _quickPicksPadding = EdgeInsets.fromLTRB(20, 2, 20, 2);
+const EdgeInsets _quickPicksRowPadding = EdgeInsets.fromLTRB(12, 8, 4, 8);
+
+// the grid pins cell width, a SizedBox cannot widen it
+SliverGridDelegate _quickPicksGrid(BuildContext context) {
+  return SliverGridDelegateWithFixedCrossAxisCount(
+    crossAxisCount: _quickPicksRows,
+    mainAxisExtent: MediaQuery.of(context).size.width - 56,
+    mainAxisSpacing: 12,
+    crossAxisSpacing: _quickPicksGap,
+  );
+}
+
 class StreamScreen extends StatefulWidget {
   const StreamScreen({super.key});
 
@@ -949,13 +969,6 @@ class _StreamScreenState extends State<StreamScreen>
   // four song rows per page
   Widget _buildQuickPicks(Map<String, dynamic> shelf) {
     final items = (shelf['items'] as List).cast<Map<String, dynamic>>();
-    const rowHeight = 74.0;
-    const gap = 2.0;
-    const pagePadding = 20.0;
-    const rows = 4;
-    // the grid scrolls sideways, so mainAxisExtent is the row width and
-    // crossAxisSpacing is what makes the 2px gap between the four rows
-    final pageWidth = MediaQuery.of(context).size.width;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -966,18 +979,14 @@ class _StreamScreenState extends State<StreamScreen>
               : 'Quick picks'),
         ),
         SizedBox(
-          height: rows * rowHeight + (rows - 1) * gap + 4,
+          height: _quickPicksHeight,
           child: GridView.builder(
             scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.fromLTRB(pagePadding, 2, pagePadding, 2),
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: rows,
-              mainAxisExtent: pageWidth - 56,
-              mainAxisSpacing: 12,
-              crossAxisSpacing: gap,
-            ),
+            padding: _quickPicksPadding,
+            gridDelegate: _quickPicksGrid(context),
             itemCount: items.length,
-            itemBuilder: (_, i) => _buildSongRow(items[i], i % rows, rows),
+            itemBuilder: (_, i) => _buildSongRow(
+                items[i], i % _quickPicksRows, _quickPicksRows),
           ),
         ),
         const SizedBox(height: 24),
@@ -1081,7 +1090,7 @@ class _StreamScreenState extends State<StreamScreen>
             // right-click mirrors the long-press options on desktop
             onSecondaryTap: isDesktop ? () => _showSongSheet(video) : null,
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
+              padding: _quickPicksRowPadding,
               child: Row(
                 children: [
                   Stack(
@@ -1307,51 +1316,24 @@ class _QuickPicksSkeletonState extends State<_QuickPicksSkeleton>
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
               child: Text(
                 'Quick picks',
-                style: Theme.of(context)
-                    .textTheme
-                    .titleLarge
-                    ?.copyWith(fontWeight: FontWeight.bold),
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.3,
+                    ),
               ),
             ),
-            if (isDesktop)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    final columns =
-                        (constraints.maxWidth / 340).floor().clamp(2, 4);
-                    return GridView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      padding: EdgeInsets.zero,
-                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: columns,
-                        mainAxisExtent: 72,
-                        crossAxisSpacing: 8,
-                        mainAxisSpacing: 8,
-                      ),
-                      itemCount: columns * 4,
-                      itemBuilder: (_, __) => _buildSkeletonRow(scheme, alpha),
-                    );
-                  },
-                ),
-              )
-            else
-              SizedBox(
-                height: 4 * 72,
-                child: GridView.builder(
-                  scrollDirection: Axis.horizontal,
-                  physics: const NeverScrollableScrollPhysics(),
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 4,
-                    mainAxisExtent: MediaQuery.of(context).size.width - 56,
-                    mainAxisSpacing: 16,
-                  ),
-                  itemCount: 8,
-                  itemBuilder: (_, __) => _buildSkeletonRow(scheme, alpha),
-                ),
+            SizedBox(
+              height: _quickPicksHeight,
+              child: GridView.builder(
+                scrollDirection: Axis.horizontal,
+                physics: const NeverScrollableScrollPhysics(),
+                padding: _quickPicksPadding,
+                gridDelegate: _quickPicksGrid(context),
+                itemCount: _quickPicksRows * 2,
+                itemBuilder: (_, i) => _buildSkeletonRow(
+                    scheme, alpha, i % _quickPicksRows, _quickPicksRows),
               ),
+            ),
             const SizedBox(height: 24),
           ],
         );
@@ -1359,60 +1341,80 @@ class _QuickPicksSkeletonState extends State<_QuickPicksSkeleton>
     );
   }
 
-  Widget _buildSkeletonRow(ColorScheme scheme, double alpha) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 8, 4, 8),
-      child: Row(
-        children: [
-          Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(
-              color: scheme.surfaceContainerHighest.withValues(alpha: alpha),
-              borderRadius: BorderRadius.circular(16),
+  Widget _buildSkeletonRow(
+    ColorScheme scheme,
+    double alpha, [
+    int slot = -1,
+    int count = _quickPicksRows,
+  ]) {
+    const outer = Radius.circular(rXl);
+    const inner = Radius.circular(12);
+    final radius = slot < 0
+        ? const BorderRadius.all(inner)
+        : slot == 0
+            ? const BorderRadius.vertical(top: outer, bottom: inner)
+            : slot == count - 1
+                ? const BorderRadius.vertical(top: inner, bottom: outer)
+                : const BorderRadius.all(inner);
+
+    return Material(
+      color: scheme.surfaceContainerLow,
+      borderRadius: radius,
+      clipBehavior: Clip.antiAlias,
+      child: Padding(
+        padding: _quickPicksRowPadding,
+        child: Row(
+          children: [
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: scheme.surfaceContainerHighest.withValues(alpha: alpha),
+                borderRadius: BorderRadius.circular(16),
+              ),
             ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  height: 14,
-                  width: double.infinity,
-                  margin: const EdgeInsets.only(right: 28),
-                  decoration: BoxDecoration(
-                    color:
-                        scheme.surfaceContainerHighest.withValues(alpha: alpha),
-                    borderRadius: BorderRadius.circular(6),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    height: 14,
+                    width: double.infinity,
+                    margin: const EdgeInsets.only(right: 28),
+                    decoration: BoxDecoration(
+                      color: scheme.surfaceContainerHighest
+                          .withValues(alpha: alpha),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 6),
-                Container(
-                  height: 12,
-                  width: 110,
-                  decoration: BoxDecoration(
-                    color: scheme.surfaceContainerHighest
-                        .withValues(alpha: alpha * 0.6),
-                    borderRadius: BorderRadius.circular(6),
+                  const SizedBox(height: 6),
+                  Container(
+                    height: 12,
+                    width: 110,
+                    decoration: BoxDecoration(
+                      color: scheme.surfaceContainerHighest
+                          .withValues(alpha: alpha * 0.6),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-          const SizedBox(width: 8),
-          Container(
-            width: 40,
-            height: 40,
-            margin: const EdgeInsets.symmetric(horizontal: 4),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: scheme.surfaceContainerHighest
-                  .withValues(alpha: alpha * 0.35),
+            const SizedBox(width: 8),
+            Container(
+              width: 40,
+              height: 40,
+              margin: const EdgeInsets.symmetric(horizontal: 4),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: scheme.surfaceContainerHighest
+                    .withValues(alpha: alpha * 0.35),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

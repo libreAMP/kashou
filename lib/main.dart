@@ -293,7 +293,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
   int _selectedIndex = 0;
   bool _showMiniPlayer = true;
   late final AnimationController _sheetController;
-  bool get _isSheetOpen => _sheetController.value > 0.05;
+  bool _sheetOpen = false;
+  bool get _isSheetOpen => _sheetOpen;
 
   static const List<Widget> _screens = [
     StreamScreen(),
@@ -308,6 +309,11 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
       vsync: this,
       duration: const Duration(milliseconds: 260),
     );
+    // root PopScope reads this field
+    _sheetController.addListener(() {
+      final open = _sheetController.value > 0.05;
+      if (open != _sheetOpen) setState(() => _sheetOpen = open);
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final audioProvider = Provider.of<AudioProvider>(context, listen: false);
       audioProvider.addListener(_onAudioProviderChange);
