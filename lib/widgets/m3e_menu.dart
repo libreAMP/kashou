@@ -123,13 +123,37 @@ class M3EMenuSeparator extends StatelessWidget {
 
 Future<void> showM3EMenu(
   BuildContext context, {
-  required Offset globalPosition,
+  Rect? targetRect,
+  Offset? globalPosition,
   required List<Widget> children,
   double minWidth = 160,
   double maxWidth = 280,
+  bool alignEnd = false,
 }) {
   final scheme = Theme.of(context).colorScheme;
   final screen = Overlay.of(context).context.size!;
+  final rect =
+      targetRect ?? Rect.fromLTWH(globalPosition!.dx, globalPosition.dy, 0, 0);
+
+  // flip above the trigger when there is more room up there
+  var estimated = 16.0;
+  for (final child in children) {
+    estimated += child is M3EMenuSeparator ? 9 : 48;
+  }
+  final below = screen.height - rect.bottom;
+  final top = below >= estimated || below >= rect.top
+      ? rect.bottom + 4
+      : math.max(8.0, rect.top - estimated - 4);
+
+  // left and right are distances from the viewport edges
+  final endGap = math.max(0.0, screen.width - rect.right);
+  final canAlignEnd = endGap >= 8;
+  final isEnd = alignEnd && canAlignEnd
+      ? true
+      : alignEnd
+          ? false
+          : rect.center.dx > screen.width / 2 && canAlignEnd;
+
   return showMenu<void>(
     context: context,
     color: scheme.surfaceContainerHigh,
@@ -141,10 +165,10 @@ Future<void> showM3EMenu(
       maxWidth: maxWidth,
     ),
     position: RelativeRect.fromLTRB(
-      globalPosition.dx,
-      globalPosition.dy,
-      math.max(0, globalPosition.dx + minWidth - screen.width),
-      screen.height - globalPosition.dy,
+      isEnd ? endGap + 1 : math.max(0.0, rect.left),
+      top,
+      isEnd ? endGap : math.max(0.0, rect.left) + 1,
+      math.max(0.0, screen.height - rect.bottom),
     ),
     items: children
         .whereType<M3EMenuRow>()

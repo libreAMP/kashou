@@ -50,7 +50,7 @@ class HomeScreen extends StatelessWidget {
 
                   return M3ERefresh(
                     onRefresh: () => library.scanLibrary(force: true),
-                    // the shelves need the full width
+                    // no horizontal padding, the shelves need the full width
                     padding: EdgeInsets.fromLTRB(0, 4, 0,
                         showMiniPlayer ? safeArea + 96 : safeArea + 24),
                     slivers: [
@@ -136,7 +136,7 @@ class HomeScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 4),
-          // desktop gets a refresh button
+          // pull-to-refresh needs a touch drag, desktop gets a button
           if (isDesktop)
             IconButton(
               icon: const Icon(Icons.refresh_rounded),
@@ -345,7 +345,7 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  // desktop shelves become full width grids
+  // desktop scrolls vertically so shelves become full width grids
   Widget _buildTrackCardShelf(BuildContext context, List<Track> tracks) {
     if (isDesktop) {
       return _padded(
@@ -363,7 +363,7 @@ class HomeScreen extends StatelessWidget {
                 crossAxisCount: columns,
                 crossAxisSpacing: 12,
                 mainAxisSpacing: 12,
-                // art is square plus two text lines
+                // art is square; the extra height fits the two text lines
                 childAspectRatio: cellWidth / (cellWidth + 41),
               ),
               itemCount: tracks.length,
@@ -381,7 +381,7 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  // the inset is the list padding now
+  // inset is the list padding since the sliver no longer carries one
   Widget _buildShelf(
     BuildContext context, {
     required int count,
@@ -505,7 +505,7 @@ class HomeScreen extends StatelessWidget {
                         crossAxisCount: columns,
                         crossAxisSpacing: 12,
                         mainAxisSpacing: 12,
-                        // art is square plus two text lines
+                        // art is square; the extra height fits the text
                         childAspectRatio: cellWidth / (cellWidth + 41),
                       ),
                       itemCount: albums.length,

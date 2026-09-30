@@ -357,7 +357,7 @@ class _StreamScreenState extends State<StreamScreen>
     final scheme = Theme.of(context).colorScheme;
     final searchActive = _exploreOpen || _currentQuery.isNotEmpty;
 
-    // back leaves search first
+    // back steps out of search, or lets the root collapse the player
     return PopScope(
       canPop: !searchActive && !SheetScope.of(context),
       onPopInvokedWithResult: (didPop, _) {

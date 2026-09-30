@@ -1,5 +1,8 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
+import '../theme/radii.dart';
 import 'm3e_menu.dart';
 
 class M3ESelect<T> extends StatelessWidget {
@@ -24,30 +27,30 @@ class M3ESelect<T> extends StatelessWidget {
       constraints: const BoxConstraints(maxWidth: 168),
       child: Material(
         color: scheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(rSm),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: () => _open(context),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Flexible(
-                    child: Text(
-                      labelOf(value),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.labelLarge
-                          ?.copyWith(color: scheme.onSurface),
-                    ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(
+                  child: Text(
+                    labelOf(value),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.labelLarge
+                        ?.copyWith(color: scheme.onSurface),
                   ),
-                  const SizedBox(width: 4),
-                  Icon(Icons.arrow_drop_down_rounded,
-                      size: 20, color: scheme.onSurfaceVariant),
-                ],
-              ),
+                ),
+                const SizedBox(width: 4),
+                Icon(Icons.arrow_drop_down_rounded,
+                    size: 20, color: scheme.onSurfaceVariant),
+              ],
             ),
+          ),
         ),
       ),
     );
@@ -56,11 +59,12 @@ class M3ESelect<T> extends StatelessWidget {
   void _open(BuildContext context) {
     final box = context.findRenderObject() as RenderBox?;
     if (box == null) return;
-    final origin = box.localToGlobal(Offset.zero);
+    // anchor to the whole pill
     showM3EMenu(
       context,
-      globalPosition: origin + Offset(0, box.size.height),
-      minWidth: 168,
+      targetRect: box.localToGlobal(Offset.zero) & box.size,
+      alignEnd: true,
+      minWidth: math.max(160, box.size.width),
       maxWidth: 280,
       children: [
         for (final item in items)
