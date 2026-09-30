@@ -13,7 +13,8 @@ class TrackListItem extends StatelessWidget {
   final List<Track>? playlist;
   final String? playlistId;
 
-  final bool grouped;
+  final int slot;
+  final int count;
 
   const TrackListItem({
     super.key,
@@ -21,7 +22,8 @@ class TrackListItem extends StatelessWidget {
     this.index,
     this.playlist,
     this.playlistId,
-    this.grouped = false,
+    this.slot = -1,
+    this.count = 0,
   });
 
   @override
@@ -32,11 +34,23 @@ class TrackListItem extends StatelessWidget {
         final isCurrent = audio.currentTrack?.id == track.id;
         final colorScheme = Theme.of(context).colorScheme;
 
+        const outer = Radius.circular(rMd);
+        const inner = Radius.circular(12);
+        final radius = slot < 0
+            ? BorderRadius.circular(rMd)
+            : slot == 0
+                ? const BorderRadius.vertical(top: outer, bottom: inner)
+                : slot == count - 1
+                    ? const BorderRadius.vertical(top: inner, bottom: outer)
+                    : BorderRadius.all(inner);
+
         return Padding(
-          padding: EdgeInsets.symmetric(vertical: grouped ? 0 : 4),
+          padding: EdgeInsets.symmetric(vertical: 2),
           child: Material(
-            color: Colors.transparent,
-            borderRadius: BorderRadius.circular(rMd),
+            color:
+                slot < 0 ? Colors.transparent : colorScheme.surfaceContainerLow,
+            borderRadius: radius,
+            clipBehavior: Clip.antiAlias,
             child: InkWell(
               onTap: () {
                 final library = Provider.of<LibraryProvider>(

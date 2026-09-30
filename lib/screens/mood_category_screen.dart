@@ -130,7 +130,7 @@ class _MoodCategoryScreenState extends State<MoodCategoryScreen> {
           )
         else
           SizedBox(
-            height: 246,
+            height: ArtCard.heightFor(152 * 1.28),
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               itemCount: items.length,

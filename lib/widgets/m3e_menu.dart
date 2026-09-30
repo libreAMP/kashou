@@ -1,6 +1,6 @@
-import 'package:flutter/material.dart';
+import 'dart:math' as math;
 
-import '../theme/radii.dart';
+import 'package:flutter/material.dart';
 
 class M3EMenuItem {
   const M3EMenuItem({
@@ -27,20 +27,7 @@ class M3EMenu extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Material(
-      color: scheme.surfaceContainerHigh,
-      borderRadius: BorderRadius.circular(rMd),
-      clipBehavior: Clip.antiAlias,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(rMd),
-          border:
-              Border.all(color: scheme.outlineVariant.withValues(alpha: 0.4)),
-        ),
-        child: Column(mainAxisSize: MainAxisSize.min, children: children),
-      ),
-    );
+    return Column(mainAxisSize: MainAxisSize.min, children: children);
   }
 }
 
@@ -136,23 +123,40 @@ Future<void> showM3EMenu(
   BuildContext context, {
   required Offset globalPosition,
   required List<Widget> children,
+  double minWidth = 160,
+  double maxWidth = 280,
 }) {
-  final overlay = Overlay.of(context).context.findRenderObject()! as RenderBox;
+  final scheme = Theme.of(context).colorScheme;
+  final screen = Overlay.of(context).context.size!;
   return showMenu<void>(
     context: context,
-    color: Colors.transparent,
+    color: scheme.surfaceContainerHigh,
     elevation: 0,
     surfaceTintColor: Colors.transparent,
-    position: RelativeRect.fromRect(
-      globalPosition & const Size(1, 1),
-      Offset.zero & overlay.size,
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    constraints: BoxConstraints(
+      minWidth: minWidth,
+      maxWidth: maxWidth,
     ),
-    items: [
-      PopupMenuItem<void>(
-        padding: EdgeInsets.zero,
-        enabled: false,
-        child: IgnorePointer(child: M3EMenu(children: children)),
-      ),
-    ],
+    position: RelativeRect.fromLTRB(
+      globalPosition.dx,
+      globalPosition.dy,
+      math.max(0, globalPosition.dx + minWidth - screen.width),
+      screen.height - globalPosition.dy,
+    ),
+    items: children
+        .whereType<M3EMenuRow>()
+        .map((row) => PopupMenuItem<void>(
+              padding: EdgeInsets.zero,
+              enabled: false,
+              height: 48,
+              child: row.item.onTap == null
+                  ? row
+                  : InkWell(
+                      onTap: row.item.onTap,
+                      child: row,
+                    ),
+            ))
+        .toList(),
   );
 }

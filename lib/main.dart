@@ -5,6 +5,7 @@ import 'package:flutter_displaymode/flutter_displaymode.dart';
 import 'utils/app_messenger.dart';
 import 'utils/now_playing_modal.dart';
 import 'utils/platform.dart';
+import 'utils/sheet_scope.dart';
 import 'utils/smooth_scroll.dart';
 import 'utils/toast.dart';
 import 'package:flutter/services.dart';
@@ -121,132 +122,127 @@ class KashouApp extends StatelessWidget {
       ],
       child: _ArtSeedWatcher(
         child: Consumer2<ThemeProvider, SettingsProvider>(
-        builder: (context, themeProvider, settingsProvider, child) {
-          return DynamicColorBuilder(
-            // dynamic_color 2.x types its schemes from package:material_ui
-            // rather than flutter/material, so the two ColorScheme types are
-            // unrelated. Only the seed colour is wanted, and Color is the
-            // shared dart:ui type, so read that field off the plugin's own
-            // scheme and rebuild a flutter ColorScheme from it.
-            builder: (dynamic lightDynamic, dynamic darkDynamic) {
-              final lightPrimary = lightDynamic?.primary as Color?;
-              final darkPrimary = darkDynamic?.primary as Color?;
+          builder: (context, themeProvider, settingsProvider, child) {
+            return DynamicColorBuilder(
+              builder: (dynamic lightDynamic, dynamic darkDynamic) {
+                final lightPrimary = lightDynamic?.primary as Color?;
+                final darkPrimary = darkDynamic?.primary as Color?;
 
-              ColorScheme lightColorScheme;
-              ColorScheme darkColorScheme;
+                ColorScheme lightColorScheme;
+                ColorScheme darkColorScheme;
 
-              final artSeed = themeProvider.artSeed;
-              final seed = themeProvider.themeSource == 'art' && artSeed != null
-                  ? artSeed
-                  : themeProvider.accentColor;
-              if (themeProvider.themeSource == 'system' &&
-                  lightPrimary != null &&
-                  darkPrimary != null) {
-                // reseed, the os scheme ships flat surfaces
-                lightColorScheme = ColorScheme.fromSeed(
-                  seedColor: _launchShift(lightPrimary),
-                  brightness: Brightness.light,
-                );
-                darkColorScheme = ColorScheme.fromSeed(
-                  seedColor: _launchShift(darkPrimary),
-                  brightness: Brightness.dark,
-                );
-              } else {
-                lightColorScheme = ColorScheme.fromSeed(
-                  seedColor: seed,
-                  brightness: Brightness.light,
-                );
-                darkColorScheme = ColorScheme.fromSeed(
-                  seedColor: seed,
-                  brightness: Brightness.dark,
-                );
-              }
-
-              TextTheme getTextTheme(ColorScheme colorScheme) {
-                try {
-                  final fontFamily = settingsProvider.fontFamily;
-                  final baseTheme =
-                      ThemeData(colorScheme: colorScheme).textTheme;
-
-                  switch (fontFamily) {
-                    case 'System':
-                      return baseTheme;
-                    case 'Google Sans Flex':
-                      return GoogleFonts.googleSansFlexTextTheme(baseTheme);
-                    case 'DM Sans':
-                      return GoogleFonts.dmSansTextTheme(baseTheme);
-                    case 'Manrope':
-                      return GoogleFonts.manropeTextTheme(baseTheme);
-                    case 'Inter':
-                      return GoogleFonts.interTextTheme(baseTheme);
-                    case 'Work Sans':
-                      return GoogleFonts.workSansTextTheme(baseTheme);
-                    case 'Roboto':
-                      return GoogleFonts.robotoTextTheme(baseTheme);
-                    case 'Poppins':
-                      return GoogleFonts.poppinsTextTheme(baseTheme);
-                    case 'Montserrat':
-                      return GoogleFonts.montserratTextTheme(baseTheme);
-                    case 'Lato':
-                      return GoogleFonts.latoTextTheme(baseTheme);
-                    case 'Nunito':
-                      return GoogleFonts.nunitoTextTheme(baseTheme);
-                    case 'Open Sans':
-                      return GoogleFonts.openSansTextTheme(baseTheme);
-                    case 'Raleway':
-                      return GoogleFonts.ralewayTextTheme(baseTheme);
-                    case 'Quicksand':
-                      return GoogleFonts.quicksandTextTheme(baseTheme);
-                    case 'Ubuntu':
-                      return GoogleFonts.ubuntuTextTheme(baseTheme);
-                    case 'Source Sans Pro':
-                      return GoogleFonts.openSansTextTheme(baseTheme);
-                    case 'Playfair Display':
-                      return GoogleFonts.playfairDisplayTextTheme(baseTheme);
-                    case 'Merriweather':
-                      return GoogleFonts.merriweatherTextTheme(baseTheme);
-                    case 'Oswald':
-                      return GoogleFonts.oswaldTextTheme(baseTheme);
-                    case 'Bebas Neue':
-                      return GoogleFonts.bebasNeueTextTheme(baseTheme);
-                    case 'Pacifico':
-                      return GoogleFonts.pacificoTextTheme(baseTheme);
-                    case 'Lobster':
-                      return GoogleFonts.lobsterTextTheme(baseTheme);
-                    default:
-                      return baseTheme;
-                  }
-                } catch (e) {
-                  return ThemeData(colorScheme: colorScheme).textTheme;
+                final artSeed = themeProvider.artSeed;
+                final seed =
+                    themeProvider.themeSource == 'art' && artSeed != null
+                        ? artSeed
+                        : themeProvider.accentColor;
+                if (themeProvider.themeSource == 'system' &&
+                    lightPrimary != null &&
+                    darkPrimary != null) {
+                  lightColorScheme = ColorScheme.fromSeed(
+                    seedColor: _launchShift(lightPrimary),
+                    brightness: Brightness.light,
+                  );
+                  darkColorScheme = ColorScheme.fromSeed(
+                    seedColor: _launchShift(darkPrimary),
+                    brightness: Brightness.dark,
+                  );
+                } else {
+                  lightColorScheme = ColorScheme.fromSeed(
+                    seedColor: seed,
+                    brightness: Brightness.light,
+                  );
+                  darkColorScheme = ColorScheme.fromSeed(
+                    seedColor: seed,
+                    brightness: Brightness.dark,
+                  );
                 }
-              }
 
-              return MaterialApp(
-                title: 'Kashou',
-                scrollBehavior: const KashouScrollBehavior(),
-                navigatorKey: toastNavigatorKey,
-                scaffoldMessengerKey: appMessenger,
-                debugShowCheckedModeBanner: false,
-                themeMode: themeProvider.themeMode,
-                theme: buildKashouTheme(
-                  lightColorScheme,
-                  getTextTheme(lightColorScheme),
-                ),
-                darkTheme: buildKashouTheme(
-                  darkColorScheme,
-                  getTextTheme(darkColorScheme),
-                ),
-                home: const SplashScreen(),
-                routes: {
-                  '/welcome': (context) => const WelcomeScreen(),
-                  '/home': (context) => const MainNavigationScreen(),
-                  '/now-playing': (context) => const NowPlayingScreen(),
-                  '/settings': (context) => const SettingsScreen(),
-                },
-              );
-            },
-          );
-        },
+                TextTheme getTextTheme(ColorScheme colorScheme) {
+                  try {
+                    final fontFamily = settingsProvider.fontFamily;
+                    final baseTheme =
+                        ThemeData(colorScheme: colorScheme).textTheme;
+
+                    switch (fontFamily) {
+                      case 'System':
+                        return baseTheme;
+                      case 'Google Sans Flex':
+                        return GoogleFonts.googleSansFlexTextTheme(baseTheme);
+                      case 'DM Sans':
+                        return GoogleFonts.dmSansTextTheme(baseTheme);
+                      case 'Manrope':
+                        return GoogleFonts.manropeTextTheme(baseTheme);
+                      case 'Inter':
+                        return GoogleFonts.interTextTheme(baseTheme);
+                      case 'Work Sans':
+                        return GoogleFonts.workSansTextTheme(baseTheme);
+                      case 'Roboto':
+                        return GoogleFonts.robotoTextTheme(baseTheme);
+                      case 'Poppins':
+                        return GoogleFonts.poppinsTextTheme(baseTheme);
+                      case 'Montserrat':
+                        return GoogleFonts.montserratTextTheme(baseTheme);
+                      case 'Lato':
+                        return GoogleFonts.latoTextTheme(baseTheme);
+                      case 'Nunito':
+                        return GoogleFonts.nunitoTextTheme(baseTheme);
+                      case 'Open Sans':
+                        return GoogleFonts.openSansTextTheme(baseTheme);
+                      case 'Raleway':
+                        return GoogleFonts.ralewayTextTheme(baseTheme);
+                      case 'Quicksand':
+                        return GoogleFonts.quicksandTextTheme(baseTheme);
+                      case 'Ubuntu':
+                        return GoogleFonts.ubuntuTextTheme(baseTheme);
+                      case 'Source Sans Pro':
+                        return GoogleFonts.openSansTextTheme(baseTheme);
+                      case 'Playfair Display':
+                        return GoogleFonts.playfairDisplayTextTheme(baseTheme);
+                      case 'Merriweather':
+                        return GoogleFonts.merriweatherTextTheme(baseTheme);
+                      case 'Oswald':
+                        return GoogleFonts.oswaldTextTheme(baseTheme);
+                      case 'Bebas Neue':
+                        return GoogleFonts.bebasNeueTextTheme(baseTheme);
+                      case 'Pacifico':
+                        return GoogleFonts.pacificoTextTheme(baseTheme);
+                      case 'Lobster':
+                        return GoogleFonts.lobsterTextTheme(baseTheme);
+                      default:
+                        return baseTheme;
+                    }
+                  } catch (e) {
+                    return ThemeData(colorScheme: colorScheme).textTheme;
+                  }
+                }
+
+                return MaterialApp(
+                  title: 'Kashou',
+                  scrollBehavior: const KashouScrollBehavior(),
+                  navigatorKey: toastNavigatorKey,
+                  scaffoldMessengerKey: appMessenger,
+                  debugShowCheckedModeBanner: false,
+                  themeMode: themeProvider.themeMode,
+                  theme: buildKashouTheme(
+                    lightColorScheme,
+                    getTextTheme(lightColorScheme),
+                  ),
+                  darkTheme: buildKashouTheme(
+                    darkColorScheme,
+                    getTextTheme(darkColorScheme),
+                  ),
+                  home: const SplashScreen(),
+                  routes: {
+                    '/welcome': (context) => const WelcomeScreen(),
+                    '/home': (context) => const MainNavigationScreen(),
+                    '/now-playing': (context) => const NowPlayingScreen(),
+                    '/settings': (context) => const SettingsScreen(),
+                  },
+                );
+              },
+            );
+          },
         ),
       ),
     );
@@ -267,7 +263,8 @@ class _ArtSeedWatcherState extends State<_ArtSeedWatcher> {
 
   @override
   Widget build(BuildContext context) {
-    final art = context.select<AudioProvider, Uint8List?>((p) => p.currentTrack?.albumArt);
+    final art = context
+        .select<AudioProvider, Uint8List?>((p) => p.currentTrack?.albumArt);
     final source = context.select<ThemeProvider, String>((p) => p.themeSource);
     if (source == 'art' && art != null && !identical(art, _last)) {
       _last = art;
@@ -326,7 +323,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
       });
       channel.invokeMethod<String>('consumeLink').then((link) {
         if (link != null && mounted) {
-          WidgetsBinding.instance.addPostFrameCallback((_) => _handleLink(link));
+          WidgetsBinding.instance
+              .addPostFrameCallback((_) => _handleLink(link));
         }
       });
     }
@@ -335,7 +333,10 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
   void _handleLink(String url) {
     final uri = Uri.tryParse(url);
     if (uri == null) return;
-    final id = uri.queryParameters['v'] ?? (uri.host.contains('youtu.be') && uri.pathSegments.isNotEmpty ? uri.pathSegments.first : null);
+    final id = uri.queryParameters['v'] ??
+        (uri.host.contains('youtu.be') && uri.pathSegments.isNotEmpty
+            ? uri.pathSegments.first
+            : null);
     final list = uri.queryParameters['list'];
     if (id != null && id.isNotEmpty) {
       setState(() => _selectedIndex = 0);
@@ -394,8 +395,10 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
             title: s['title'] as String? ?? 'Unknown',
             artist: s['channel'] as String? ?? 'Unknown',
             album: '',
-            path: s['url'] as String? ?? 'https://www.youtube.com/watch?v=${s['id']}',
-            sourceUrl: s['url'] as String? ?? 'https://www.youtube.com/watch?v=${s['id']}',
+            path: s['url'] as String? ??
+                'https://www.youtube.com/watch?v=${s['id']}',
+            sourceUrl: s['url'] as String? ??
+                'https://www.youtube.com/watch?v=${s['id']}',
             duration: Duration.zero,
           ),
       ],
@@ -579,82 +582,83 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
     return PopScope(
       canPop: !_isSheetOpen,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop && _sheetController.value > 0) {
-          _collapseNowPlaying();
-        }
+        if (!didPop) _collapseNowPlaying();
       },
-      child: Scaffold(
-        resizeToAvoidBottomInset: false,
-        extendBody: true,
-        body: Stack(
-          children: [
-            body,
-            AnimatedBuilder(
-              animation: _sheetController,
-              builder: (context, _) {
-                final t = _sheetController.value;
-                if (t == 0) return const SizedBox.shrink();
-                final mq = MediaQuery.of(context);
-                return Transform.translate(
-                  offset: Offset(0, (1.0 - t) * screenHeight),
-                  child: RepaintBoundary(
-                    child: MediaQuery(
-                      data: mq.copyWith(padding: mq.viewPadding),
-                      child: SizedBox(
-                        height: screenHeight,
-                        width: mq.size.width,
-                        child: NowPlayingScreen(
-                          onCollapse: _collapseNowPlaying,
-                          onCollapseDragUpdate: _onNowPlayingCollapseDragUpdate,
-                          onCollapseDragEnd: _onNowPlayingCollapseDragEnd,
+      child: SheetScope(
+        open: _isSheetOpen,
+        child: Scaffold(
+          resizeToAvoidBottomInset: false,
+          extendBody: true,
+          body: Stack(
+            children: [
+              body,
+              AnimatedBuilder(
+                animation: _sheetController,
+                builder: (context, _) {
+                  final t = _sheetController.value;
+                  if (t == 0) return const SizedBox.shrink();
+                  final mq = MediaQuery.of(context);
+                  return Transform.translate(
+                    offset: Offset(0, (1.0 - t) * screenHeight),
+                    child: RepaintBoundary(
+                      child: MediaQuery(
+                        data: mq.copyWith(padding: mq.viewPadding),
+                        child: SizedBox(
+                          height: screenHeight,
+                          width: mq.size.width,
+                          child: NowPlayingScreen(
+                            onCollapse: _collapseNowPlaying,
+                            onCollapseDragUpdate:
+                                _onNowPlayingCollapseDragUpdate,
+                            onCollapseDragEnd: _onNowPlayingCollapseDragEnd,
+                          ),
                         ),
                       ),
                     ),
+                  );
+                },
+              ),
+            ],
+          ),
+          bottomNavigationBar: AnimatedBuilder(
+            animation: _sheetController,
+            builder: (context, child) {
+              final t = _sheetController.value;
+              if (t >= 1.0) return const SizedBox.shrink();
+              return Transform.translate(
+                offset: Offset(0, t * 140),
+                child: Opacity(
+                  opacity: (1.0 - t * 2.5).clamp(0.0, 1.0),
+                  child: IgnorePointer(
+                    ignoring: t > 0.1,
+                    child: child,
                   ),
+                ),
+              );
+            },
+            child: Selector<AudioProvider, bool>(
+              selector: (_, audio) => audio.currentTrack != null,
+              builder: (context, hasTrack, child) {
+                final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
+                if (keyboardHeight > 0) return const SizedBox.shrink();
+                final route = ModalRoute.of(context);
+                final isModalOpen = route != null && !route.isFirst;
+                final hasPlayer = hasTrack && _showMiniPlayer && !isModalOpen;
+                return PlayerNavBar(
+                  items: _navItems,
+                  selectedIndex: _selectedIndex,
+                  onDestinationSelected: _onItemTapped,
+                  hasPlayer: hasPlayer,
+                  onPlayerTap: _openNowPlaying,
+                  onPlayerDismiss: _dismissMiniPlayer,
+                  onPlayerExpandDragUpdate: _onPlayerExpandDragUpdate,
+                  onPlayerExpandDragEnd: _onPlayerExpandDragEnd,
                 );
               },
             ),
-          ],
-        ),
-        bottomNavigationBar: AnimatedBuilder(
-          animation: _sheetController,
-          builder: (context, child) {
-            final t = _sheetController.value;
-            if (t >= 1.0) return const SizedBox.shrink();
-            return Transform.translate(
-              offset: Offset(0, t * 140),
-              child: Opacity(
-                opacity: (1.0 - t * 2.5).clamp(0.0, 1.0),
-                child: IgnorePointer(
-                  ignoring: t > 0.1,
-                  child: child,
-                ),
-              ),
-            );
-          },
-          child: Selector<AudioProvider, bool>(
-            selector: (_, audio) => audio.currentTrack != null,
-            builder: (context, hasTrack, child) {
-              final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
-              if (keyboardHeight > 0) return const SizedBox.shrink();
-              final route = ModalRoute.of(context);
-              final isModalOpen = route != null && !route.isFirst;
-              final hasPlayer = hasTrack && _showMiniPlayer && !isModalOpen;
-              return PlayerNavBar(
-                items: _navItems,
-                selectedIndex: _selectedIndex,
-                onDestinationSelected: _onItemTapped,
-                hasPlayer: hasPlayer,
-                onPlayerTap: _openNowPlaying,
-                onPlayerDismiss: _dismissMiniPlayer,
-                onPlayerExpandDragUpdate: _onPlayerExpandDragUpdate,
-                onPlayerExpandDragEnd: _onPlayerExpandDragEnd,
-              );
-            },
           ),
         ),
       ),
     );
   }
 }
-

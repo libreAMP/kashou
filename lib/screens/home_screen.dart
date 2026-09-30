@@ -10,7 +10,6 @@ import '../widgets/album_card.dart';
 import '../widgets/track_options_sheet.dart';
 import 'track_list_page.dart';
 import '../models/track.dart';
-import '../theme/app_theme.dart';
 import '../theme/radii.dart';
 import '../utils/platform.dart';
 import 'search_screen.dart';
@@ -86,9 +85,9 @@ class HomeScreen extends StatelessWidget {
           Expanded(
             child: Material(
               color: scheme.surfaceContainerHigh,
-              borderRadius: BorderRadius.circular(rLg),
+              borderRadius: BorderRadius.circular(rFull),
               child: InkWell(
-                borderRadius: BorderRadius.circular(rLg),
+                borderRadius: BorderRadius.circular(rFull),
                 onTap: () => Navigator.push(
                   context,
                   PageRouteBuilder(
@@ -155,77 +154,107 @@ class HomeScreen extends StatelessWidget {
   }
 
   Widget _buildQuickActions(BuildContext context) {
+    final library = Provider.of<LibraryProvider>(context, listen: false);
+    final audio = Provider.of<AudioProvider>(context, listen: false);
+    final tracks = library.allTracks;
+
+    void shuffle() {
+      if (tracks.isEmpty) return;
+      final shuffled = List<Track>.from(tracks)..shuffle();
+      audio.playTrack(shuffled.first, playlist: shuffled);
+    }
+
+    void playAll() {
+      if (tracks.isEmpty) return;
+      audio.playTrack(tracks.first, playlist: tracks);
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionHeader(
-          context,
-          title: 'Quick Actions',
-        ),
+        _buildSectionHeader(context, title: 'Quick Actions'),
         const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: FilledButton.tonalIcon(
-                onPressed: () {
-                  final library = Provider.of<LibraryProvider>(
-                    context,
-                    listen: false,
-                  );
-                  final audio = Provider.of<AudioProvider>(
-                    context,
-                    listen: false,
-                  );
-
-                  if (library.allTracks.isNotEmpty) {
-                    final shuffled = List<Track>.from(library.allTracks)
-                      ..shuffle();
-                    audio.playTrack(shuffled.first, playlist: shuffled);
-                  }
-                },
-                icon: const Icon(Icons.shuffle_rounded),
-                label: const Text('Shuffle all'),
-                style: FilledButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: EShape.radius(EShape.xl),
-                  ),
+        IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                flex: 3,
+                child: _actionCard(
+                  context,
+                  icon: Icons.shuffle_rounded,
+                  title: 'Shuffle all',
+                  subtitle: tracks.isEmpty
+                      ? 'Nothing in the library'
+                      : '${tracks.length} tracks in library',
+                  onTap: shuffle,
                 ),
               ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: FilledButton.icon(
-                onPressed: () {
-                  final library = Provider.of<LibraryProvider>(
-                    context,
-                    listen: false,
-                  );
-                  final audio = Provider.of<AudioProvider>(
-                    context,
-                    listen: false,
-                  );
-
-                  if (library.allTracks.isNotEmpty) {
-                    audio.playTrack(
-                      library.allTracks.first,
-                      playlist: library.allTracks,
-                    );
-                  }
-                },
-                icon: const Icon(Icons.play_arrow_rounded),
-                label: const Text('Play library'),
-                style: FilledButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: EShape.radius(EShape.xl),
-                  ),
+              const SizedBox(width: 10),
+              Expanded(
+                flex: 4,
+                child: _actionCard(
+                  context,
+                  icon: Icons.play_arrow_rounded,
+                  title: 'Play library',
+                  subtitle: tracks.isEmpty
+                      ? 'Add some music first'
+                      : 'Play in order',
+                  onTap: playAll,
+                  primary: true,
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ],
+    );
+  }
+
+  Widget _actionCard(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+    bool primary = false,
+  }) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final fg = primary ? scheme.onPrimaryContainer : scheme.onSurfaceVariant;
+    return Material(
+      color: primary ? scheme.primaryContainer : scheme.surfaceContainerLow,
+      borderRadius: BorderRadius.circular(rLg),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Icon(icon, size: 22, color: fg),
+              const SizedBox(height: 10),
+              Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.titleMedium?.copyWith(
+                    color: scheme.onSurface, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style:
+                    theme.textTheme.bodySmall?.copyWith(color: fg, height: 1.2),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -284,8 +313,25 @@ class HomeScreen extends StatelessWidget {
               )),
             ),
             const SizedBox(height: 12),
-            _buildTrackCardShelf(context, recentTracks),
+            _buildRecentlyAddedList(context, recentTracks),
           ],
+        );
+      },
+    );
+  }
+
+  Widget _buildRecentlyAddedList(BuildContext context, List<Track> tracks) {
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      padding: EdgeInsets.zero,
+      itemCount: tracks.length,
+      itemBuilder: (context, index) {
+        return TrackListItem(
+          track: tracks[index],
+          playlist: tracks,
+          slot: index,
+          count: tracks.length,
         );
       },
     );
@@ -464,10 +510,22 @@ class HomeScreen extends StatelessWidget {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
 
-    Widget fallback() => Container(
-          color: scheme.surfaceContainerHighest,
-          alignment: Alignment.center,
-          child: Icon(Icons.music_note, color: scheme.onSurfaceVariant),
+    Widget fallback() => DecoratedBox(
+          decoration: BoxDecoration(
+            color: scheme.surfaceContainerHigh,
+            borderRadius: BorderRadius.circular(rLg),
+          ),
+          child: Center(
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: scheme.secondaryContainer,
+                borderRadius: BorderRadius.circular(rMd),
+              ),
+              child: Icon(Icons.music_note_rounded,
+                  size: 24, color: scheme.onSecondaryContainer),
+            ),
+          ),
         );
 
     return InkWell(
@@ -539,39 +597,49 @@ class HomeScreen extends StatelessWidget {
                 ),
           ),
         ),
-        Row(
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
           children: [
-            _chip(context, Icons.music_note_rounded, '$trackCount songs'),
-            const SizedBox(width: 8),
-            _chip(context, Icons.album_rounded, '$albumCount albums'),
-            const SizedBox(width: 8),
-            _chip(context, Icons.person_rounded, '$artistCount artists'),
+            _chip(context, Icons.music_note_rounded, trackCount, 'songs'),
+            _chip(context, Icons.album_rounded, albumCount, 'albums'),
+            _chip(context, Icons.person_rounded, artistCount, 'artists'),
           ],
         ),
       ],
     );
   }
 
-  Widget _chip(BuildContext context, IconData icon, String label) {
-    final scheme = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: scheme.surfaceContainerHigh,
-        borderRadius: EShape.radius(EShape.sm),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 16, color: scheme.onSurfaceVariant),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  color: scheme.onSurfaceVariant,
-                ),
-          ),
-        ],
+  Widget _chip(BuildContext context, IconData icon, int count, String label) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
+    return Material(
+      color: scheme.surfaceContainerHigh,
+      borderRadius: BorderRadius.circular(rSm),
+      clipBehavior: Clip.antiAlias,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(8, 8, 12, 8),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 18, color: scheme.onSurfaceVariant),
+            const SizedBox(width: 8),
+            Text(
+              '$count',
+              style: theme.textTheme.labelLarge?.copyWith(
+                color: scheme.onSurface,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: theme.textTheme.labelLarge
+                  ?.copyWith(color: scheme.onSurfaceVariant),
+            ),
+          ],
+        ),
       ),
     );
   }

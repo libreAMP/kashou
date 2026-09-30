@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../theme/radii.dart';
-
 class M3EListRow extends StatefulWidget {
   const M3EListRow({
     super.key,
@@ -97,43 +95,6 @@ class _M3EListRowState extends State<M3EListRow> {
           ),
         ),
       ),
-    );
-  }
-}
-
-class M3EListGroup extends StatelessWidget {
-  const M3EListGroup({super.key, required this.children});
-
-  final List<Widget> children;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: scheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(rMd),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(rMd),
-        child: Column(mainAxisSize: MainAxisSize.min, children: children),
-      ),
-    );
-  }
-}
-
-class M3EListDivider extends StatelessWidget {
-  const M3EListDivider({super.key, this.indent = 0});
-
-  final double indent;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Padding(
-      padding: EdgeInsets.only(left: indent),
-      child: Divider(
-          height: 1, color: scheme.outlineVariant.withValues(alpha: 0.4)),
     );
   }
 }

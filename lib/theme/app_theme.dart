@@ -1,14 +1,5 @@
 import 'package:flutter/material.dart';
-
-// expressive shape scale, kept apart from the legacy radii.dart so nothing breaks
-abstract class EShape {
-  static const double sm = 16;
-  static const double md = 24;
-  static const double lg = 28;
-  static const double xl = 36;
-
-  static BorderRadius radius(double r) => BorderRadius.circular(r);
-}
+import 'radii.dart';
 
 // m3 expressive motion tokens
 abstract class EMotion {
@@ -83,7 +74,7 @@ ThemeData buildKashouTheme(ColorScheme scheme, TextTheme text) {
     textTheme: boldText,
     splashFactory: InkSparkle.splashFactory,
     dialogTheme: DialogThemeData(
-      shape: RoundedRectangleBorder(borderRadius: EShape.radius(EShape.lg)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(rXl)),
       titleTextStyle: boldText.headlineMedium?.copyWith(
         color: scheme.onSurface,
         fontWeight: FontWeight.w800,
@@ -98,7 +89,7 @@ ThemeData buildKashouTheme(ColorScheme scheme, TextTheme text) {
     bottomSheetTheme: BottomSheetThemeData(
       backgroundColor: scheme.surfaceContainerHigh,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(EShape.lg)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(rXl)),
       ),
     ),
     dividerTheme: DividerThemeData(
@@ -111,7 +102,7 @@ ThemeData buildKashouTheme(ColorScheme scheme, TextTheme text) {
       surfaceTintColor: Colors.transparent,
       elevation: 0,
       shape: RoundedRectangleBorder(
-        borderRadius: EShape.radius(EShape.md),
+        borderRadius: BorderRadius.circular(rXl),
         side: BorderSide(color: scheme.outlineVariant.withValues(alpha: 0.4)),
       ),
       textStyle: boldText.bodyMedium?.copyWith(color: scheme.onSurface),
@@ -123,7 +114,7 @@ ThemeData buildKashouTheme(ColorScheme scheme, TextTheme text) {
         elevation: const WidgetStatePropertyAll(0),
         shape: WidgetStatePropertyAll(
           RoundedRectangleBorder(
-            borderRadius: EShape.radius(EShape.md),
+            borderRadius: BorderRadius.circular(rXl),
             side: BorderSide(
               color: scheme.outlineVariant.withValues(alpha: 0.4),
             ),

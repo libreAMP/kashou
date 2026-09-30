@@ -11,7 +11,6 @@ import '../models/track.dart';
 import '../providers/library_provider.dart';
 import '../services/download_store.dart';
 import '../services/ytmusic_service.dart';
-import '../theme/app_theme.dart';
 import '../theme/radii.dart';
 import '../widgets/m3e_list.dart';
 import '../widgets/settings_tiles.dart';
@@ -546,10 +545,10 @@ class _LibraryScreenState extends State<LibraryScreen>
   Widget _trackGroup(List<Track> tracks) {
     final rows = <Widget>[];
     for (var i = 0; i < tracks.length; i++) {
-      if (i > 0) rows.add(const M3EListDivider(indent: 62));
-      rows.add(TrackListItem(track: tracks[i], grouped: true));
+      if (i > 0) rows.add(const SizedBox(height: 2));
+      rows.add(TrackListItem(track: tracks[i], slot: i, count: tracks.length));
     }
-    return M3EListGroup(children: rows);
+    return Column(children: rows);
   }
 
   Widget _buildSectionHeader(
@@ -860,7 +859,7 @@ class _LibraryScreenState extends State<LibraryScreen>
     final rows = <Widget>[];
     for (var i = 0; i < playlists.length; i++) {
       final playlist = playlists[i];
-      if (i > 0) rows.add(const M3EListDivider(indent: 60));
+      if (i > 0) rows.add(const SizedBox(height: 2));
       rows.add(
         GestureDetector(
           onSecondaryTapUp: isDesktop
@@ -892,7 +891,7 @@ class _LibraryScreenState extends State<LibraryScreen>
         controller: controller,
         padding: EdgeInsets.fromLTRB(16, 16, 16, bottomPadding),
         children: [
-          M3EListGroup(children: rows),
+          Column(children: rows),
           const SizedBox(height: 24),
         ],
       ),
@@ -1066,7 +1065,7 @@ class _LibraryScreenState extends State<LibraryScreen>
     final scheme = Theme.of(context).colorScheme;
     return Material(
       color: scheme.surfaceContainerHigh,
-      borderRadius: EShape.radius(EShape.lg),
+      borderRadius: BorderRadius.circular(rXl),
       clipBehavior: Clip.antiAlias,
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -1395,7 +1394,7 @@ class _LibraryScreenState extends State<LibraryScreen>
     final scheme = Theme.of(context).colorScheme;
     return Material(
       color: scheme.surfaceContainerHigh,
-      borderRadius: EShape.radius(EShape.lg),
+      borderRadius: BorderRadius.circular(rXl),
       clipBehavior: Clip.antiAlias,
       child: Column(
         mainAxisSize: MainAxisSize.min,

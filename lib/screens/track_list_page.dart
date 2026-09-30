@@ -7,7 +7,6 @@ import 'package:provider/provider.dart';
 
 import '../models/track.dart';
 import '../providers/audio_provider.dart';
-import '../theme/app_theme.dart';
 import '../theme/radii.dart';
 import '../utils/platform.dart';
 import '../widgets/back_chip.dart';
@@ -70,7 +69,7 @@ class _TrackListPageState extends State<TrackListPage> {
       );
     }
     return ClipRRect(
-      borderRadius: EShape.radius(EShape.md),
+      borderRadius: BorderRadius.circular(rXl),
       child: SizedBox(width: 180, height: 180, child: img),
     );
   }
@@ -96,7 +95,7 @@ class _TrackListPageState extends State<TrackListPage> {
     final scheme = Theme.of(context).colorScheme;
     final id = _ytId(track);
     return InkWell(
-      borderRadius: EShape.radius(EShape.md),
+      borderRadius: BorderRadius.circular(rXl),
       onTap: () => context
           .read<AudioProvider>()
           .playTrack(track, playlist: widget.tracks),
@@ -333,7 +332,7 @@ class _TrackListPageState extends State<TrackListPage> {
       style: FilledButton.styleFrom(
         padding: const EdgeInsets.symmetric(vertical: 16),
         shape: RoundedRectangleBorder(
-          borderRadius: EShape.radius(EShape.xl),
+          borderRadius: BorderRadius.circular(rXl),
         ),
       ),
     );
@@ -355,7 +354,7 @@ class _TrackListPageState extends State<TrackListPage> {
       style: FilledButton.styleFrom(
         padding: const EdgeInsets.symmetric(vertical: 16),
         shape: RoundedRectangleBorder(
-          borderRadius: EShape.radius(EShape.xl),
+          borderRadius: BorderRadius.circular(rXl),
         ),
       ),
     );
@@ -367,7 +366,7 @@ class _TrackListPageState extends State<TrackListPage> {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: scheme.surfaceContainerHigh,
-        borderRadius: EShape.radius(EShape.sm),
+        borderRadius: BorderRadius.circular(rLg),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,

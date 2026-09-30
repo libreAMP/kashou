@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 
 import '../theme/app_theme.dart';
+import '../theme/radii.dart';
 import 'mini_player.dart';
 
 class NavItem {
@@ -102,8 +103,8 @@ class _PlayerNavBarState extends State<PlayerNavBar>
     final bottomInset = MediaQuery.of(context).padding.bottom;
     final t = (_expandAnim.value * (1 - _slide)).clamp(0.0, 1.0);
     final radius = BorderRadius.vertical(
-      top: Radius.circular(EShape.xl + (EShape.sm - EShape.xl) * t),
-      bottom: const Radius.circular(EShape.xl),
+      top: Radius.circular(rXl + (rLg - rXl) * t),
+      bottom: const Radius.circular(rXl),
     );
     final maxW = MediaQuery.of(context).size.width - 32;
     final compact = _compactWidth;
@@ -252,7 +253,7 @@ class _NavBubble extends StatelessWidget {
             : (hovered
                 ? scheme.onSurface.withValues(alpha: 0.08)
                 : Colors.transparent),
-        borderRadius: BorderRadius.circular(EShape.xl),
+        borderRadius: BorderRadius.circular(rXl),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -271,9 +272,9 @@ class _NavBubble extends StatelessWidget {
                     child: Text(
                       item.label,
                       style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                        color: tint,
-                        fontWeight: FontWeight.w600,
-                      ),
+                            color: tint,
+                            fontWeight: FontWeight.w600,
+                          ),
                     ),
                   )
                 : const SizedBox.shrink(),
@@ -284,9 +285,7 @@ class _NavBubble extends StatelessWidget {
   }
 }
 
-// desktop side rail: compact icon-only pill, same bubble language as the
-// bottom bar. Navigation only - the player lives in the full-width dock below.
-class PlayerNavRail extends StatelessWidget {
+class PlayerNavRail extends StatefulWidget {
   const PlayerNavRail({
     super.key,
     required this.items,
@@ -299,48 +298,60 @@ class PlayerNavRail extends StatelessWidget {
   final ValueChanged<int> onDestinationSelected;
 
   @override
+  State<PlayerNavRail> createState() => _PlayerNavRailState();
+}
+
+class _PlayerNavRailState extends State<PlayerNavRail> {
+  bool _extended = false;
+
+  @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final padding = MediaQuery.of(context).padding;
-    final radius = BorderRadius.circular(32);
 
     return Padding(
       padding:
-          EdgeInsets.fromLTRB(12, 12 + padding.top, 0, 12 + padding.bottom),
-      child: Center(
-        child: Container(
-          width: 64,
+          EdgeInsets.fromLTRB(12, 12 + padding.top, 12, 12 + padding.bottom),
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _extended = true),
+        onExit: (_) => setState(() => _extended = false),
+        child: AnimatedContainer(
+          duration: EMotion.medium,
+          curve: EMotion.standard,
+          clipBehavior: Clip.antiAlias,
           decoration: BoxDecoration(
             color: scheme.surfaceContainerHigh,
-            borderRadius: radius,
+            borderRadius: BorderRadius.circular(32),
             border: Border.all(
               color: scheme.outlineVariant.withValues(alpha: 0.4),
-              width: 1,
             ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.06),
-                blurRadius: 10,
-                offset: const Offset(0, 2),
-              ),
-            ],
           ),
-          padding: const EdgeInsets.all(7),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              for (var i = 0; i < items.length; i++) ...[
-                if (i > 0) const SizedBox(height: 8),
-                Tooltip(
-                  message: items[i].label,
-                  waitDuration: const Duration(milliseconds: 400),
-                  child: _RailNavItem(
-                    item: items[i],
-                    selected: i == selectedIndex,
-                    onTap: () => onDestinationSelected(i),
-                  ),
+          child: NavigationRail(
+            selectedIndex: widget.selectedIndex,
+            extended: _extended,
+            minWidth: 64,
+            minExtendedWidth: 184,
+            backgroundColor: Colors.transparent,
+            labelType: _extended
+                ? NavigationRailLabelType.none
+                : NavigationRailLabelType.selected,
+            groupAlignment: -0.85,
+            useIndicator: true,
+            indicatorColor: scheme.primaryContainer,
+            selectedIconTheme: IconThemeData(color: scheme.onPrimaryContainer),
+            unselectedIconTheme: IconThemeData(color: scheme.onSurfaceVariant),
+            selectedLabelTextStyle: TextStyle(
+              color: scheme.onSurface,
+              fontWeight: FontWeight.w600,
+            ),
+            onDestinationSelected: widget.onDestinationSelected,
+            destinations: [
+              for (final item in widget.items)
+                NavigationRailDestination(
+                  icon: Icon(item.icon),
+                  selectedIcon: Icon(item.selectedIcon),
+                  label: Text(item.label),
                 ),
-              ],
             ],
           ),
         ),
@@ -366,7 +377,7 @@ class PlayerDockBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final radius = const BorderRadius.vertical(top: Radius.circular(EShape.xl));
+    final radius = const BorderRadius.vertical(top: Radius.circular(rXl));
 
     return ClipRect(
       child: AnimatedAlign(
@@ -374,87 +385,25 @@ class PlayerDockBar extends StatelessWidget {
         heightFactor: hasPlayer ? 1.0 : 0.0,
         duration: EMotion.fast,
         curve: EMotion.standard,
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: radius,
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.25),
-                blurRadius: 20,
-                offset: const Offset(0, -6),
-              ),
-            ],
-          ),
-          child: ClipRRect(
-            borderRadius: radius,
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-              child: Container(
-                color: scheme.surfaceContainerHigh.withValues(alpha: 0.7),
-                child: MiniPlayer(
-                  embedded: true,
-                  onTap: onPlayerTap,
-                  onDismiss: onPlayerDismiss,
+        child: ClipRRect(
+          borderRadius: radius,
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: radius,
+                border: Border(
+                  top: BorderSide(
+                    color: scheme.outlineVariant.withValues(alpha: 0.4),
+                  ),
                 ),
               ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _RailNavItem extends StatefulWidget {
-  const _RailNavItem({
-    required this.item,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final NavItem item;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  State<_RailNavItem> createState() => _RailNavItemState();
-}
-
-class _RailNavItemState extends State<_RailNavItem> {
-  bool _hovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final tint = widget.selected
-        ? scheme.onPrimaryContainer
-        : (_hovered ? scheme.onSurface : scheme.onSurfaceVariant);
-
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: widget.onTap,
-        child: AnimatedContainer(
-          duration: EMotion.medium,
-          curve: EMotion.emphasized,
-          width: 50,
-          height: 50,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: widget.selected
-                ? scheme.primaryContainer
-                : (_hovered
-                    ? scheme.onSurface.withValues(alpha: 0.08)
-                    : Colors.transparent),
-          ),
-          child: Center(
-            child: Icon(
-              widget.selected ? widget.item.selectedIcon : widget.item.icon,
-              color: tint,
-              size: 24,
+              color: scheme.surfaceContainerHigh.withValues(alpha: 0.8),
+              child: MiniPlayer(
+                embedded: true,
+                onTap: onPlayerTap,
+                onDismiss: onPlayerDismiss,
+              ),
             ),
           ),
         ),

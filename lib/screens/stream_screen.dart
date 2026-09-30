@@ -14,8 +14,8 @@ import '../services/ytmusic_service.dart';
 import '../theme/app_theme.dart';
 import '../theme/radii.dart';
 import '../utils/platform.dart';
+import '../utils/sheet_scope.dart';
 import '../widgets/m3e_badge.dart';
-import '../widgets/m3e_list.dart';
 import '../widgets/m3e_refresh.dart';
 import '../widgets/art_card.dart';
 import '../widgets/square_art.dart';
@@ -337,9 +337,9 @@ class _StreamScreenState extends State<StreamScreen>
     final scheme = Theme.of(context).colorScheme;
     final searchActive = _exploreOpen || _currentQuery.isNotEmpty;
 
-    // back steps out of search instead of closing the app
+    // back steps out of search, or lets the root collapse the player
     return PopScope(
-      canPop: !searchActive,
+      canPop: !searchActive && !SheetScope.of(context),
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) _closeSearch();
       },
@@ -442,7 +442,7 @@ class _StreamScreenState extends State<StreamScreen>
                     fillColor: scheme.surfaceContainerHigh,
                     contentPadding: EdgeInsets.zero,
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(rMd),
+                      borderRadius: BorderRadius.circular(rFull),
                       borderSide: BorderSide.none,
                     ),
                   ),
@@ -550,11 +550,14 @@ class _StreamScreenState extends State<StreamScreen>
             padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
             child: _sectionTitle('Songs'),
           ),
-          for (final video
-              in _songsExpanded ? _searchResults : _searchResults.take(5))
+          for (var i = 0; i < (_songsExpanded ? _searchResults.length : 5); i++)
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: _buildSongRow(video),
+              padding: const EdgeInsets.fromLTRB(20, 1, 20, 1),
+              child: _buildSongRow(
+                _searchResults[i],
+                i,
+                _songsExpanded ? _searchResults.length : 5,
+              ),
             ),
           if (!_songsExpanded && _searchResults.length > 5)
             Center(
@@ -593,7 +596,7 @@ class _StreamScreenState extends State<StreamScreen>
             )
           else
             SizedBox(
-              height: 246,
+              height: ArtCard.heightFor(152 * 1.28),
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -638,7 +641,7 @@ class _StreamScreenState extends State<StreamScreen>
             )
           else
             SizedBox(
-              height: 246,
+              height: ArtCard.heightFor(152 * 1.28),
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -738,7 +741,7 @@ class _StreamScreenState extends State<StreamScreen>
         ],
         for (final section in _moodSections) ...[
           _sectionTitle(section['section'] as String? ?? 'Explore'),
-          const SizedBox(height: 12),
+          const SizedBox(height: 24),
           _buildMoodGrid(
               (section['items'] as List).cast<Map<String, dynamic>>()),
           const SizedBox(height: 24),
@@ -878,10 +881,11 @@ class _StreamScreenState extends State<StreamScreen>
                 _buildRecCarousel(
                     'More like what you played', rec.relatedVideos),
               for (var i = 0; i < _homeShelves.length; i++)
-                FadeRise(
-                  index: i,
-                  child: _buildPlaylistShelf(_homeShelves[i]),
-                ),
+                if (_homeShelves[i]['title'] != 'Quick picks')
+                  FadeRise(
+                    index: i,
+                    child: _buildPlaylistShelf(_homeShelves[i]),
+                  ),
             ],
           ),
         ),
@@ -922,7 +926,7 @@ class _StreamScreenState extends State<StreamScreen>
           )
         else
           SizedBox(
-            height: 246,
+            height: ArtCard.heightFor(152 * 1.28),
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -937,7 +941,7 @@ class _StreamScreenState extends State<StreamScreen>
               ),
             ),
           ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 12),
       ],
     );
   }
@@ -945,12 +949,13 @@ class _StreamScreenState extends State<StreamScreen>
   // four song rows per page
   Widget _buildQuickPicks(Map<String, dynamic> shelf) {
     final items = (shelf['items'] as List).cast<Map<String, dynamic>>();
-    final rows = <Widget>[];
-    for (var i = 0; i < items.length; i++) {
-      if (i > 0) rows.add(const M3EListDivider(indent: 68));
-      rows.add(_buildSongRow(items[i]));
-    }
-
+    const rowHeight = 74.0;
+    const gap = 2.0;
+    const pagePadding = 20.0;
+    const rows = 4;
+    // the grid scrolls sideways, so mainAxisExtent is the row width and
+    // crossAxisSpacing is what makes the 2px gap between the four rows
+    final pageWidth = MediaQuery.of(context).size.width;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -960,9 +965,20 @@ class _StreamScreenState extends State<StreamScreen>
               ? shelf['title'] as String
               : 'Quick picks'),
         ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: M3EListGroup(children: rows),
+        SizedBox(
+          height: rows * rowHeight + (rows - 1) * gap + 4,
+          child: GridView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.fromLTRB(pagePadding, 2, pagePadding, 2),
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: rows,
+              mainAxisExtent: pageWidth - 56,
+              mainAxisSpacing: 12,
+              crossAxisSpacing: gap,
+            ),
+            itemCount: items.length,
+            itemBuilder: (_, i) => _buildSongRow(items[i], i % rows, rows),
+          ),
         ),
         const SizedBox(height: 24),
       ],
@@ -999,7 +1015,7 @@ class _StreamScreenState extends State<StreamScreen>
           )
         else
           SizedBox(
-            height: 246,
+            height: ArtCard.heightFor(152 * 1.28),
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -1014,7 +1030,7 @@ class _StreamScreenState extends State<StreamScreen>
               ),
             ),
           ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 12),
       ],
     );
   }
@@ -1028,9 +1044,25 @@ class _StreamScreenState extends State<StreamScreen>
     return '$channel • $views';
   }
 
-  Widget _buildSongRow(Map<String, dynamic> video) {
+  Widget _buildSongRow(
+    Map<String, dynamic> video, [
+    int slot = -1,
+    int count = 1,
+  ]) {
+    if (slot >= 0 && (count <= 1 || slot >= count)) {
+      throw ArgumentError('slot $slot out of range for count $count');
+    }
     final scheme = Theme.of(context).colorScheme;
     final thumb = _videoThumb(video);
+    const outer = Radius.circular(rXl);
+    const inner = Radius.circular(12);
+    final radius = slot < 0
+        ? BorderRadius.all(inner)
+        : slot == 0
+            ? const BorderRadius.vertical(top: outer, bottom: inner)
+            : slot == count - 1
+                ? const BorderRadius.vertical(top: inner, bottom: outer)
+                : BorderRadius.all(inner);
     return Consumer<AudioProvider>(
       builder: (context, audio, _) {
         final isCurrent = audio.currentTrack?.id == video['id'];
@@ -1038,8 +1070,11 @@ class _StreamScreenState extends State<StreamScreen>
         return Material(
           color: isCurrent
               ? scheme.primary.withValues(alpha: 0.12)
-              : Colors.transparent,
+              : scheme.surfaceContainerLow,
+          borderRadius: radius,
+          clipBehavior: Clip.antiAlias,
           child: InkWell(
+            borderRadius: radius,
             onTap: () =>
                 isCurrent ? audio.togglePlayPause() : _playVideo(video),
             onLongPress: () => _showSongSheet(video),

@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../providers/audio_provider.dart';
+import '../theme/radii.dart';
 import '../widgets/equalizer_widget.dart';
 import 'metadata_editor_screen.dart';
 import 'dart:ui';
@@ -894,7 +895,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                     const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
                 decoration: BoxDecoration(
                   color: scheme.surface.withValues(alpha: 0.75),
-                  borderRadius: EShape.radius(EShape.md),
+                  borderRadius: BorderRadius.circular(rXl),
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -1264,14 +1265,14 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     final colorScheme = Theme.of(context).colorScheme;
     return Center(
       child: ClipRRect(
-        borderRadius: EShape.radius(EShape.xl),
+        borderRadius: BorderRadius.circular(rXl),
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
             decoration: BoxDecoration(
               color: colorScheme.surfaceContainerHigh.withValues(alpha: 0.7),
-              borderRadius: EShape.radius(EShape.xl),
+              borderRadius: BorderRadius.circular(rXl),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -1815,7 +1816,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: scheme.surfaceContainerHigh,
-        borderRadius: EShape.radius(EShape.lg),
+        borderRadius: BorderRadius.circular(rXl),
       ),
       child: Row(
         children: [
@@ -1886,7 +1887,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     }
     return Material(
       color: scheme.surfaceContainerHigh,
-      borderRadius: EShape.radius(EShape.lg),
+      borderRadius: BorderRadius.circular(rXl),
       clipBehavior: Clip.antiAlias,
       child: Column(children: rows),
     );

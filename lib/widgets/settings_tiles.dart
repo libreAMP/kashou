@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/app_theme.dart';
+import '../theme/radii.dart';
 
 class SettingsSection extends StatelessWidget {
   const SettingsSection({
@@ -15,7 +16,7 @@ class SettingsSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    const outer = Radius.circular(EShape.lg);
+    const outer = Radius.circular(rXl);
     const inner = Radius.circular(12);
     final rows = <Widget>[];
     for (var i = 0; i < children.length; i++) {
@@ -32,7 +33,7 @@ class SettingsSection extends StatelessWidget {
       }
       rows.add(
         Material(
-          color: scheme.surfaceContainerHigh,
+          color: scheme.surfaceContainerLow,
           borderRadius: shape,
           clipBehavior: Clip.antiAlias,
           child: children[i],
@@ -47,9 +48,9 @@ class SettingsSection extends StatelessWidget {
           child: Text(
             title,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: scheme.primary,
-              fontWeight: FontWeight.w600,
-            ),
+                  color: scheme.primary,
+                  fontWeight: FontWeight.w600,
+                ),
           ),
         ),
         Padding(

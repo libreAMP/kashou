@@ -74,7 +74,11 @@ class YtMusicService {
         if (song != null) songs.add(song);
       }
       if (songs.isNotEmpty) {
-        shelves.add({'title': title ?? '', 'kind': 'songs', 'items': songs});
+        shelves.add({
+          'title': title ?? 'Songs for you',
+          'kind': 'songs',
+          'items': songs,
+        });
       }
     }
     _put('home', shelves);

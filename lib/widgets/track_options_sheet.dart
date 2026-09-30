@@ -84,74 +84,69 @@ Widget _headerTile(Track track, bool isOnline, {Widget? trailing}) {
   );
 }
 
+class _TrackAction {
+  const _TrackAction(this.label, this.icon, this.run,
+      {this.destructive = false});
+
+  final String label;
+  final IconData icon;
+  final void Function(BuildContext context) run;
+  final bool destructive;
+}
+
+List<_TrackAction> _trackActions(
+    BuildContext context, Track track, bool isOnline, String? playlistId) {
+  final shareUrl = isOnline
+      ? 'https://www.youtube.com/watch?v=${_videoId(track)}'
+      : '${track.title} - ${track.artist}';
+
+  return [
+    if (!isOnline)
+      _TrackAction('Edit Metadata', Icons.edit_rounded, (context) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => MetadataEditorScreen(track: track)),
+        );
+      }),
+    _TrackAction('Add to Playlist', Icons.playlist_add_rounded,
+        (context) => _showAddToPlaylist(context, track)),
+    _TrackAction('Share', Icons.share_rounded,
+        (_) => SharePlus.instance.share(ShareParams(uri: Uri.parse(shareUrl)))),
+    if (isOnline && track.artistId != null)
+      _TrackAction('View artist', Icons.person_rounded, (context) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) =>
+                ArtistScreen(browseId: track.artistId!, name: track.artist),
+          ),
+        );
+      }),
+    if (playlistId != null)
+      _TrackAction(
+          'Remove from playlist',
+          Icons.playlist_remove_rounded,
+          (context) => Provider.of<LibraryProvider>(context, listen: false)
+              .removeFromPlaylist(playlistId, track),
+          destructive: true),
+    _TrackAction('Track Info', Icons.info_outline,
+        (context) => _showTrackInfo(context, track, isOnline)),
+  ];
+}
+
 List<Widget> _optionTiles(
     BuildContext sheetContext, Track track, bool isOnline, String? playlistId) {
   return [
-    if (!isOnline)
+    for (final action
+        in _trackActions(sheetContext, track, isOnline, playlistId))
       ListTile(
-        leading: const Icon(Icons.edit_rounded),
-        title: const Text('Edit Metadata'),
+        leading: Icon(action.icon),
+        title: Text(action.label),
         onTap: () {
           Navigator.pop(sheetContext);
-          Navigator.push(
-            sheetContext,
-            MaterialPageRoute(
-                builder: (_) => MetadataEditorScreen(track: track)),
-          );
+          action.run(sheetContext);
         },
       ),
-    ListTile(
-      leading: const Icon(Icons.playlist_add_rounded),
-      title: const Text('Add to Playlist'),
-      onTap: () {
-        Navigator.pop(sheetContext);
-        _showAddToPlaylist(sheetContext, track);
-      },
-    ),
-    ListTile(
-      leading: const Icon(Icons.share_rounded),
-      title: const Text('Share'),
-      onTap: () {
-        Navigator.pop(sheetContext);
-        final url = isOnline
-            ? 'https://www.youtube.com/watch?v=${_videoId(track)}'
-            : '${track.title} - ${track.artist}';
-        SharePlus.instance.share(ShareParams(uri: Uri.parse(url)));
-      },
-    ),
-    if (isOnline && track.artistId != null)
-      ListTile(
-        leading: const Icon(Icons.person_rounded),
-        title: const Text('View artist'),
-        onTap: () {
-          Navigator.pop(sheetContext);
-          Navigator.push(
-            sheetContext,
-            MaterialPageRoute(
-              builder: (_) =>
-                  ArtistScreen(browseId: track.artistId!, name: track.artist),
-            ),
-          );
-        },
-      ),
-    if (playlistId != null)
-      ListTile(
-        leading: const Icon(Icons.playlist_remove_rounded),
-        title: const Text('Remove from playlist'),
-        onTap: () {
-          Navigator.pop(sheetContext);
-          Provider.of<LibraryProvider>(sheetContext, listen: false)
-              .removeFromPlaylist(playlistId, track);
-        },
-      ),
-    ListTile(
-      leading: const Icon(Icons.info_outline),
-      title: const Text('Track Info'),
-      onTap: () {
-        Navigator.pop(sheetContext);
-        _showTrackInfo(sheetContext, track, isOnline);
-      },
-    ),
   ];
 }
 
@@ -165,66 +160,28 @@ String? _videoId(Track track) {
 
 List<Widget> _menuRows(
     BuildContext context, Track track, bool isOnline, String? playlistId) {
-  void close() => Navigator.of(context, rootNavigator: true).pop();
-  final shareUrl = isOnline
-      ? 'https://www.youtube.com/watch?v=${_videoId(track)}'
-      : '${track.title} - ${track.artist}';
-
-  M3EMenuRow row(
-    String label,
-    IconData icon,
-    VoidCallback onTap, {
-    bool destructive = false,
-  }) =>
+  final rows = <Widget>[];
+  var previous = '';
+  for (final action in _trackActions(context, track, isOnline, playlistId)) {
+    if (previous.isNotEmpty && action.icon == Icons.person_rounded) {
+      rows.add(const M3EMenuSeparator());
+    }
+    rows.add(
       M3EMenuRow(
         item: M3EMenuItem(
-          label: label,
-          icon: icon,
-          destructive: destructive,
+          label: action.label,
+          icon: action.icon,
+          destructive: action.destructive,
           onTap: () {
-            close();
-            onTap();
+            Navigator.of(context, rootNavigator: true).pop();
+            action.run(context);
           },
         ),
-      );
-
-  return [
-    if (!isOnline)
-      row('Edit Metadata', Icons.edit_rounded, () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => MetadataEditorScreen(track: track)),
-        );
-      }),
-    row('Add to Playlist', Icons.playlist_add_rounded, () {
-      _showAddToPlaylist(context, track);
-    }),
-    row('Share', Icons.share_rounded, () {
-      SharePlus.instance.share(ShareParams(uri: Uri.parse(shareUrl)));
-    }),
-    if (isOnline && track.artistId != null) const M3EMenuSeparator(),
-    if (isOnline && track.artistId != null)
-      row('View artist', Icons.person_rounded, () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) =>
-                ArtistScreen(browseId: track.artistId!, name: track.artist),
-          ),
-        );
-      }),
-    if (playlistId != null)
-      row(
-        'Remove from playlist',
-        Icons.playlist_remove_rounded,
-        () => Provider.of<LibraryProvider>(context, listen: false)
-            .removeFromPlaylist(playlistId, track),
-        destructive: true,
       ),
-    row('Track Info', Icons.info_outline, () {
-      _showTrackInfo(context, track, isOnline);
-    }),
-  ];
+    );
+    previous = action.label;
+  }
+  return rows;
 }
 
 void _showAddToPlaylist(BuildContext context, Track track) {

@@ -579,10 +579,17 @@ class AudioProvider extends ChangeNotifier {
       bytes = cached;
     } else {
       try {
-        final resp =
-            await http.get(Uri.parse('https://i.ytimg.com/vi/$id/mqdefault.jpg'));
-        if (resp.statusCode != 200 || resp.bodyBytes.isEmpty) return;
-        bytes = resp.bodyBytes;
+        // mqdefault is only 320x180
+        final resp = await http
+            .get(Uri.parse('https://i.ytimg.com/vi/$id/maxresdefault.jpg'));
+        if (resp.statusCode != 200 || resp.bodyBytes.isEmpty) {
+          final fallback = await http
+              .get(Uri.parse('https://i.ytimg.com/vi/$id/sddefault.jpg'));
+          if (fallback.statusCode != 200 || fallback.bodyBytes.isEmpty) return;
+          bytes = fallback.bodyBytes;
+        } else {
+          bytes = resp.bodyBytes;
+        }
         _artCache[id] = bytes;
       } catch (_) {
         return;
@@ -956,6 +963,8 @@ class AudioProvider extends ChangeNotifier {
   }
 
   Future<void> stop() async {
+    // stopping the player alone leaves the media session alive
+    await _audioHandler?.stop();
     await audioPlayer.stop();
     _isPlaying = false;
     _currentTrack = null;

@@ -10,6 +10,14 @@ class ArtCard extends StatelessWidget {
   final VoidCallback onTap;
   final double width;
 
+  static const double _artGap = 8;
+  static const double _titleLine = 19;
+  static const double _subLine = 16;
+
+  // any slack here shows as a gap
+  static double heightFor(double artWidth) =>
+      artWidth + _artGap + _titleLine + _subLine;
+
   final bool emphasized;
 
   const ArtCard({
@@ -36,16 +44,17 @@ class ArtCard extends StatelessWidget {
             SquareArt(
               url: thumbnail,
               size: cardWidth,
-              radius: emphasized ? rLg : rMd,
+              radius: emphasized ? rXl : rLg,
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: _artGap),
             Text(
               title,
-              maxLines: 2,
+              maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     fontWeight: FontWeight.w600,
-                    height: 1.2,
+                    fontSize: 13,
+                    height: 1.45,
                     color: scheme.onSurface,
                   ),
             ),
@@ -54,10 +63,11 @@ class ArtCard extends StatelessWidget {
               subtitle ?? '',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: Theme.of(context)
-                  .textTheme
-                  .bodySmall
-                  ?.copyWith(color: scheme.onSurfaceVariant),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    fontSize: 11,
+                    height: 1.45,
+                    color: scheme.onSurfaceVariant,
+                  ),
             ),
           ],
         ),

@@ -3,10 +3,10 @@ import 'package:provider/provider.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import '../providers/theme_provider.dart';
 import '../providers/settings_provider.dart';
-import '../theme/app_theme.dart';
+import '../theme/radii.dart';
 import '../utils/platform.dart';
 import '../widgets/back_chip.dart';
-import '../widgets/m3e_dropdown.dart';
+import '../widgets/m3e_select.dart';
 import '../widgets/settings_tiles.dart';
 
 class PersonalizationScreen extends StatelessWidget {
@@ -92,31 +92,27 @@ class PersonalizationScreen extends StatelessWidget {
           builder: (context, theme, child) => SettingsSection(
             title: 'Colors',
             children: [
-              RadioGroup<String>(
-                groupValue: theme.themeSource,
-                onChanged: (v) {
-                  if (v != null) theme.setThemeSource(v);
-                },
-                child: Column(
-                  children: [
-                    for (final m in const [
-                      ['system', 'System', 'Colors from your system theme'],
-                      ['accent', 'Accent', 'Pick your own seed color'],
-                      ['art', 'Now playing', 'Dominant color of the album art'],
-                    ])
-                      RadioListTile<String>(
-                        secondary: Icon(m[0] == 'system'
-                            ? Icons.brightness_auto
-                            : m[0] == 'accent'
-                                ? Icons.palette_outlined
-                                : Icons.disc_full_rounded),
-                        title: Text(m[1]),
-                        subtitle: Text(m[2]),
-                        value: m[0],
-                      ),
-                  ],
+              for (final m in const [
+                ['system', 'System', 'Colors from your system theme'],
+                ['accent', 'Accent', 'Pick your own seed color'],
+                ['art', 'Now playing', 'Dominant color of the album art'],
+              ])
+                RadioGroup<String>(
+                  groupValue: theme.themeSource,
+                  onChanged: (v) {
+                    if (v != null) theme.setThemeSource(v);
+                  },
+                  child: RadioListTile<String>(
+                    secondary: Icon(m[0] == 'system'
+                        ? Icons.brightness_auto
+                        : m[0] == 'accent'
+                            ? Icons.palette_outlined
+                            : Icons.disc_full_rounded),
+                    title: Text(m[1]),
+                    subtitle: Text(m[2]),
+                    value: m[0],
+                  ),
                 ),
-              ),
               if (theme.themeSource == 'accent')
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
@@ -186,12 +182,11 @@ class PersonalizationScreen extends StatelessWidget {
               builder: (context, settings, child) => ListTile(
                 leading: const Icon(Icons.font_download_outlined),
                 title: const Text('Font Family'),
-                trailing: M3EDropdown<String>(
+                trailing: M3ESelect<String>(
                   value: settings.fontFamily,
                   labelOf: (value) => value,
                   items: _popularFonts,
                   onChanged: settings.setFontFamily,
-                  menuWidth: 180,
                 ),
               ),
             ),
@@ -205,7 +200,7 @@ class PersonalizationScreen extends StatelessWidget {
                     color: Theme.of(
                       context,
                     ).colorScheme.surfaceContainerHighest,
-                    borderRadius: EShape.radius(EShape.md),
+                    borderRadius: BorderRadius.circular(rXl),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,

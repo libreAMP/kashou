@@ -78,6 +78,10 @@ class RenderDesktopSmoothScroll extends RenderProxyBox {
   double _targetOffset = 0.0;
   bool _isAnimating = false;
 
+  // a wheel notch covers a fraction of a trackpad flick
+  static const double _mouseWheelScale = 3.0;
+  static const Duration _settle = Duration(milliseconds: 180);
+
   set controller(ScrollController? value) {
     if (_controller == value) return;
     _controller = value;
@@ -94,7 +98,8 @@ class RenderDesktopSmoothScroll extends RenderProxyBox {
 
     final c = _controller;
     if (c == null || !c.hasClients) {
-      return hitTestChildren(result, position: position) || hitTestSelf(position);
+      return hitTestChildren(result, position: position) ||
+          hitTestSelf(position);
     }
 
     result.add(BoxHitTestEntry(this, position));
@@ -113,11 +118,11 @@ class RenderDesktopSmoothScroll extends RenderProxyBox {
       final position = c.position;
       final isVertical =
           _direction == AxisDirection.down || _direction == AxisDirection.up;
-      final rawDelta =
-          isVertical ? event.scrollDelta.dy : event.scrollDelta.dx;
-      final reversed = _direction == AxisDirection.up ||
-          _direction == AxisDirection.left;
-      final delta = reversed ? -rawDelta : rawDelta;
+      final rawDelta = isVertical ? event.scrollDelta.dy : event.scrollDelta.dx;
+      final reversed =
+          _direction == AxisDirection.up || _direction == AxisDirection.left;
+      var delta = reversed ? -rawDelta : rawDelta;
+      if (event.kind == PointerDeviceKind.mouse) delta *= _mouseWheelScale;
 
       if (delta == 0.0) return;
 
@@ -131,30 +136,20 @@ class RenderDesktopSmoothScroll extends RenderProxyBox {
       GestureBinding.instance.pointerSignalResolver.register(event, (_) {
         if (!c.hasClients) return;
 
-        if (event.kind == PointerDeviceKind.trackpad ||
-            (event.kind != PointerDeviceKind.mouse && delta.abs() < 6.0)) {
+        if (event.kind == PointerDeviceKind.trackpad) {
           _isAnimating = false;
-          final next = (c.offset + delta).clamp(minExt, maxExt);
-          c.jumpTo(next);
+          c.jumpTo((c.offset + delta).clamp(minExt, maxExt));
           return;
         }
 
+        // held wheel retargets instead of restarting
         final base = _isAnimating ? _targetOffset : c.offset;
         final next = (base + delta).clamp(minExt, maxExt);
         _targetOffset = next;
-
-        if ((next - c.offset).abs() < 0.5) return;
-
         _isAnimating = true;
         c
-            .animateTo(
-              next,
-              duration: const Duration(milliseconds: 220),
-              curve: Curves.easeOutCubic,
-            )
-            .whenComplete(() {
-              _isAnimating = false;
-            });
+            .animateTo(next, duration: _settle, curve: Curves.easeOutCubic)
+            .whenComplete(() => _isAnimating = false);
       });
     }
     super.handleEvent(event, entry);

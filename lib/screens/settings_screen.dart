@@ -8,7 +8,7 @@ import '../screens/personalization_screen.dart';
 import '../theme/app_theme.dart';
 import '../utils/platform.dart';
 import '../widgets/back_chip.dart';
-import '../widgets/m3e_dropdown.dart';
+import '../widgets/m3e_select.dart';
 import '../widgets/settings_tiles.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -161,19 +161,18 @@ class SettingsScreen extends StatelessWidget {
               leading: const Icon(Icons.tune),
               title: const Text('Buffer Size'),
               subtitle: const Text('Applies on next launch'),
-              trailing: M3EDropdown<int>(
+              trailing: M3ESelect<int>(
                 value: settings.bufferSize,
                 labelOf: (value) => '$value',
                 items: const [1024, 2048, 4096],
                 onChanged: settings.setBufferSize,
-                menuWidth: 160,
               ),
             ),
             ListTile(
               leading: const Icon(Icons.high_quality),
               title: const Text('Resampler Quality'),
               subtitle: const Text('Float output on high, next launch'),
-              trailing: M3EDropdown<String>(
+              trailing: M3ESelect<String>(
                 value: settings.resamplerQuality,
                 labelOf: (value) => value,
                 items: const ['Low', 'Medium', 'High', 'Very High'],

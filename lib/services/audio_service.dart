@@ -77,6 +77,7 @@ Future<List<double>> _sideBarInsets(ui.Image src) async {
     }
     return sum / ph;
   }
+
   if (lum(0) > 24 || lum(pw - 1) > 24) return const [0, 0];
   var first = 0;
   while (first < pw ~/ 2 && lum(first) < 24) {
@@ -172,8 +173,9 @@ class AudioPlayerHandler extends BaseAudioHandler
     if (track.albumArt != null) {
       try {
         final tempDir = await getTemporaryDirectory();
-        final artFile =
-            File('${tempDir.path}/album_art_${track.id.hashCode}.jpg');
+        // the name carries the byte length
+        final artFile = File(
+            '${tempDir.path}/album_art_${track.id.hashCode}_${track.albumArt!.length}.jpg');
         // notifications center fit so we crop wide
         final wide = await _centerCropWide(track.albumArt!);
         await artFile.writeAsBytes(wide ?? track.albumArt!);
@@ -191,7 +193,7 @@ class AudioPlayerHandler extends BaseAudioHandler
 
     mediaItem.add(
       MediaItem(
-        id: '${track.id}${track.albumArt != null ? 1 : 0}',
+        id: '${track.id}_${track.albumArt?.length ?? 0}',
         title: track.title,
         artist: track.artist,
         album: track.album,
@@ -209,6 +211,15 @@ class AudioPlayerHandler extends BaseAudioHandler
   }
 
   PlaybackState _transformEvent(PlaybackEvent event) {
+    // os keeps the session alive on stale controls
+    if (mediaItem.value == null) {
+      return PlaybackState(
+        controls: const [],
+        systemActions: const {},
+        processingState: AudioProcessingState.idle,
+        playing: false,
+      );
+    }
     return PlaybackState(
       controls: [
         MediaControl.skipToPrevious,
@@ -237,7 +248,10 @@ class AudioPlayerHandler extends BaseAudioHandler
   }
 
   @override
-  Future<void> play() => _player.play();
+  Future<void> play() {
+    if (mediaItem.value == null) return Future.value();
+    return _player.play();
+  }
 
   @override
   Future<void> pause() => _player.pause();
@@ -245,6 +259,15 @@ class AudioPlayerHandler extends BaseAudioHandler
   @override
   Future<void> stop() async {
     await _player.stop();
+    mediaItem.add(null);
+    playbackState.add(
+      PlaybackState(
+        controls: const [],
+        systemActions: const {},
+        processingState: AudioProcessingState.idle,
+        playing: false,
+      ),
+    );
     await super.stop();
   }
 

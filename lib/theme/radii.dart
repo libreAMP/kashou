@@ -1,4 +1,6 @@
-// one corner radius scale for the whole app
-const double rSm = 14;
-const double rMd = 24;
-const double rLg = 32;
+// m3 expressive shape scale
+const double rSm = 12;
+const double rMd = 20;
+const double rLg = 28;
+const double rXl = 36;
+const double rFull = 999;
