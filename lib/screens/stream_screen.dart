@@ -1063,10 +1063,10 @@ class _StreamScreenState extends State<StreamScreen>
     }
     final scheme = Theme.of(context).colorScheme;
     final thumb = _videoThumb(video);
-    const outer = Radius.circular(rXl);
-    const inner = Radius.circular(12);
+    const outer = Radius.circular(rMd);
+    const inner = Radius.circular(rSm);
     final radius = slot < 0
-        ? BorderRadius.all(inner)
+        ? const BorderRadius.all(inner)
         : slot == 0
             ? const BorderRadius.vertical(top: outer, bottom: inner)
             : slot == count - 1
@@ -1095,13 +1095,13 @@ class _StreamScreenState extends State<StreamScreen>
                 children: [
                   Stack(
                     children: [
-                      SquareArt(url: thumb, size: 56, radius: 16),
+                      SquareArt(url: thumb, size: 56, radius: rSm),
                       if (playing)
                         SizedBox(
                           width: 56,
                           height: 56,
                           child: ClipRRect(
-                            borderRadius: BorderRadius.circular(16),
+                            borderRadius: BorderRadius.circular(rSm),
                             child: ColoredBox(
                               color: Colors.black.withValues(alpha: 0.4),
                               child: Icon(Icons.graphic_eq_rounded,
@@ -1347,8 +1347,8 @@ class _QuickPicksSkeletonState extends State<_QuickPicksSkeleton>
     int slot = -1,
     int count = _quickPicksRows,
   ]) {
-    const outer = Radius.circular(rXl);
-    const inner = Radius.circular(12);
+    const outer = Radius.circular(rMd);
+    const inner = Radius.circular(rSm);
     final radius = slot < 0
         ? const BorderRadius.all(inner)
         : slot == 0
@@ -1370,7 +1370,7 @@ class _QuickPicksSkeletonState extends State<_QuickPicksSkeleton>
               height: 56,
               decoration: BoxDecoration(
                 color: scheme.surfaceContainerHighest.withValues(alpha: alpha),
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(rSm),
               ),
             ),
             const SizedBox(width: 14),

@@ -2,6 +2,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../theme/radii.dart';
+
 class M3EMenuItem {
   const M3EMenuItem({
     required this.label,
@@ -133,7 +135,7 @@ Future<void> showM3EMenu(
     color: scheme.surfaceContainerHigh,
     elevation: 0,
     surfaceTintColor: Colors.transparent,
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(rMd)),
     constraints: BoxConstraints(
       minWidth: minWidth,
       maxWidth: maxWidth,

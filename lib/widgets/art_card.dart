@@ -44,7 +44,7 @@ class ArtCard extends StatelessWidget {
             SquareArt(
               url: thumbnail,
               size: cardWidth,
-              radius: emphasized ? rXl : rLg,
+              radius: emphasized ? rLg : rMd,
             ),
             const SizedBox(height: _artGap),
             Text(

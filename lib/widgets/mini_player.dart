@@ -12,6 +12,7 @@ import 'package:flutter_chrome_cast/flutter_chrome_cast.dart';
 import '../providers/audio_provider.dart';
 import '../providers/settings_provider.dart';
 import '../theme/app_theme.dart';
+import '../theme/radii.dart';
 import '../services/local_media_server.dart';
 import '../utils/hero_transitions.dart';
 import '../utils/platform.dart';
@@ -442,7 +443,7 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
                         : colorScheme.surfaceContainerHigh,
                     borderRadius: widget.embedded
                         ? BorderRadius.zero
-                        : BorderRadius.circular(16),
+                        : BorderRadius.circular(rMd),
                     clipBehavior: widget.embedded ? Clip.none : Clip.antiAlias,
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
@@ -457,7 +458,7 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
                                 flightShuttleBuilder:
                                     albumArtFlightShuttleBuilder,
                                 child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(10),
+                                  borderRadius: BorderRadius.circular(rSm),
                                   child: DecoratedBox(
                                     decoration: BoxDecoration(
                                       color: colorScheme.primaryContainer,
@@ -547,9 +548,9 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
                                     final playButton = PressableScale(
                                         child: Material(
                                       color: colorScheme.primaryContainer,
-                                      borderRadius: BorderRadius.circular(14),
+                                      borderRadius: BorderRadius.circular(rMd),
                                       child: InkWell(
-                                        borderRadius: BorderRadius.circular(14),
+                                        borderRadius: BorderRadius.circular(rMd),
                                         onTap: () => isCasting
                                             ? _toggleCastPlayPause()
                                             : context
@@ -788,7 +789,7 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
                       padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
                         color: colorScheme.primaryContainer.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(18),
+                        borderRadius: BorderRadius.circular(rMd),
                       ),
                       child: Row(
                         children: [

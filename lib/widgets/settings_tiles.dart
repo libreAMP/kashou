@@ -16,8 +16,8 @@ class SettingsSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    const outer = Radius.circular(rXl);
-    const inner = Radius.circular(12);
+    const outer = Radius.circular(rMd);
+    const inner = Radius.circular(rSm);
     final rows = <Widget>[];
     for (var i = 0; i < children.length; i++) {
       if (i > 0) rows.add(const SizedBox(height: 2));

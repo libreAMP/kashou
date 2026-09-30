@@ -35,7 +35,7 @@ class TrackListItem extends StatelessWidget {
         final colorScheme = Theme.of(context).colorScheme;
 
         const outer = Radius.circular(rMd);
-        const inner = Radius.circular(12);
+        const inner = Radius.circular(rSm);
         final radius = slot < 0
             ? BorderRadius.circular(rMd)
             : slot == 0
