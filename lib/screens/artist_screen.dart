@@ -300,17 +300,19 @@ class _ArtistScreenState extends State<ArtistScreen> {
                   ?.copyWith(fontWeight: FontWeight.w700)),
         ),
         SizedBox(
-          height: 214,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            itemCount: items.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 16),
-            itemBuilder: (_, i) => ArtCard(
-              thumbnail: items[i]['thumbnail'] as String?,
-              title: items[i]['title'] as String? ?? '',
-              subtitle: items[i]['subtitle'] as String?,
-              onTap: () => _openPlaylist(items[i]),
+          height: ArtCard.heightFor(),
+          child: RepaintBoundary(
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              itemCount: items.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 16),
+              itemBuilder: (_, i) => ArtCard(
+                thumbnail: items[i]['thumbnail'] as String?,
+                title: items[i]['title'] as String? ?? '',
+                subtitle: items[i]['subtitle'] as String?,
+                onTap: () => _openPlaylist(items[i]),
+              ),
             ),
           ),
         ),

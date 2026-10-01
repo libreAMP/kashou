@@ -11,6 +11,8 @@ import '../theme/radii.dart';
 import '../utils/platform.dart';
 import '../widgets/square_art.dart';
 import '../widgets/page_mini_player.dart';
+import '../services/ytmusic_service.dart';
+import 'artist_screen.dart';
 
 enum ViewMode { grid, list }
 
@@ -368,7 +370,9 @@ class _SectionPageState extends State<SectionPage> {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      _loadingItems ? 'loading' : '${_items.length} songs',
+                      _loadingItems
+                          ? 'loading'
+                          : '${_items.length} ${_items.isNotEmpty && _items.any((it) => it['playlistId'] != null) ? "items" : "songs"}',
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: colorScheme.onSurfaceVariant,
                       ),
@@ -378,49 +382,51 @@ class _SectionPageState extends State<SectionPage> {
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Material(
-                color: colorScheme.primaryContainer,
-                borderRadius: BorderRadius.circular(18),
-                child: InkWell(
+          if (_items.isEmpty || _items.every((it) => it['playlistId'] == null)) ...[
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Material(
+                  color: colorScheme.primaryContainer,
                   borderRadius: BorderRadius.circular(18),
-                  onTap: _filteredItems.isEmpty ? null : _playAll,
-                  child: _desktopTooltip(
-                    'Play all',
-                    SizedBox(
-                      width: 104,
-                      height: 52,
-                      child: Icon(
-                        Icons.play_arrow_rounded,
-                        size: 30,
-                        color: colorScheme.onPrimaryContainer,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(18),
+                    onTap: _filteredItems.isEmpty ? null : _playAll,
+                    child: _desktopTooltip(
+                      'Play all',
+                      SizedBox(
+                        width: 104,
+                        height: 52,
+                        child: Icon(
+                          Icons.play_arrow_rounded,
+                          size: 30,
+                          color: colorScheme.onPrimaryContainer,
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Material(
-                color: colorScheme.surfaceContainerHigh,
-                shape: const CircleBorder(),
-                child: InkWell(
-                  customBorder: const CircleBorder(),
-                  onTap: _filteredItems.isEmpty ? null : _shufflePlay,
-                  child: _desktopTooltip(
-                    'Shuffle play',
-                    SizedBox(
-                      width: 52,
-                      height: 52,
-                      child: Icon(Icons.shuffle_rounded,
-                          size: 22, color: colorScheme.onSurface),
+                const SizedBox(width: 12),
+                Material(
+                  color: colorScheme.surfaceContainerHigh,
+                  shape: const CircleBorder(),
+                  child: InkWell(
+                    customBorder: const CircleBorder(),
+                    onTap: _filteredItems.isEmpty ? null : _shufflePlay,
+                    child: _desktopTooltip(
+                      'Shuffle play',
+                      SizedBox(
+                        width: 52,
+                        height: 52,
+                        child: Icon(Icons.shuffle_rounded,
+                            size: 22, color: colorScheme.onSurface),
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ],
-          ),
+              ],
+            ),
+          ],
           if (_searchOpen) ...[
             const SizedBox(height: 14),
             TextField(
@@ -603,22 +609,37 @@ class _SectionPageState extends State<SectionPage> {
   Widget _buildEnhancedGridItem(Map<String, dynamic> item, int index) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final isArtist = item['type'] == 'artist';
     final thumbnail = item['thumbnail'] as String? ??
-        'https://img.youtube.com/vi/${item['id']}/maxresdefault.jpg';
+        (item['id'] != null
+            ? 'https://img.youtube.com/vi/${item['id']}/maxresdefault.jpg'
+            : null);
     final title = item['title'] as String? ?? 'Unknown';
-    final subtitle = item['channel'] as String? ?? 'Unknown artist';
+    final subtitle =
+        item['channel'] as String? ?? item['subtitle'] as String? ?? '';
 
     final content = Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment:
+          isArtist ? CrossAxisAlignment.center : CrossAxisAlignment.start,
       children: [
-        SquareArt(url: thumbnail, radius: rMd),
+        if (isArtist)
+          Center(
+            child: ClipOval(
+              child: SquareArt(url: thumbnail, radius: 0),
+            ),
+          )
+        else
+          SquareArt(url: thumbnail, radius: rMd),
         Padding(
           padding: const EdgeInsets.fromLTRB(2, 8, 2, 0),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: isArtist
+                ? CrossAxisAlignment.center
+                : CrossAxisAlignment.start,
             children: [
               Text(
                 title,
+                textAlign: isArtist ? TextAlign.center : TextAlign.start,
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: colorScheme.onSurface,
                   fontWeight: FontWeight.w600,
@@ -631,6 +652,7 @@ class _SectionPageState extends State<SectionPage> {
               const SizedBox(height: 4),
               Text(
                 subtitle,
+                textAlign: isArtist ? TextAlign.center : TextAlign.start,
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: colorScheme.onSurfaceVariant,
                   fontSize: 11,
@@ -645,11 +667,10 @@ class _SectionPageState extends State<SectionPage> {
     );
 
     if (isDesktop) {
-      // pointer affordances: click cursor, hover highlight and ink splash
       return Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: () => _playVideo(item),
+          onTap: () => _handleItemTap(item),
           borderRadius: BorderRadius.circular(rSm),
           child: Padding(
             padding: const EdgeInsets.all(4),
@@ -660,9 +681,45 @@ class _SectionPageState extends State<SectionPage> {
     }
 
     return GestureDetector(
-      onTap: () => _playVideo(item),
+      onTap: () => _handleItemTap(item),
       child: content,
     );
+  }
+
+  void _handleItemTap(Map<String, dynamic> item) {
+    if (item['type'] == 'artist') {
+      final id = item['playlistId'] as String? ?? item['id'] as String?;
+      if (id == null) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ArtistScreen(
+            browseId: id,
+            name: item['title'] as String?,
+          ),
+        ),
+      );
+      return;
+    }
+    final playlistId = item['playlistId'] as String?;
+    if (playlistId != null) {
+      final isAlbum = item['type'] == 'album';
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => SectionPage(
+            title: item['title'] as String? ?? (isAlbum ? 'Album' : 'Playlist'),
+            cover: item['thumbnail'] as String?,
+            itemsFuture: isAlbum
+                ? const YtMusicService().getAlbumSongs(playlistId)
+                : const YtMusicService().getPlaylistSongs(playlistId),
+            isListView: true,
+          ),
+        ),
+      );
+      return;
+    }
+    _playVideo(item);
   }
 }
 

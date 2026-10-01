@@ -80,8 +80,8 @@ class RenderDesktopSmoothScroll extends RenderProxyBox {
   bool _isAnimating = false;
 
   // a wheel notch covers a fraction of a trackpad flick
-  static const double _mouseWheelScale = 3.0;
-  static const Duration _settle = Duration(milliseconds: 180);
+  static const double _mouseWheelScale = 6.5;
+  static const Duration _settle = Duration(milliseconds: 130);
 
   set controller(ScrollController? value) {
     if (_controller == value) return;
@@ -149,7 +149,7 @@ class RenderDesktopSmoothScroll extends RenderProxyBox {
         _targetOffset = next;
         _isAnimating = true;
         c
-            .animateTo(next, duration: _settle, curve: Curves.easeOutCubic)
+            .animateTo(next, duration: _settle, curve: Curves.easeOutQuad)
             .whenComplete(() => _isAnimating = false);
       });
     }

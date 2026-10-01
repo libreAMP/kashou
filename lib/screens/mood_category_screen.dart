@@ -130,17 +130,19 @@ class _MoodCategoryScreenState extends State<MoodCategoryScreen> {
           )
         else
           SizedBox(
-            height: ArtCard.heightFor(152 * 1.18),
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: items.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 16),
-              itemBuilder: (_, i) => ArtCard(
-                thumbnail: items[i]['thumbnail'] as String?,
-                title: items[i]['title'] as String? ?? '',
-                subtitle: items[i]['subtitle'] as String?,
-                onTap: () => _openPlaylist(items[i]),
-                emphasized: i == 0,
+            height: ArtCard.heightFor(),
+            child: RepaintBoundary(
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: items.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 16),
+                itemBuilder: (_, i) => ArtCard(
+                  thumbnail: items[i]['thumbnail'] as String?,
+                  title: items[i]['title'] as String? ?? '',
+                  subtitle: items[i]['subtitle'] as String?,
+                  onTap: () => _openPlaylist(items[i]),
+                  emphasized: i == 0,
+                ),
               ),
             ),
           ),

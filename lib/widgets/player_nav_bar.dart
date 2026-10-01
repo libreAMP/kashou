@@ -1,7 +1,6 @@
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 
+import '../screens/downloads_screen.dart';
 import '../theme/app_theme.dart';
 import '../theme/radii.dart';
 import 'mini_player.dart';
@@ -307,63 +306,113 @@ class _PlayerNavRailState extends State<PlayerNavRail> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final padding = MediaQuery.of(context).padding;
 
-    return Padding(
-      padding:
-          EdgeInsets.fromLTRB(12, 12 + padding.top, 12, 12 + padding.bottom),
-      child: Align(
-        alignment: Alignment.topCenter,
-        child: AnimatedContainer(
-          duration: EMotion.medium,
-          curve: EMotion.standard,
-          clipBehavior: Clip.antiAlias,
-          decoration: BoxDecoration(
-            color: scheme.surfaceContainerHigh,
-            // hugs the three destinations
-            borderRadius: BorderRadius.circular(rXl),
+    return AnimatedContainer(
+      duration: EMotion.medium,
+      curve: EMotion.standard,
+      width: _extended ? 210.0 : 72.0,
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerLow,
+        border: Border(
+          right: BorderSide(
+            color: scheme.outlineVariant.withValues(alpha: 0.25),
+            width: 1.0,
           ),
-          child: NavigationRail(
-            selectedIndex: widget.selectedIndex,
-            extended: _extended,
-            minWidth: 80,
-            minExtendedWidth: 240,
-            backgroundColor: Colors.transparent,
-            // all keeps the rows even
-            labelType: _extended
-                ? NavigationRailLabelType.none
-                : NavigationRailLabelType.all,
-            groupAlignment: _extended ? -1.0 : 0.0,
-            useIndicator: true,
-            indicatorColor: scheme.primaryContainer,
-            selectedIconTheme: IconThemeData(color: scheme.onPrimaryContainer),
-            unselectedIconTheme: IconThemeData(color: scheme.onSurfaceVariant),
-            selectedLabelTextStyle: TextStyle(
-              color: scheme.onSurface,
-              fontWeight: FontWeight.w600,
-            ),
-            unselectedLabelTextStyle: TextStyle(
-              color: scheme.onSurfaceVariant,
-              fontWeight: FontWeight.w600,
-            ),
-            onDestinationSelected: widget.onDestinationSelected,
-            leading: Padding(
-              padding: const EdgeInsets.only(bottom: 16),
-              child: IconButton(
-                icon: Icon(
-                  _extended ? Icons.menu_open_rounded : Icons.menu_rounded,
+        ),
+      ),
+      child: SafeArea(
+        right: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 16, 12, 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                height: 48,
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 48,
+                      child: Center(
+                        child: IconButton(
+                          icon: Icon(
+                            _extended
+                                ? Icons.menu_open_rounded
+                                : Icons.menu_rounded,
+                          ),
+                          tooltip:
+                              _extended ? 'Collapse sidebar' : 'Expand sidebar',
+                          onPressed: () =>
+                              setState(() => _extended = !_extended),
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: ClipRect(
+                        child: Padding(
+                          padding: const EdgeInsets.only(left: 4, right: 12),
+                          child: Text(
+                            'Kashou',
+                            maxLines: 1,
+                            softWrap: false,
+                            overflow: TextOverflow.clip,
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium
+                                ?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                  color: scheme.onSurface,
+                                ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                tooltip: _extended ? 'Collapse menu' : 'Expand menu',
-                onPressed: () => setState(() => _extended = !_extended),
               ),
-            ),
-            destinations: [
-              for (final item in widget.items)
-                NavigationRailDestination(
-                  icon: Icon(item.icon),
-                  selectedIcon: Icon(item.selectedIcon),
-                  label: Text(item.label),
+              const SizedBox(height: 12),
+              for (var i = 0; i < widget.items.length; i++) ...[
+                if (i > 0) const SizedBox(height: 4),
+                _RailTile(
+                  icon: widget.items[i].icon,
+                  selectedIcon: widget.items[i].selectedIcon,
+                  label: widget.items[i].label,
+                  selected: i == widget.selectedIndex,
+                  extended: _extended,
+                  onTap: () => widget.onDestinationSelected(i),
                 ),
+              ],
+              const Spacer(),
+              Divider(
+                height: 1,
+                color: scheme.outlineVariant.withValues(alpha: 0.2),
+                indent: 4,
+                endIndent: 4,
+              ),
+              const SizedBox(height: 8),
+              _RailTile(
+                icon: Icons.download_outlined,
+                selectedIcon: Icons.download_rounded,
+                label: 'Downloads',
+                selected: false,
+                extended: _extended,
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const DownloadsScreen(),
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 4),
+              _RailTile(
+                icon: Icons.settings_outlined,
+                selectedIcon: Icons.settings_rounded,
+                label: 'Settings',
+                selected: false,
+                extended: _extended,
+                onTap: () => Navigator.pushNamed(context, '/settings'),
+              ),
             ],
           ),
         ),
@@ -372,8 +421,108 @@ class _PlayerNavRailState extends State<PlayerNavRail> {
   }
 }
 
-// desktop: full-window-width player dock pinned under the rail and content,
-// the desktop counterpart of the mobile floating pill bar
+class _RailTile extends StatefulWidget {
+  const _RailTile({
+    required this.icon,
+    required this.selectedIcon,
+    required this.label,
+    required this.selected,
+    required this.extended,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final IconData selectedIcon;
+  final String label;
+  final bool selected;
+  final bool extended;
+  final VoidCallback onTap;
+
+  @override
+  State<_RailTile> createState() => _RailTileState();
+}
+
+class _RailTileState extends State<_RailTile> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final fg = widget.selected
+        ? scheme.onPrimaryContainer
+        : scheme.onSurfaceVariant;
+    final bg = widget.selected
+        ? scheme.primaryContainer
+        : (_hovered
+            ? scheme.onSurface.withValues(alpha: 0.08)
+            : Colors.transparent);
+
+    final content = AnimatedContainer(
+      duration: EMotion.fast,
+      curve: EMotion.standard,
+      height: 44,
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 48,
+            child: Center(
+              child: Icon(
+                widget.selected ? widget.selectedIcon : widget.icon,
+                color: fg,
+                size: 24,
+              ),
+            ),
+          ),
+          Expanded(
+            child: ClipRect(
+              child: Padding(
+                padding: const EdgeInsets.only(left: 4, right: 12),
+                child: Text(
+                  widget.label,
+                  maxLines: 1,
+                  softWrap: false,
+                  overflow: TextOverflow.clip,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: widget.selected
+                            ? scheme.onSurface
+                            : scheme.onSurfaceVariant,
+                        fontWeight:
+                            widget.selected ? FontWeight.w600 : FontWeight.w500,
+                      ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    final clickable = MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.onTap,
+        child: content,
+      ),
+    );
+
+    if (!widget.extended) {
+      return Tooltip(
+        message: widget.label,
+        waitDuration: const Duration(milliseconds: 300),
+        child: clickable,
+      );
+    }
+    return clickable;
+  }
+}
+
 class PlayerDockBar extends StatelessWidget {
   const PlayerDockBar({
     super.key,
@@ -389,7 +538,6 @@ class PlayerDockBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final radius = const BorderRadius.vertical(top: Radius.circular(rXl));
 
     return ClipRect(
       child: AnimatedAlign(
@@ -397,26 +545,19 @@ class PlayerDockBar extends StatelessWidget {
         heightFactor: hasPlayer ? 1.0 : 0.0,
         duration: EMotion.fast,
         curve: EMotion.standard,
-        child: ClipRRect(
-          borderRadius: radius,
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-            child: Container(
-              decoration: BoxDecoration(
-                borderRadius: radius,
-                border: Border(
-                  top: BorderSide(
-                    color: scheme.outlineVariant.withValues(alpha: 0.4),
-                  ),
-                ),
-              ),
-              color: scheme.surfaceContainerHigh.withValues(alpha: 0.8),
-              child: MiniPlayer(
-                embedded: true,
-                onTap: onPlayerTap,
-                onDismiss: onPlayerDismiss,
+        child: Container(
+          decoration: BoxDecoration(
+            color: scheme.surfaceContainerHigh,
+            border: Border(
+              top: BorderSide(
+                color: scheme.outlineVariant.withValues(alpha: 0.3),
               ),
             ),
+          ),
+          child: MiniPlayer(
+            embedded: true,
+            onTap: onPlayerTap,
+            onDismiss: onPlayerDismiss,
           ),
         ),
       ),

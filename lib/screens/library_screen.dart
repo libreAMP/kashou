@@ -40,7 +40,7 @@ class _LibraryScreenState extends State<LibraryScreen>
   List<String> _tabOrder = List.of(_defaultTabs);
 
   // roomy desktop windows get a wider centered column than phones/tablets
-  static const double _desktopContentWidth = 960;
+  static const double _desktopContentWidth = 1200;
 
   // desktop lists/grids get a draggable scrollbar, so each tab keeps a
   // controller; mobile stays controller-less
@@ -215,186 +215,120 @@ class _LibraryScreenState extends State<LibraryScreen>
 
           return SizedBox(
             height: 64,
-            // keep the chip rail lined up with the centered desktop column
-            child: isDesktop
-                ? Center(
-                    child: ConstrainedBox(
-                      constraints:
-                          const BoxConstraints(maxWidth: _desktopContentWidth),
-                      // desktop: chips wrap instead of scrolling sideways
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-                        child: Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            for (var i = 0; i < labels.length; i++) chip(i),
-                          ],
-                        ),
-                      ),
-                    ),
-                  )
-                : SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-                    child: Row(
-                      // without this the chips shrink to text height
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        for (var i = 0; i < labels.length; i++) ...[
-                          if (i > 0) const SizedBox(width: 8),
-                          chip(i),
-                        ],
-                      ],
-                    ),
-                  ),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (var i = 0; i < labels.length; i++) ...[
+                    if (i > 0) const SizedBox(width: 8),
+                    chip(i),
+                  ],
+                ],
+              ),
+            ),
           );
         },
       ),
     );
   }
 
+  Widget _centeredContent(Widget child) {
+    if (!isDesktop) return child;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final extra = constraints.maxWidth - _desktopContentWidth;
+        if (extra <= 0) return child;
+        return Padding(
+          padding: EdgeInsets.symmetric(horizontal: extra / 2),
+          child: child,
+        );
+      },
+    );
+  }
+
+  Widget _buildSearchBar(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return _centeredContent(
+      Padding(
+        padding: EdgeInsets.fromLTRB(20, isDesktop ? 16 : 8, 12, 8),
+        child: Row(
+          children: [
+            Expanded(
+              child: SizedBox(
+                height: 48,
+                child: TextField(
+                  controller: _searchController,
+                  style: Theme.of(context).textTheme.bodyLarge,
+                  decoration: InputDecoration(
+                    hintText: 'Search library...',
+                    prefixIcon: const Padding(
+                      padding: EdgeInsets.fromLTRB(14, 0, 12, 0),
+                      child: Icon(Icons.search_rounded),
+                    ),
+                    prefixIconConstraints: const BoxConstraints(
+                        minWidth: 50, maxWidth: 50, minHeight: 0),
+                    hintStyle: Theme.of(context)
+                        .textTheme
+                        .bodyLarge
+                        ?.copyWith(color: scheme.onSurfaceVariant),
+                    suffixIcon: _searchController.text.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.close_rounded),
+                            onPressed: () {
+                              _searchController.clear();
+                              setState(() {});
+                            },
+                          )
+                        : null,
+                    filled: true,
+                    fillColor: scheme.surfaceContainerHigh,
+                    contentPadding: EdgeInsets.zero,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(rFull),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                  onChanged: (_) => setState(() {}),
+                ),
+              ),
+            ),
+            const SizedBox(width: 4),
+            IconButton(
+              icon: const Icon(Icons.refresh_rounded),
+              tooltip: isDesktop ? 'Rescan library' : null,
+              onPressed: () => Provider.of<LibraryProvider>(
+                context,
+                listen: false,
+              ).scanLibrary(force: true),
+            ),
+            IconButton(
+              icon: const Icon(Icons.more_vert_rounded),
+              tooltip: isDesktop ? 'Library options' : null,
+              onPressed: () => _showLibraryOptions(context),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
     return Scaffold(
       resizeToAvoidBottomInset: false,
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          return Stack(
-            children: [
-              NestedScrollView(
-                headerSliverBuilder: (context, innerBoxIsScrolled) {
-                  return [
-                    SliverAppBar.medium(
-                      title: Text(
-                        'Library',
-                        style: Theme.of(context)
-                            .textTheme
-                            .headlineMedium
-                            ?.copyWith(
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: -0.5,
-                            ),
-                      ),
-                      actions: [
-                        IconButton(
-                          icon: const Icon(Icons.refresh),
-                          tooltip: isDesktop ? 'Rescan library' : null,
-                          onPressed: () {
-                            final provider = Provider.of<LibraryProvider>(
-                              context,
-                              listen: false,
-                            );
-                            provider.scanLibrary(force: true);
-                          },
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.more_vert),
-                          tooltip: isDesktop ? 'Library options' : null,
-                          onPressed: () {
-                            _showLibraryOptions(context);
-                          },
-                        ),
-                      ],
-                      bottom: _buildChipTabs(),
-                    ),
-                    SliverToBoxAdapter(
-                      child: Consumer<LibraryProvider>(
-                        builder: (context, library, child) {
-                          final songCount = library.allTracks.length;
-                          final albumCount = library.albums.length;
-                          final artistCount = library.artists.length;
-                          final playlistCount = library.playlists.length;
-
-                          return Container(
-                            padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-                            child: LayoutBuilder(
-                              builder: (context, constraints) {
-                                final cap =
-                                    isDesktop ? _desktopContentWidth : 640.0;
-                                final isWide = constraints.maxWidth > cap;
-                                return Align(
-                                  alignment: isWide
-                                      ? Alignment.topCenter
-                                      : Alignment.topLeft,
-                                  child: ConstrainedBox(
-                                    constraints: BoxConstraints(
-                                      maxWidth: isWide ? cap : double.infinity,
-                                    ),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          '$songCount songs, $albumCount albums, $artistCount artists, $playlistCount playlists',
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .bodySmall
-                                              ?.copyWith(
-                                                color: Theme.of(context)
-                                                    .colorScheme
-                                                    .onSurfaceVariant,
-                                              ),
-                                        ),
-                                        const SizedBox(height: 16),
-                                        Material(
-                                          color: Theme.of(context)
-                                              .colorScheme
-                                              .surfaceContainerHigh,
-                                          borderRadius:
-                                              BorderRadius.circular(16),
-                                          child: SearchBar(
-                                            controller: _searchController,
-                                            leading: const Padding(
-                                              padding: EdgeInsets.only(left: 8),
-                                              child: Icon(Icons.search),
-                                            ),
-                                            trailing: _searchController
-                                                    .text.isNotEmpty
-                                                ? [
-                                                    IconButton(
-                                                      icon: const Icon(
-                                                          Icons.clear),
-                                                      onPressed: () {
-                                                        _searchController
-                                                            .clear();
-                                                        setState(() {});
-                                                      },
-                                                    ),
-                                                  ]
-                                                : null,
-                                            hintText: 'Search music...',
-                                            elevation:
-                                                const WidgetStatePropertyAll(0),
-                                            shape: WidgetStatePropertyAll(
-                                              RoundedRectangleBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(24),
-                                              ),
-                                            ),
-                                            padding:
-                                                const WidgetStatePropertyAll(
-                                              EdgeInsets.symmetric(
-                                                  horizontal: 16),
-                                            ),
-                                            onChanged: (value) {
-                                              setState(() {});
-                                            },
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ];
-                },
-                body: Consumer2<LibraryProvider, AudioProvider>(
+      backgroundColor: scheme.surface,
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          children: [
+            _buildSearchBar(context),
+            Expanded(
+              child: _centeredContent(
+                Consumer2<LibraryProvider, AudioProvider>(
                   builder: (context, library, audioProvider, child) {
                     if (library.isScanning) {
                       return Center(
@@ -413,43 +347,76 @@ class _LibraryScreenState extends State<LibraryScreen>
                       );
                     }
 
-                    return LayoutBuilder(
-                      builder: (context, constraints) {
-                        final cap = isDesktop ? _desktopContentWidth : 640.0;
-                        final isWide = constraints.maxWidth > cap;
-                        final keyboardHeight =
-                            MediaQuery.of(context).viewInsets.bottom;
-                        final showMiniPlayer =
-                            audioProvider.currentTrack != null &&
-                                keyboardHeight == 0;
-                        final bottomPadding =
-                            MediaQuery.of(context).padding.bottom +
-                                (showMiniPlayer ? 96.0 : 16.0);
-                        return ConstrainedBox(
-                          constraints: BoxConstraints(
-                            maxWidth: isWide ? cap : double.infinity,
-                          ),
-                          child: Align(
-                            alignment: isWide
-                                ? Alignment.topCenter
-                                : Alignment.topLeft,
-                            child: TabBarView(
-                              controller: _tabController,
-                              children: [
-                                for (final label in _tabOrder)
-                                  _tabFor(label, library, bottomPadding),
-                              ],
+                    final keyboardHeight =
+                        MediaQuery.of(context).viewInsets.bottom;
+                    final showMiniPlayer =
+                        audioProvider.currentTrack != null &&
+                            keyboardHeight == 0;
+                    final bottomPadding =
+                        MediaQuery.of(context).padding.bottom +
+                            (showMiniPlayer ? 96.0 : 16.0);
+
+                    return NestedScrollView(
+                      headerSliverBuilder: (context, innerBoxIsScrolled) {
+                        final songCount = library.allTracks.length;
+                        final albumCount = library.albums.length;
+                        final artistCount = library.artists.length;
+                        final playlistCount = library.playlists.length;
+
+                        return [
+                          SliverToBoxAdapter(
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Library',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .headlineMedium
+                                        ?.copyWith(
+                                          fontWeight: FontWeight.w800,
+                                          letterSpacing: -0.5,
+                                        ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    '$songCount songs, $albumCount albums, $artistCount artists, $playlistCount playlists',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodySmall
+                                        ?.copyWith(
+                                          color: scheme.onSurfaceVariant,
+                                        ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                ],
+                              ),
                             ),
                           ),
-                        );
+                          SliverPersistentHeader(
+                            pinned: true,
+                            delegate: _ChipTabsHeaderDelegate(
+                              child: _buildChipTabs(),
+                            ),
+                          ),
+                        ];
                       },
+                      body: TabBarView(
+                        controller: _tabController,
+                        children: [
+                          for (final label in _tabOrder)
+                            _tabFor(label, library, bottomPadding),
+                        ],
+                      ),
                     );
                   },
                 ),
               ),
-            ],
-          );
-        },
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -516,7 +483,7 @@ class _LibraryScreenState extends State<LibraryScreen>
       controller,
       ListView(
         controller: controller,
-        padding: EdgeInsets.fromLTRB(16, 16, 16, bottomPadding),
+        padding: EdgeInsets.fromLTRB(20, 16, 20, bottomPadding),
         children: [
           if (onlineTracks.isNotEmpty) ...[
             _buildSectionHeader(
@@ -653,7 +620,7 @@ class _LibraryScreenState extends State<LibraryScreen>
       controller,
       ListView.builder(
         controller: controller,
-        padding: EdgeInsets.fromLTRB(16, 0, 16, bottomPadding),
+        padding: EdgeInsets.fromLTRB(20, 0, 20, bottomPadding),
         itemCount: tracks.length,
         itemBuilder: (context, index) => TrackListItem(
           track: tracks[index],
@@ -714,7 +681,7 @@ class _LibraryScreenState extends State<LibraryScreen>
       controller,
       GridView.builder(
         controller: controller,
-        padding: EdgeInsets.fromLTRB(16, 16, 16, bottomPadding),
+        padding: EdgeInsets.fromLTRB(20, 16, 20, bottomPadding),
         gridDelegate: _coverGridDelegate,
         itemCount: albums.length,
         itemBuilder: (context, index) {
@@ -758,7 +725,7 @@ class _LibraryScreenState extends State<LibraryScreen>
       controller,
       GridView.builder(
         controller: controller,
-        padding: EdgeInsets.fromLTRB(16, 16, 16, bottomPadding),
+        padding: EdgeInsets.fromLTRB(20, 16, 20, bottomPadding),
         gridDelegate: _coverGridDelegate,
         itemCount: artists.length,
         itemBuilder: (context, index) {
@@ -807,7 +774,7 @@ class _LibraryScreenState extends State<LibraryScreen>
           controller,
           ListView.builder(
             controller: controller,
-            padding: EdgeInsets.fromLTRB(16, 8, 16, bottomPadding),
+            padding: EdgeInsets.fromLTRB(20, 8, 20, bottomPadding),
             itemCount: tracks.length,
             itemBuilder: (context, index) => TrackListItem(
               track: tracks[index],
@@ -898,7 +865,7 @@ class _LibraryScreenState extends State<LibraryScreen>
       controller,
       ListView(
         controller: controller,
-        padding: EdgeInsets.fromLTRB(16, 16, 16, bottomPadding),
+        padding: EdgeInsets.fromLTRB(20, 16, 20, bottomPadding),
         children: [
           Column(children: rows),
           const SizedBox(height: 24),
@@ -1488,4 +1455,29 @@ class _LibraryScreenState extends State<LibraryScreen>
       ),
     );
   }
+}
+
+class _ChipTabsHeaderDelegate extends SliverPersistentHeaderDelegate {
+  final Widget child;
+
+  _ChipTabsHeaderDelegate({required this.child});
+
+  @override
+  double get minExtent => 64;
+
+  @override
+  double get maxExtent => 64;
+
+  @override
+  Widget build(
+      BuildContext context, double shrinkOffset, bool overlapsContent) {
+    return Container(
+      color: Theme.of(context).colorScheme.surface,
+      child: child,
+    );
+  }
+
+  @override
+  bool shouldRebuild(covariant _ChipTabsHeaderDelegate oldDelegate) =>
+      oldDelegate.child != child;
 }
