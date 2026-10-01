@@ -14,6 +14,10 @@ class YtMusicService {
   static final Map<String, _Cached> _cache = HashMap();
   static const _ttl = Duration(minutes: 15);
 
+  static void clearCache() {
+    _cache.clear();
+  }
+
   const YtMusicService();
 
   Future<Map<String, dynamic>?> _browse(String browseId, {String? params}) async {
@@ -58,14 +62,24 @@ class YtMusicService {
     final raw = <dynamic>[];
     _collect(json, 'musicCarouselShelfRenderer', raw);
     for (final shelf in raw) {
-      final title = _text(shelf['header']?['musicCarouselShelfBasicHeaderRenderer']
-          ?['title']);
+      final header = shelf['header']?['musicCarouselShelfBasicHeaderRenderer'];
+      final title = _text(header?['title']);
+      final strapline = _text(header?['strapline']);
+      final headerThumb = _lastThumb(header?['thumbnail']
+          ?['musicThumbnailRenderer']?['thumbnail']?['thumbnails']);
       final items = _playlistItems(shelf['contents']);
       if (items.isNotEmpty) {
-        shelves.add({'title': title ?? 'For you', 'items': items});
+        final isArtistShelf = items.every((it) => it['type'] == 'artist') ||
+            (strapline != null && strapline.toUpperCase().contains('SIMILAR'));
+        shelves.add({
+          'title': title ?? 'For you',
+          if (strapline != null) 'strapline': strapline,
+          if (headerThumb != null) 'headerThumb': headerThumb,
+          if (isArtistShelf) 'kind': 'artists',
+          'items': items,
+        });
         continue;
       }
-      // some shelves are song rows, not cards
       final songs = <Map<String, dynamic>>[];
       final rows = <dynamic>[];
       _collect(shelf['contents'], 'musicResponsiveListItemRenderer', rows);
@@ -553,12 +567,17 @@ class YtMusicService {
       final nav = r['navigationEndpoint']?['browseEndpoint'];
       final browseId = nav?['browseId'] as String?;
       if (browseId == null) continue;
-      // albums browse as MPRE, playlists as VL
+      final isArtist = browseId.startsWith('UC') ||
+          r['thumbnailRenderer']?['musicThumbnailRenderer']?['thumbnailCrop'] ==
+              'MUSIC_THUMBNAIL_CROP_CIRCLE';
       final isAlbum = browseId.startsWith('MPRE');
-      if (!isAlbum && !browseId.startsWith('VL')) continue;
+      final isPlaylist = browseId.startsWith('VL') ||
+          browseId.startsWith('PL') ||
+          browseId.startsWith('RD');
+      if (!isAlbum && !isPlaylist && !isArtist) continue;
       out.add({
         'playlistId': browseId,
-        'type': isAlbum ? 'album' : 'playlist',
+        'type': isArtist ? 'artist' : (isAlbum ? 'album' : 'playlist'),
         'title': _text(r['title']) ?? '',
         'subtitle': _text(r['subtitle']) ?? '',
         'thumbnail': _lastThumb(r['thumbnailRenderer']?['musicThumbnailRenderer']

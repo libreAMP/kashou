@@ -24,8 +24,8 @@ class RecommendationProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> loadInitialRecommendations() async {
-    if (_recommendations.isNotEmpty) return; // Already loaded
+  Future<void> loadInitialRecommendations({bool force = false}) async {
+    if (!force && _recommendations.isNotEmpty) return; // Already loaded
 
     _isLoading = true;
     notifyListeners();

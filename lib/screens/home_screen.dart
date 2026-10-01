@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/library_provider.dart';
@@ -17,14 +15,20 @@ import 'search_screen.dart';
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
-  static const double _maxContentWidth = 1100;
+  static const double _maxContentWidth = 1200;
 
-  // keeps phone edge padding; centers the feed on wide desktop windows
-  double _contentHorizontalPadding(BuildContext context) {
-    if (!isDesktop) return 20;
-    final width = MediaQuery.sizeOf(context).width;
-    if (width <= _maxContentWidth) return 20;
-    return (width - _maxContentWidth) / 2 + 20;
+  Widget _centeredContent(Widget child) {
+    if (!isDesktop) return child;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final extra = constraints.maxWidth - _maxContentWidth;
+        if (extra <= 0) return child;
+        return Padding(
+          padding: EdgeInsets.symmetric(horizontal: extra / 2),
+          child: child,
+        );
+      },
+    );
   }
 
   @override
@@ -40,30 +44,31 @@ class HomeScreen extends StatelessWidget {
           children: [
             _buildSearchBar(context),
             Expanded(
-              child: Consumer2<AudioProvider, LibraryProvider>(
-                builder: (context, audioProvider, library, child) {
-                  final hasMiniPlayer = audioProvider.currentTrack != null;
-                  final keyboardHeight =
-                      MediaQuery.of(context).viewInsets.bottom;
-                  final showMiniPlayer = hasMiniPlayer && keyboardHeight == 0;
-                  final safeArea = MediaQuery.of(context).padding.bottom;
+              child: _centeredContent(
+                Consumer2<AudioProvider, LibraryProvider>(
+                  builder: (context, audioProvider, library, child) {
+                    final hasMiniPlayer = audioProvider.currentTrack != null;
+                    final keyboardHeight =
+                        MediaQuery.of(context).viewInsets.bottom;
+                    final showMiniPlayer = hasMiniPlayer && keyboardHeight == 0;
+                    final safeArea = MediaQuery.of(context).padding.bottom;
 
-                  return M3ERefresh(
-                    onRefresh: () => library.scanLibrary(force: true),
-                    // the shelves need the full width
-                    padding: EdgeInsets.fromLTRB(0, 4, 0,
-                        showMiniPlayer ? safeArea + 96 : safeArea + 24),
-                    slivers: [
-                      _padded(context, _buildHeroHeader(context, library)),
-                      const SizedBox(height: 24),
-                      _padded(context, _buildQuickActions(context)),
-                      _buildRecentlyPlayed(context),
-                      _buildRecentlyAdded(context),
-                      _padded(context, _buildFavoriteSongs(context)),
-                      _buildTopAlbums(context),
-                    ],
-                  );
-                },
+                    return M3ERefresh(
+                      onRefresh: () => library.scanLibrary(force: true),
+                      padding: EdgeInsets.fromLTRB(0, 4, 0,
+                          showMiniPlayer ? safeArea + 96 : safeArea + 24),
+                      slivers: [
+                        _padded(context, _buildHeroHeader(context, library)),
+                        const SizedBox(height: 24),
+                        _padded(context, _buildQuickActions(context)),
+                        _buildRecentlyPlayed(context),
+                        _buildRecentlyAdded(context),
+                        _padded(context, _buildFavoriteSongs(context)),
+                        _buildTopAlbums(context),
+                      ],
+                    );
+                  },
+                ),
               ),
             ),
           ],
@@ -73,26 +78,24 @@ class HomeScreen extends StatelessWidget {
   }
 
   Widget _padded(BuildContext context, Widget child) => Padding(
-        padding: EdgeInsets.symmetric(
-            horizontal: _contentHorizontalPadding(context)),
+        padding: const EdgeInsets.symmetric(horizontal: 20),
         child: child,
       );
 
   Widget _buildSearchBar(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final horizontal = _contentHorizontalPadding(context);
-    return Padding(
-      padding:
-          EdgeInsets.fromLTRB(horizontal, 8, isDesktop ? horizontal : 12, 8),
-      child: Row(
-        children: [
-          Expanded(
-            child: Material(
-              color: scheme.surfaceContainerHigh,
-              borderRadius: BorderRadius.circular(rFull),
-              child: InkWell(
+    return _centeredContent(
+      Padding(
+        padding: EdgeInsets.fromLTRB(20, isDesktop ? 16 : 8, 12, 8),
+        child: Row(
+          children: [
+            Expanded(
+              child: Material(
+                color: scheme.surfaceContainerHigh,
                 borderRadius: BorderRadius.circular(rFull),
-                onTap: () => Navigator.push(
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(rFull),
+                  onTap: () => Navigator.push(
                   context,
                   PageRouteBuilder(
                     transitionDuration: const Duration(milliseconds: 280),
@@ -153,7 +156,7 @@ class HomeScreen extends StatelessWidget {
           ),
         ],
       ),
-    );
+    ));
   }
 
   Widget _buildQuickActions(BuildContext context) {
@@ -278,7 +281,7 @@ class HomeScreen extends StatelessWidget {
               _buildSectionHeader(
                 context,
                 title: 'Recently played',
-                actionLabel: 'See all',
+                actionLabel: 'More',
                 onActionTap: () => Navigator.of(context).push(MaterialPageRoute(
                   builder: (_) => TrackListPage(
                       title: 'Recently played',
@@ -312,7 +315,7 @@ class HomeScreen extends StatelessWidget {
               _buildSectionHeader(
                 context,
                 title: 'Recently added',
-                actionLabel: 'See all',
+                actionLabel: 'More',
                 onActionTap: () => Navigator.of(context).push(MaterialPageRoute(
                   builder: (_) => TrackListPage(
                       title: 'Recently added',
@@ -381,23 +384,19 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  // the inset is the list padding now
   Widget _buildShelf(
     BuildContext context, {
     required int count,
     required Widget Function(int index) item,
   }) {
-    final inset = _contentHorizontalPadding(context);
     return SizedBox(
       height: 160,
-      child: ListView.builder(
+      child: ListView.separated(
         scrollDirection: Axis.horizontal,
-        padding: EdgeInsets.symmetric(horizontal: inset),
+        padding: const EdgeInsets.symmetric(horizontal: 20),
         itemCount: count,
-        itemBuilder: (context, index) => Padding(
-          padding: EdgeInsets.only(right: index == count - 1 ? 0 : 12),
-          child: item(index),
-        ),
+        separatorBuilder: (_, __) => const SizedBox(width: 12),
+        itemBuilder: (context, index) => item(index),
       ),
     );
   }
@@ -424,7 +423,7 @@ class HomeScreen extends StatelessWidget {
             _buildSectionHeader(
               context,
               title: 'Your favorite songs',
-              actionLabel: 'See all',
+              actionLabel: 'More',
               onActionTap: () => Navigator.of(context).push(MaterialPageRoute(
                 builder: (_) => TrackListPage(
                     title: 'Your favorite songs',
@@ -440,30 +439,34 @@ class HomeScreen extends StatelessWidget {
   }
 
   Widget _buildFavoriteTracksList(BuildContext context, List<Track> tracks) {
-    final inset = _contentHorizontalPadding(context);
-    final contentWidth = math.min(
-        MediaQuery.sizeOf(context).width - inset * 2, _maxContentWidth);
-    final twoColumns = isDesktop && contentWidth >= 760;
+    return _padded(
+      context,
+      LayoutBuilder(
+        builder: (context, constraints) {
+          final twoColumns = isDesktop && constraints.maxWidth >= 760;
 
-    if (!twoColumns) {
-      return ListView.builder(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        itemCount: tracks.length,
-        padding: EdgeInsets.zero,
-        itemBuilder: (context, index) {
-          return TrackListItem(track: tracks[index]);
+          if (!twoColumns) {
+            return ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: tracks.length,
+              padding: EdgeInsets.zero,
+              itemBuilder: (context, index) {
+                return TrackListItem(track: tracks[index]);
+              },
+            );
+          }
+
+          final itemWidth = (constraints.maxWidth - 12) / 2;
+          return Wrap(
+            spacing: 12,
+            children: [
+              for (final track in tracks)
+                SizedBox(width: itemWidth, child: TrackListItem(track: track)),
+            ],
+          );
         },
-      );
-    }
-
-    final itemWidth = (contentWidth - 12) / 2;
-    return Wrap(
-      spacing: 12,
-      children: [
-        for (final track in tracks)
-          SizedBox(width: itemWidth, child: TrackListItem(track: track)),
-      ],
+      ),
     );
   }
 
@@ -689,7 +692,13 @@ class HomeScreen extends StatelessWidget {
           TextButton(
             onPressed: onActionTap,
             style: TextButton.styleFrom(
-              foregroundColor: colorScheme.primary,
+              visualDensity: VisualDensity.compact,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+              backgroundColor: colorScheme.surfaceContainerHigh,
+              foregroundColor: colorScheme.onSurface,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(rFull),
+              ),
             ),
             child: Text(actionLabel),
           ),

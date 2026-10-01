@@ -24,7 +24,7 @@ class M3ERefresh extends StatefulWidget {
 }
 
 class _M3ERefreshState extends State<M3ERefresh> {
-  static const _trigger = 72.0;
+  static const _trigger = 56.0;
 
   double _offset = 0;
   bool _busy = false;
@@ -61,19 +61,19 @@ class _M3ERefreshState extends State<M3ERefresh> {
       if (n.dragDetails != null) _dragging = true;
     }
 
+    if (n is OverscrollNotification) {
+      if (n.dragDetails != null) _dragging = true;
+    }
+
     if (n.metrics.axisDirection == AxisDirection.down) {
       if (n.metrics.pixels < 0) {
         _offset = -n.metrics.pixels;
       } else if (n is OverscrollNotification && n.overscroll < 0) {
         _offset = (_offset - n.overscroll).clamp(0.0, 150.0);
-      } else if (n.metrics.pixels == 0 &&
-          n is ScrollUpdateNotification &&
-          n.dragDetails == null) {
-        _offset = 0;
       }
     }
 
-    if (_dragging && _offset >= _trigger) {
+    if (_offset >= _trigger) {
       _armed = true;
     }
 
@@ -85,7 +85,7 @@ class _M3ERefreshState extends State<M3ERefresh> {
       if (_dragging) _dragging = false;
       if (_armed) {
         _run();
-      } else if (_offset > 0 && n is ScrollEndNotification) {
+      } else if (!_busy && n is ScrollEndNotification) {
         setState(() => _offset = 0);
       }
     } else {

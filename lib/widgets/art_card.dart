@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/radii.dart';
+import '../utils/platform.dart';
 import 'square_art.dart';
 
 class ArtCard extends StatelessWidget {
@@ -8,17 +9,19 @@ class ArtCard extends StatelessWidget {
   final String title;
   final String? subtitle;
   final VoidCallback onTap;
-  final double width;
+  final double? width;
+  final bool emphasized;
 
   static const double _artGap = 8;
-  static const double _titleLine = 19;
-  static const double _subLine = 16;
+  static const double _titleLine = 22;
+  static const double _subLine = 20;
 
-  // any slack here shows as a gap
-  static double heightFor(double artWidth) =>
-      artWidth + _artGap + _titleLine + _subLine;
+  static double get defaultWidth => isDesktop ? 180.0 : 152.0;
 
-  final bool emphasized;
+  static double heightFor([double? artWidth]) {
+    final w = artWidth ?? (isDesktop ? defaultWidth : defaultWidth * 1.18);
+    return w + _artGap + _titleLine + _subLine;
+  }
 
   const ArtCard({
     super.key,
@@ -26,14 +29,15 @@ class ArtCard extends StatelessWidget {
     required this.title,
     required this.onTap,
     this.subtitle,
-    this.width = 152,
+    this.width,
     this.emphasized = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final cardWidth = emphasized ? width * 1.18 : width;
+    final base = width ?? defaultWidth;
+    final cardWidth = (!isDesktop && emphasized) ? base * 1.18 : base;
     return GestureDetector(
       onTap: onTap,
       child: SizedBox(
@@ -53,7 +57,7 @@ class ArtCard extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     fontWeight: FontWeight.w600,
-                    fontSize: 14,
+                    fontSize: isDesktop ? 15 : 14,
                     height: 1.4,
                     color: scheme.onSurface,
                   ),
@@ -64,7 +68,7 @@ class ArtCard extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    fontSize: 12,
+                    fontSize: isDesktop ? 13 : 12,
                     height: 1.4,
                     color: scheme.onSurfaceVariant,
                   ),
