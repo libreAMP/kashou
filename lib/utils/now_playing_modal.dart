@@ -19,7 +19,8 @@ Future<void> openNowPlaying(BuildContext context) {
         final h = math.min(760.0, math.max(600.0, size.height - 64));
         return Dialog(
           backgroundColor: Colors.transparent,
-          insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+          insetPadding:
+              const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
           clipBehavior: Clip.antiAlias,
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
@@ -44,24 +45,15 @@ Future<void> openNowPlaying(BuildContext context) {
     isDismissible: true,
     backgroundColor: Colors.transparent,
     barrierColor: Colors.black.withValues(alpha: 0.5),
-    transitionAnimationController: AnimationController(
-      vsync: Navigator.of(context),
-      duration: const Duration(milliseconds: 350),
-      reverseDuration: const Duration(milliseconds: 300),
+    sheetAnimationStyle: const AnimationStyle(
+      duration: Duration(milliseconds: 350),
+      reverseDuration: Duration(milliseconds: 300),
     ),
+    constraints: const BoxConstraints.expand(),
     clipBehavior: Clip.none,
-    builder: (sheetContext) {
-      return DraggableScrollableSheet(
-        initialChildSize: 1.0,
-        minChildSize: 0.0,
-        maxChildSize: 1.0,
-        snap: true,
-        snapSizes: const [1.0],
-        expand: false,
-        builder: (context, scrollController) {
-          return const NowPlayingScreen();
-        },
-      );
-    },
+    builder: (sheetContext) => MediaQuery(
+      data: MediaQuery.of(context),
+      child: const NowPlayingScreen(),
+    ),
   );
 }

@@ -655,9 +655,11 @@ class _LibraryScreenState extends State<LibraryScreen>
         controller: controller,
         padding: EdgeInsets.fromLTRB(16, 0, 16, bottomPadding),
         itemCount: tracks.length,
-        itemBuilder: (context, index) {
-          return TrackListItem(track: tracks[index]);
-        },
+        itemBuilder: (context, index) => TrackListItem(
+          track: tracks[index],
+          slot: index,
+          count: tracks.length,
+        ),
       ),
     );
   }
@@ -807,8 +809,11 @@ class _LibraryScreenState extends State<LibraryScreen>
             controller: controller,
             padding: EdgeInsets.fromLTRB(16, 8, 16, bottomPadding),
             itemCount: tracks.length,
-            itemBuilder: (context, index) =>
-                TrackListItem(track: tracks[index]),
+            itemBuilder: (context, index) => TrackListItem(
+              track: tracks[index],
+              slot: index,
+              count: tracks.length,
+            ),
           ),
         );
       },
@@ -873,6 +878,8 @@ class _LibraryScreenState extends State<LibraryScreen>
             supportingText: 'Playlist',
             leading: _playlistArt(playlist, Theme.of(context).colorScheme),
             trailingText: '${playlist.tracks.length}',
+            slot: i,
+            count: playlists.length,
             onTap: () => Navigator.of(context).push(MaterialPageRoute(
               builder: (_) => TrackListPage(
                 title: playlist.name,

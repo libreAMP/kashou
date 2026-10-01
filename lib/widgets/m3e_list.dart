@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../theme/radii.dart';
+
 class M3EListRow extends StatefulWidget {
   const M3EListRow({
     super.key,
@@ -9,6 +11,8 @@ class M3EListRow extends StatefulWidget {
     this.trailingText,
     this.onTap,
     this.selected = false,
+    this.slot = -1,
+    this.count = 0,
   });
 
   final String label;
@@ -17,6 +21,8 @@ class M3EListRow extends StatefulWidget {
   final String? trailingText;
   final VoidCallback? onTap;
   final bool selected;
+  final int slot;
+  final int count;
 
   @override
   State<M3EListRow> createState() => _M3EListRowState();
@@ -38,13 +44,26 @@ class _M3EListRowState extends State<M3EListRow> {
 
     final fg = widget.selected ? scheme.onSecondaryContainer : scheme.onSurface;
 
+    const outer = Radius.circular(rMd);
+    const inner = Radius.circular(rSm);
+    final radius = widget.slot < 0
+        ? BorderRadius.zero
+        : widget.slot == 0
+            ? const BorderRadius.vertical(top: outer, bottom: inner)
+            : widget.slot == widget.count - 1
+                ? const BorderRadius.vertical(top: inner, bottom: outer)
+                : BorderRadius.all(inner);
+
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
       child: Material(
-        color: bg,
+        color: widget.slot < 0 ? bg : scheme.surfaceContainerLow,
+        borderRadius: radius,
+        clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: widget.onTap,
+          borderRadius: radius,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             child: Row(

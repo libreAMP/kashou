@@ -313,16 +313,14 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                   children: [
                     GestureDetector(
                       behavior: HitTestBehavior.opaque,
-                      onVerticalDragUpdate: (details) {
-                        final dy = details.primaryDelta ?? 0;
-                        if (dy > 0 || widget.onCollapseDragUpdate != null) {
-                          widget.onCollapseDragUpdate?.call(dy);
-                        }
-                      },
-                      onVerticalDragEnd: (details) {
-                        widget.onCollapseDragEnd
-                            ?.call(details.primaryVelocity ?? 0);
-                      },
+                      onVerticalDragUpdate: widget.onCollapseDragUpdate == null
+                          ? null
+                          : (details) =>
+                              widget.onCollapseDragUpdate!(details.primaryDelta ?? 0),
+                      onVerticalDragEnd: widget.onCollapseDragEnd == null
+                          ? null
+                          : (details) =>
+                              widget.onCollapseDragEnd!(details.primaryVelocity ?? 0),
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -409,25 +407,24 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                                     behavior: HitTestBehavior
                                                         .translucent,
                                                     onVerticalDragUpdate:
-                                                        (details) {
-                                                      final dy = details
-                                                              .primaryDelta ??
-                                                          0;
-                                                      if (dy > 0 ||
-                                                          widget.onCollapseDragUpdate !=
-                                                              null) {
-                                                        widget
-                                                            .onCollapseDragUpdate
-                                                            ?.call(dy);
-                                                      }
-                                                    },
+                                                        widget.onCollapseDragUpdate ==
+                                                            null
+                                                        ? null
+                                                        : (details) => widget
+                                                            .onCollapseDragUpdate!(
+                                                            details
+                                                                    .primaryDelta ??
+                                                                0),
                                                     onVerticalDragEnd:
-                                                        (details) {
-                                                      widget.onCollapseDragEnd
-                                                          ?.call(details
-                                                                  .primaryVelocity ??
-                                                              0);
-                                                    },
+                                                        widget
+                                                                    .onCollapseDragEnd ==
+                                                                null
+                                                            ? null
+                                                            : (details) => widget
+                                                                .onCollapseDragEnd!(
+                                                                details
+                                                                        .primaryVelocity ??
+                                                                    0),
                                                     child: Center(
                                                       child: Padding(
                                                         padding:

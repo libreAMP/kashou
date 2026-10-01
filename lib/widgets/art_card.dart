@@ -33,7 +33,7 @@ class ArtCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final cardWidth = emphasized ? width * 1.28 : width;
+    final cardWidth = emphasized ? width * 1.18 : width;
     return GestureDetector(
       onTap: onTap,
       child: SizedBox(
@@ -53,8 +53,8 @@ class ArtCard extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     fontWeight: FontWeight.w600,
-                    fontSize: 13,
-                    height: 1.45,
+                    fontSize: 14,
+                    height: 1.4,
                     color: scheme.onSurface,
                   ),
             ),
@@ -64,8 +64,8 @@ class ArtCard extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    fontSize: 11,
-                    height: 1.45,
+                    fontSize: 12,
+                    height: 1.4,
                     color: scheme.onSurfaceVariant,
                   ),
             ),

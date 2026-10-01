@@ -23,6 +23,7 @@ class PageMiniPlayer extends StatelessWidget {
           child: MiniPlayer(
             onTap: () => _openNowPlaying(context),
             onDismiss: audio.stop,
+            onExpandDragEnd: (_) => _openNowPlaying(context),
           ),
         );
       },

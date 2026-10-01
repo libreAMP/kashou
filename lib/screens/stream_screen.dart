@@ -617,7 +617,7 @@ class _StreamScreenState extends State<StreamScreen>
             )
           else
             SizedBox(
-              height: ArtCard.heightFor(152 * 1.28),
+              height: ArtCard.heightFor(152 * 1.18),
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -662,7 +662,7 @@ class _StreamScreenState extends State<StreamScreen>
             )
           else
             SizedBox(
-              height: ArtCard.heightFor(152 * 1.28),
+              height: ArtCard.heightFor(152 * 1.18),
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -947,7 +947,7 @@ class _StreamScreenState extends State<StreamScreen>
           )
         else
           SizedBox(
-            height: ArtCard.heightFor(152 * 1.28),
+            height: ArtCard.heightFor(152 * 1.18),
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -1065,7 +1065,7 @@ class _StreamScreenState extends State<StreamScreen>
           )
         else
           SizedBox(
-            height: ArtCard.heightFor(152 * 1.28),
+            height: ArtCard.heightFor(152 * 1.18),
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 20),
