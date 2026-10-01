@@ -64,11 +64,13 @@ class M3ESelect<T> extends StatelessWidget {
       context,
       targetRect: box.localToGlobal(Offset.zero) & box.size,
       alignEnd: true,
-      minWidth: math.max(160, box.size.width),
-      maxWidth: 280,
+      dense: true,
+      minWidth: math.max(112, box.size.width),
+      maxWidth: 220,
       children: [
         for (final item in items)
           M3EMenuRow(
+            dense: true,
             item: M3EMenuItem(
               label: labelOf(item),
               selected: item == value,

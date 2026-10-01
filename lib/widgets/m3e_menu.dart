@@ -34,9 +34,10 @@ class M3EMenu extends StatelessWidget {
 }
 
 class M3EMenuRow extends StatefulWidget {
-  const M3EMenuRow({super.key, required this.item});
+  const M3EMenuRow({super.key, required this.item, this.dense = false});
 
   final M3EMenuItem item;
+  final bool dense;
 
   @override
   State<M3EMenuRow> createState() => _M3EMenuRowState();
@@ -50,6 +51,7 @@ class _M3EMenuRowState extends State<M3EMenuRow> {
     final scheme = Theme.of(context).colorScheme;
     final theme = Theme.of(context);
     final item = widget.item;
+    final dense = widget.dense;
     final enabled = item.onTap != null;
 
     final fg = item.destructive
@@ -72,20 +74,23 @@ class _M3EMenuRowState extends State<M3EMenuRow> {
         child: InkWell(
           onTap: item.onTap,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding: EdgeInsets.symmetric(
+              horizontal: dense ? 12 : 16,
+              vertical: dense ? 8 : 12,
+            ),
             child: Row(
               children: [
-                if (item.selected) ...[
-                  Icon(Icons.check_rounded, size: 20, color: fg),
-                  const SizedBox(width: 12),
-                ] else if (item.icon != null) ...[
-                  Icon(item.icon, size: 20, color: fg),
-                  const SizedBox(width: 12),
+                if (item.icon != null) ...[
+                  Icon(item.icon, size: dense ? 18 : 20, color: fg),
+                  SizedBox(width: dense ? 10 : 12),
                 ],
                 Expanded(
                   child: Text(
                     item.label,
-                    style: theme.textTheme.bodyLarge?.copyWith(
+                    style: (dense
+                            ? theme.textTheme.bodyMedium
+                            : theme.textTheme.bodyLarge)
+                        ?.copyWith(
                       color: enabled ? fg : scheme.onSurfaceVariant,
                       fontWeight:
                           item.selected ? FontWeight.w600 : FontWeight.w400,
@@ -94,8 +99,11 @@ class _M3EMenuRowState extends State<M3EMenuRow> {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                if (item.trailing != null) ...[
-                  const SizedBox(width: 12),
+                if (item.selected) ...[
+                  SizedBox(width: dense ? 8 : 12),
+                  Icon(Icons.check_rounded, size: dense ? 18 : 20, color: fg),
+                ] else if (item.trailing != null) ...[
+                  SizedBox(width: dense ? 8 : 12),
                   item.trailing!,
                 ],
               ],
@@ -129,6 +137,7 @@ Future<void> showM3EMenu(
   double minWidth = 160,
   double maxWidth = 280,
   bool alignEnd = false,
+  bool dense = false,
 }) {
   final scheme = Theme.of(context).colorScheme;
   final screen = Overlay.of(context).context.size!;
@@ -137,8 +146,9 @@ Future<void> showM3EMenu(
 
   // flip above the trigger when there is more room up there
   var estimated = 16.0;
+  final itemH = dense ? 38.0 : 48.0;
   for (final child in children) {
-    estimated += child is M3EMenuSeparator ? 9 : 48;
+    estimated += child is M3EMenuSeparator ? 9 : itemH;
   }
   final below = screen.height - rect.bottom;
   final top = below >= estimated || below >= rect.top
@@ -175,7 +185,7 @@ Future<void> showM3EMenu(
         .map((row) => PopupMenuItem<void>(
               padding: EdgeInsets.zero,
               enabled: false,
-              height: 48,
+              height: dense ? 38 : 48,
               child: row.item.onTap == null
                   ? row
                   : InkWell(
