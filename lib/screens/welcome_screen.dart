@@ -12,6 +12,18 @@ import '../utils/platform.dart';
 
 const _repoUrl = 'https://github.com/libreAMP/kashou';
 
+// minHeight keeps the Spacers honest
+Widget _scrollablePage(BuildContext context, Widget child) {
+  return LayoutBuilder(
+    builder: (context, constraints) => SingleChildScrollView(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(minHeight: constraints.maxHeight),
+        child: IntrinsicHeight(child: child),
+      ),
+    ),
+  );
+}
+
 // max width of the centered content column on desktop windows
 const double _kDesktopContentWidth = 600;
 
@@ -71,6 +83,9 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
     );
   }
 
+  Widget _centeredPage(Widget child) =>
+      _centered(_scrollablePage(context, child));
+
   // lowercase display type is the kashou voice, not a typo
   TextStyle? _displayStyle(BuildContext context) {
     return Theme.of(context).textTheme.displaySmall?.copyWith(
@@ -91,7 +106,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
           _centered(Align(
             alignment: Alignment.centerRight,
             child: Padding(
-              padding: const EdgeInsets.only(right: 8, top: 4),
+              padding: const EdgeInsets.only(right: 24, top: 4),
               child: TextButton(
                 onPressed: _finish,
                 child: const Text('skip'),
@@ -103,12 +118,12 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
               controller: _pageController,
               onPageChanged: (p) => setState(() => _page = p),
               children: [
-                _brandPage(context),
-                _featuresPage(context),
+                _centeredPage(_brandPage(context)),
+                _centeredPage(_featuresPage(context)),
                 // desktops have no runtime permission prompts,
                 // so the permissions page is mobile-only
                 if (!isDesktop) const _PermissionsPage(),
-                _connectPage(context),
+                _centeredPage(_connectPage(context)),
               ],
             )),
           ),
@@ -204,10 +219,11 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Spacer(flex: 2),
+          const Spacer(),
           _mark(context, 148),
           const SizedBox(height: 28),
-          Text('kashou', style: _displayStyle(context)?.copyWith(
+          Text('kashou',
+              style: _displayStyle(context)?.copyWith(
                 color: scheme.primary,
                 fontSize: 56,
               )),
@@ -227,7 +243,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                   letterSpacing: 0.2,
                 ),
           ),
-          const Spacer(flex: 3),
+          const Spacer(),
         ],
       ),
     );
@@ -252,15 +268,26 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
             Padding(
               padding: const EdgeInsets.only(bottom: 26),
               child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  Text(
-                    '0${i + 1}',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          color: scheme.primary,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 1,
+                  Material(
+                    color: scheme.primaryContainer,
+                    shape: const WavyCircleBorder(scallops: 8, depth: 0.03),
+                    child: SizedBox(
+                      width: 44,
+                      height: 44,
+                      child: Center(
+                        child: Text(
+                          '0${i + 1}',
+                          style:
+                              Theme.of(context).textTheme.titleMedium?.copyWith(
+                                    color: scheme.onPrimaryContainer,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 1,
+                                  ),
                         ),
+                      ),
+                    ),
                   ),
                   const SizedBox(width: 18),
                   Expanded(
@@ -286,7 +313,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                 ],
               ),
             ),
-          const Spacer(flex: 2),
+          const Spacer(),
         ],
       ),
     );
@@ -341,7 +368,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
               ),
             ),
           ),
-          const Spacer(flex: 2),
+          const Spacer(),
         ],
       ),
     );
@@ -437,107 +464,103 @@ class _PermissionsPageState extends State<_PermissionsPage>
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final items = [
-      (Permission.audio, Icons.folder_outlined, 'media & storage',
-          'read your local audio files'),
-      (Permission.notification, Icons.notifications_none_rounded,
-          'notifications', 'playback controls in the shade'),
-      (Permission.bluetoothConnect, Icons.bluetooth_rounded, 'bluetooth',
-          'nearby speakers and headphones'),
-    ];
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(28, 8, 28, 0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Spacer(),
-          Text(
-            'before you\nstart',
-            style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -1,
-                  height: 1.02,
-                ),
-          ),
-          const SizedBox(height: 14),
-          Text(
-            'grant what you want now, everything also works from settings later',
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: scheme.onSurfaceVariant,
-                  height: 1.45,
-                ),
-          ),
-          const SizedBox(height: 30),
-          for (final item in items)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Material(
-                color: scheme.surfaceContainerHigh,
-                borderRadius: BorderRadius.circular(rMd),
-                child: Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  child: Row(
-                    children: [
-                      Icon(item.$2, color: scheme.onSurfaceVariant, size: 22),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(item.$3,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .titleSmall
-                                    ?.copyWith(fontWeight: FontWeight.w600)),
-                            const SizedBox(height: 2),
-                            Text(item.$4,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .bodySmall
-                                    ?.copyWith(
-                                        color: scheme.onSurfaceVariant)),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      _granted[item.$1] == true
-                          ? Icon(Icons.check_circle_rounded,
-                              color: scheme.primary, size: 26)
-                          : FilledButton.tonal(
-                              onPressed: () => _request(item.$1),
-                              child: const Text('allow'),
-                            ),
-                    ],
+    return _scrollablePage(
+      context,
+      Padding(
+        padding: const EdgeInsets.fromLTRB(28, 8, 28, 0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Spacer(),
+            Text(
+              'before you\nstart',
+              style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -1,
+                    height: 1.02,
                   ),
-                ),
-              ),
             ),
+            const SizedBox(height: 14),
+            Text(
+              'grant what you want now, everything also works from settings later',
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                    height: 1.45,
+                  ),
+            ),
+            const SizedBox(height: 30),
+            _permissionGroup([
+              (
+                Icons.folder_outlined,
+                'media & storage',
+                'read your local audio files',
+                _granted[Permission.audio] == true,
+                () => _request(Permission.audio)
+              ),
+              (
+                Icons.notifications_none_rounded,
+                'notifications',
+                'playback controls in the shade',
+                _granted[Permission.notification] == true,
+                () => _request(Permission.notification)
+              ),
+              (
+                Icons.bluetooth_rounded,
+                'bluetooth',
+                'nearby speakers and headphones',
+                _granted[Permission.bluetoothConnect] == true,
+                () => _request(Permission.bluetoothConnect)
+              ),
+              (
+                Icons.folder_zip_outlined,
+                'all files access',
+                'optional, only to write tags and art back',
+                _allFiles,
+                _openAllFiles
+              ),
+            ]),
+            const Spacer(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // one connected stack like the settings sections
+  Widget _permissionGroup(
+      List<(IconData, String, String, bool, VoidCallback)> rows) {
+    final scheme = Theme.of(context).colorScheme;
+    return Column(
+      children: [
+        for (var i = 0; i < rows.length; i++)
           Padding(
-            padding: const EdgeInsets.only(bottom: 12),
+            padding: EdgeInsets.only(bottom: i == rows.length - 1 ? 0 : 2),
             child: Material(
-              color: scheme.surfaceContainerHigh,
-              borderRadius: BorderRadius.circular(rMd),
+              color: scheme.surfaceContainerLow,
+              borderRadius: BorderRadius.vertical(
+                top: Radius.circular(i == 0 ? rMd : rSm),
+                bottom: Radius.circular(i == rows.length - 1 ? rMd : rSm),
+              ),
+              clipBehavior: Clip.antiAlias,
               child: Padding(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 child: Row(
                   children: [
-                    Icon(Icons.folder_zip_outlined,
-                        color: scheme.onSurfaceVariant, size: 22),
+                    Icon(rows[i].$1, color: scheme.onSurfaceVariant, size: 22),
                     const SizedBox(width: 14),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('all files access',
+                          Text(rows[i].$2,
                               style: Theme.of(context)
                                   .textTheme
                                   .titleSmall
                                   ?.copyWith(fontWeight: FontWeight.w600)),
                           const SizedBox(height: 2),
-                          Text('write tags and art into your music files',
+                          Text(rows[i].$3,
                               style: Theme.of(context)
                                   .textTheme
                                   .bodySmall
@@ -546,11 +569,11 @@ class _PermissionsPageState extends State<_PermissionsPage>
                       ),
                     ),
                     const SizedBox(width: 10),
-                    _allFiles
+                    rows[i].$4
                         ? Icon(Icons.check_circle_rounded,
                             color: scheme.primary, size: 26)
                         : FilledButton.tonal(
-                            onPressed: _openAllFiles,
+                            onPressed: rows[i].$5,
                             child: const Text('allow'),
                           ),
                   ],
@@ -558,9 +581,7 @@ class _PermissionsPageState extends State<_PermissionsPage>
               ),
             ),
           ),
-          const Spacer(flex: 2),
-        ],
-      ),
+      ],
     );
   }
 }
