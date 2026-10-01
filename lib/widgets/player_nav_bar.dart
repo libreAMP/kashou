@@ -312,51 +312,60 @@ class _PlayerNavRailState extends State<PlayerNavRail> {
     return Padding(
       padding:
           EdgeInsets.fromLTRB(12, 12 + padding.top, 12, 12 + padding.bottom),
-      child: AnimatedContainer(
-        duration: EMotion.medium,
-        curve: EMotion.standard,
-        clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(
-          color: scheme.surfaceContainerHigh,
-          borderRadius: BorderRadius.circular(rXl),
-        ),
-        child: NavigationRail(
-          selectedIndex: widget.selectedIndex,
-          extended: _extended,
-          minWidth: 80,
-          minExtendedWidth: 240,
-          backgroundColor: Colors.transparent,
-          labelType: _extended
-              ? NavigationRailLabelType.none
-              : NavigationRailLabelType.selected,
-          groupAlignment: -1.0,
-          useIndicator: true,
-          indicatorColor: scheme.primaryContainer,
-          selectedIconTheme: IconThemeData(color: scheme.onPrimaryContainer),
-          unselectedIconTheme: IconThemeData(color: scheme.onSurfaceVariant),
-          selectedLabelTextStyle: TextStyle(
-            color: scheme.onSurface,
-            fontWeight: FontWeight.w600,
+      child: Align(
+        alignment: Alignment.topCenter,
+        child: AnimatedContainer(
+          duration: EMotion.medium,
+          curve: EMotion.standard,
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            color: scheme.surfaceContainerHigh,
+            // hugs the three destinations
+            borderRadius: BorderRadius.circular(rXl),
           ),
-          onDestinationSelected: widget.onDestinationSelected,
-          leading: Padding(
-            padding: const EdgeInsets.only(bottom: 16),
-            child: IconButton(
-              icon: Icon(
-                _extended ? Icons.menu_open_rounded : Icons.menu_rounded,
-              ),
-              tooltip: _extended ? 'Collapse menu' : 'Expand menu',
-              onPressed: () => setState(() => _extended = !_extended),
+          child: NavigationRail(
+            selectedIndex: widget.selectedIndex,
+            extended: _extended,
+            minWidth: 80,
+            minExtendedWidth: 240,
+            backgroundColor: Colors.transparent,
+            // all keeps the rows even
+            labelType: _extended
+                ? NavigationRailLabelType.none
+                : NavigationRailLabelType.all,
+            groupAlignment: _extended ? -1.0 : 0.0,
+            useIndicator: true,
+            indicatorColor: scheme.primaryContainer,
+            selectedIconTheme: IconThemeData(color: scheme.onPrimaryContainer),
+            unselectedIconTheme: IconThemeData(color: scheme.onSurfaceVariant),
+            selectedLabelTextStyle: TextStyle(
+              color: scheme.onSurface,
+              fontWeight: FontWeight.w600,
             ),
-          ),
-          destinations: [
-            for (final item in widget.items)
-              NavigationRailDestination(
-                icon: Icon(item.icon),
-                selectedIcon: Icon(item.selectedIcon),
-                label: Text(item.label),
+            unselectedLabelTextStyle: TextStyle(
+              color: scheme.onSurfaceVariant,
+              fontWeight: FontWeight.w600,
+            ),
+            onDestinationSelected: widget.onDestinationSelected,
+            leading: Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: IconButton(
+                icon: Icon(
+                  _extended ? Icons.menu_open_rounded : Icons.menu_rounded,
+                ),
+                tooltip: _extended ? 'Collapse menu' : 'Expand menu',
+                onPressed: () => setState(() => _extended = !_extended),
               ),
-          ],
+            ),
+            destinations: [
+              for (final item in widget.items)
+                NavigationRailDestination(
+                  icon: Icon(item.icon),
+                  selectedIcon: Icon(item.selectedIcon),
+                  label: Text(item.label),
+                ),
+            ],
+          ),
         ),
       ),
     );

@@ -29,7 +29,7 @@ import 'mood_category_screen.dart';
 import 'section_page.dart';
 import 'youtube_history_screen.dart';
 
-// the skeleton shares these so the two states do not jump
+// the skeleton shares these
 const int _quickPicksRows = 4;
 const double _quickPicksRowHeight = 74;
 const double _quickPicksGap = 2;
@@ -38,12 +38,13 @@ const double _quickPicksHeight = _quickPicksRows * _quickPicksRowHeight +
     4;
 const EdgeInsets _quickPicksPadding = EdgeInsets.fromLTRB(20, 2, 20, 2);
 const EdgeInsets _quickPicksRowPadding = EdgeInsets.fromLTRB(12, 8, 4, 8);
+const double _quickPicksColumn = 420;
 
-// the grid pins cell width, a SizedBox cannot widen it
-SliverGridDelegate _quickPicksGrid(BuildContext context) {
+// width from the layout not MediaQuery
+SliverGridDelegate _quickPicksGrid(double width) {
   return SliverGridDelegateWithFixedCrossAxisCount(
     crossAxisCount: _quickPicksRows,
-    mainAxisExtent: MediaQuery.of(context).size.width - 56,
+    mainAxisExtent: width,
     mainAxisSpacing: 12,
     crossAxisSpacing: _quickPicksGap,
   );
@@ -357,7 +358,7 @@ class _StreamScreenState extends State<StreamScreen>
     final scheme = Theme.of(context).colorScheme;
     final searchActive = _exploreOpen || _currentQuery.isNotEmpty;
 
-    // back steps out of search, or lets the root collapse the player
+    // back leaves search first
     return PopScope(
       canPop: !searchActive && !SheetScope.of(context),
       onPopInvokedWithResult: (didPop, _) {
@@ -978,17 +979,57 @@ class _StreamScreenState extends State<StreamScreen>
               ? shelf['title'] as String
               : 'Quick picks'),
         ),
-        SizedBox(
-          height: _quickPicksHeight,
-          child: GridView.builder(
-            scrollDirection: Axis.horizontal,
-            padding: _quickPicksPadding,
-            gridDelegate: _quickPicksGrid(context),
-            itemCount: items.length,
-            itemBuilder: (_, i) => _buildSongRow(
-                items[i], i % _quickPicksRows, _quickPicksRows),
-          ),
-        ),
+        LayoutBuilder(builder: (context, constraints) {
+          final width = constraints.maxWidth - _quickPicksPadding.horizontal;
+          // under two full columns the shelf pages
+          final room = (items.length / _quickPicksRows).ceil();
+          if (width >= _quickPicksColumn * 2 + _quickPicksGap && room >= 2) {
+            final columns = (width / (_quickPicksColumn + _quickPicksGap))
+                .floor()
+                .clamp(2, 3)
+                .clamp(1, room);
+            return Padding(
+              padding: _quickPicksPadding,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (var c = 0; c < columns; c++) ...[
+                    if (c > 0) const SizedBox(width: _quickPicksGap),
+                    Expanded(
+                      child: Column(
+                        children: [
+                          for (var r = 0; r < _quickPicksRows; r++)
+                            if (c * _quickPicksRows + r < items.length)
+                              Padding(
+                                padding: EdgeInsets.only(
+                                    bottom: r == _quickPicksRows - 1
+                                        ? 0
+                                        : _quickPicksGap),
+                                child: _buildSongRow(
+                                    items[c * _quickPicksRows + r],
+                                    r,
+                                    _quickPicksRows),
+                              ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            );
+          }
+          return SizedBox(
+            height: _quickPicksHeight,
+            child: GridView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: _quickPicksPadding,
+              gridDelegate: _quickPicksGrid(width),
+              itemCount: items.length,
+              itemBuilder: (_, i) => _buildSongRow(
+                  items[i], i % _quickPicksRows, _quickPicksRows),
+            ),
+          );
+        }),
         const SizedBox(height: 24),
       ],
     );
@@ -1322,18 +1363,54 @@ class _QuickPicksSkeletonState extends State<_QuickPicksSkeleton>
                     ),
               ),
             ),
-            SizedBox(
-              height: _quickPicksHeight,
-              child: GridView.builder(
-                scrollDirection: Axis.horizontal,
-                physics: const NeverScrollableScrollPhysics(),
-                padding: _quickPicksPadding,
-                gridDelegate: _quickPicksGrid(context),
-                itemCount: _quickPicksRows * 2,
-                itemBuilder: (_, i) => _buildSkeletonRow(
-                    scheme, alpha, i % _quickPicksRows, _quickPicksRows),
-              ),
-            ),
+            LayoutBuilder(builder: (context, constraints) {
+              final width =
+                  constraints.maxWidth - _quickPicksPadding.horizontal;
+              if (width >= _quickPicksColumn * 2 + _quickPicksGap) {
+                final columns =
+                    (width / (_quickPicksColumn + _quickPicksGap))
+                        .floor()
+                        .clamp(2, 3);
+                return Padding(
+                  padding: _quickPicksPadding,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      for (var c = 0; c < columns; c++) ...[
+                        if (c > 0) const SizedBox(width: _quickPicksGap),
+                        Expanded(
+                          child: Column(
+                            children: [
+                              for (var r = 0; r < _quickPicksRows; r++)
+                                Padding(
+                                  padding: EdgeInsets.only(
+                                      bottom: r == _quickPicksRows - 1
+                                          ? 0
+                                          : _quickPicksGap),
+                                  child: _buildSkeletonRow(
+                                      scheme, alpha, r, _quickPicksRows),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                );
+              }
+              return SizedBox(
+                height: _quickPicksHeight,
+                child: GridView.builder(
+                  scrollDirection: Axis.horizontal,
+                  physics: const NeverScrollableScrollPhysics(),
+                  padding: _quickPicksPadding,
+                  gridDelegate: _quickPicksGrid(width),
+                  itemCount: _quickPicksRows * 2,
+                  itemBuilder: (_, i) => _buildSkeletonRow(
+                      scheme, alpha, i % _quickPicksRows, _quickPicksRows),
+                ),
+              );
+            }),
             const SizedBox(height: 24),
           ],
         );

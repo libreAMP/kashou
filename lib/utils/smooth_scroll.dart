@@ -12,6 +12,7 @@ class KashouScrollBehavior extends MaterialScrollBehavior {
         PointerDeviceKind.stylus,
         PointerDeviceKind.invertedStylus,
         PointerDeviceKind.trackpad,
+                PointerDeviceKind.mouse,
       };
 
   @override

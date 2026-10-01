@@ -190,6 +190,8 @@ class _LibraryScreenState extends State<LibraryScreen>
                   padding: EdgeInsets.symmetric(
                       horizontal: 16, vertical: isDesktop ? 11 : 0),
                   child: Row(
+                    // a row inside a wrap has to hug
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(_tabIcons[labels[i]]!,
                           size: 18,
