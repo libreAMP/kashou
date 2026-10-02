@@ -37,6 +37,7 @@ Future<void> openNowPlaying(BuildContext context) {
 
   return showModalBottomSheet<void>(
     context: context,
+    useRootNavigator: true,
     isScrollControlled: true,
     useSafeArea: false,
     enableDrag: true,
@@ -44,8 +45,8 @@ Future<void> openNowPlaying(BuildContext context) {
     backgroundColor: Colors.transparent,
     barrierColor: Colors.black.withValues(alpha: 0.5),
     sheetAnimationStyle: const AnimationStyle(
-      duration: Duration(milliseconds: 350),
-      reverseDuration: Duration(milliseconds: 300),
+      duration: Duration(milliseconds: 260),
+      reverseDuration: Duration(milliseconds: 220),
     ),
     constraints: const BoxConstraints.expand(),
     clipBehavior: Clip.none,
@@ -53,7 +54,11 @@ Future<void> openNowPlaying(BuildContext context) {
       final mq = MediaQuery.of(sheetContext);
       return MediaQuery(
         data: mq.copyWith(padding: mq.viewPadding),
-        child: const NowPlayingScreen(),
+        child: SizedBox(
+          height: mq.size.height,
+          width: mq.size.width,
+          child: const NowPlayingScreen(),
+        ),
       );
     },
   );

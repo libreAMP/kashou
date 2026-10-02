@@ -72,6 +72,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       setState(() => _lyricsOpen = false);
       return;
     }
+    _activeLyric = -1;
     setState(() => _lyricsOpen = true);
     if (_lyrics == null) {
       final res = await LyricsService.fetch(track.title, track.artist);
@@ -80,46 +81,6 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     }
   }
 
-  Widget _lyricsPill(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final open = _lyricsOpen;
-    return Material(
-      color: open ? scheme.primaryContainer : scheme.surfaceContainerHigh,
-      borderRadius: BorderRadius.circular(999),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(999),
-        onTap: () {
-          final track = context.read<AudioProvider>().currentTrack;
-          if (track != null) _toggleLyrics(track);
-        },
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                open ? Icons.album_rounded : Icons.lyrics_rounded,
-                size: 17,
-                color: open
-                    ? scheme.onPrimaryContainer
-                    : scheme.onSurfaceVariant,
-              ),
-              const SizedBox(width: 7),
-              Text(
-                open ? 'Art' : 'Lyrics',
-                style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                      fontSize: 13,
-                      color: open
-                          ? scheme.onPrimaryContainer
-                          : scheme.onSurfaceVariant,
-                    ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 
   Widget _miniArt(Track track) {
     final scheme = Theme.of(context).colorScheme;
@@ -186,28 +147,49 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       _activeLyric = active;
       if (active >= 0) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted || !_lyricsOpen) return;
           final ctx = _lyricKeys[active]?.currentContext;
           if (ctx != null) {
             Scrollable.ensureVisible(
               ctx,
-              alignment: 0.5,
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeInOut,
+              alignment: 0.45,
+              duration: const Duration(milliseconds: 320),
+              curve: Curves.easeOutCubic,
             );
           }
         });
       }
     }
-    return ListView.builder(
+    return SingleChildScrollView(
       controller: _lyricsScroll,
-      padding: const EdgeInsets.fromLTRB(24, 40, 24, 40),
-      itemCount: res.lines.length,
-      itemBuilder: (context, i) {
-        final line = res.lines[i];
-        final isActive = i == active;
-        return Container(
-          key: _lyricKeys.putIfAbsent(i, () => GlobalKey()),
-          padding: const EdgeInsets.symmetric(vertical: 10),
+      padding: const EdgeInsets.fromLTRB(24, 40, 24, 60),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (var i = 0; i < res.lines.length; i++)
+            _buildLyricLine(
+                context, res.lines[i], i, i == active, scheme, audio),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLyricLine(
+    BuildContext context,
+    LyricLine line,
+    int index,
+    bool isActive,
+    ColorScheme scheme,
+    AudioProvider audio,
+  ) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => audio.seek(line.time),
+        child: Container(
+          key: _lyricKeys.putIfAbsent(index, () => GlobalKey()),
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
           child: AnimatedDefaultTextStyle(
             duration: const Duration(milliseconds: 250),
             curve: Curves.easeOut,
@@ -218,8 +200,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                 ),
             child: Text(line.text),
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 
@@ -283,6 +265,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
             _lyrics = null;
             _lyricsOpen = false;
             _activeLyric = -1;
+            _lyricKeys.clear();
           }
 
           final mediaQuery = MediaQuery.of(context);
@@ -1104,23 +1087,14 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Expanded(
-              child: SquigglySlider(
-                value: position.clamp(0, duration),
-                max: duration,
-                animate: audio.isPlaying && !isLoading,
-                onChanged: isLoading
-                    ? null
-                    : (value) =>
-                        audio.seek(Duration(milliseconds: value.toInt())),
-              ),
-            ),
-            const SizedBox(width: 8),
-            _lyricsPill(context),
-          ],
+        SquigglySlider(
+          value: position.clamp(0, duration),
+          max: duration,
+          animate: audio.isPlaying && !isLoading,
+          onChanged: isLoading
+              ? null
+              : (value) =>
+                  audio.seek(Duration(milliseconds: value.toInt())),
         ),
         const SizedBox(height: 4),
         Row(
@@ -1271,7 +1245,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
             decoration: BoxDecoration(
               color: colorScheme.surfaceContainerHigh.withValues(alpha: 0.7),
               borderRadius: BorderRadius.circular(rXl),
@@ -1279,73 +1253,83 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-        _buildSecondaryIconButton(
-          context,
-          icon: _getShuffleIcon(audio.shuffleMode),
-          tooltip: 'Shuffle',
-          active: isShuffle,
-          tileShape: BorderRadius.horizontal(
-            left: const Radius.circular(30),
-            right: const Radius.circular(20),
-          ),
-          onTap: () {
-            final newMode = audio.shuffleMode == ShuffleMode.off
-                ? ShuffleMode.songs
-                : ShuffleMode.off;
-            audio.setShuffleMode(newMode);
-          },
-        ),
-        _buildSecondaryIconButton(
-          context,
-          icon: _getRepeatIcon(audio.repeatMode),
-          tooltip: _repeatLabel(audio.repeatMode),
-          active: isRepeatActive,
-          onTap: () {
-            final modes = RepeatMode.values;
-            final currentIndex = modes.indexOf(audio.repeatMode);
-            final nextIndex = (currentIndex + 1) % modes.length;
-            audio.setRepeatMode(modes[nextIndex]);
-          },
-        ),
-        _buildSecondaryIconButton(
-          context,
-          icon: isFavorite ? Icons.favorite : Icons.favorite_border,
-          tooltip: isFavorite ? 'Remove from likes' : 'Add to likes',
-          active: isFavorite,
-          onTap: () {
-            if (audio.currentTrack != null) {
-              library.toggleFavorite(audio.currentTrack!);
-            }
-          },
-        ),
-        _buildSecondaryIconButton(
-          context,
-          icon: Icons.queue_music_rounded,
-          tooltip: 'View queue',
-          active: false,
-          tileShape: isOnlineTrack
-              ? null
-              : BorderRadius.horizontal(
-                  left: const Radius.circular(20),
-                  right: const Radius.circular(30),
+                _buildSecondaryIconButton(
+                  context,
+                  icon: _getShuffleIcon(audio.shuffleMode),
+                  tooltip: 'Shuffle',
+                  active: isShuffle,
+                  tileShape: const BorderRadius.horizontal(
+                    left: Radius.circular(30),
+                    right: Radius.circular(16),
+                  ),
+                  onTap: () {
+                    final newMode = audio.shuffleMode == ShuffleMode.off
+                        ? ShuffleMode.songs
+                        : ShuffleMode.off;
+                    audio.setShuffleMode(newMode);
+                  },
                 ),
-          onTap: () => _showQueueSheet(context),
-        ),
-        if (isOnlineTrack)
-          _buildSecondaryIconButton(
-            context,
-            icon: Icons.download,
-            tooltip: 'Download track',
-            tileShape: BorderRadius.horizontal(
-              left: const Radius.circular(20),
-              right: const Radius.circular(30),
-            ),
-            onTap: () {
-              if (audio.currentTrack != null) {
-                _downloadTrack(context, audio.currentTrack!);
-              }
-            },
-          ),
+                _buildSecondaryIconButton(
+                  context,
+                  icon: _getRepeatIcon(audio.repeatMode),
+                  tooltip: _repeatLabel(audio.repeatMode),
+                  active: isRepeatActive,
+                  onTap: () {
+                    final modes = RepeatMode.values;
+                    final currentIndex = modes.indexOf(audio.repeatMode);
+                    final nextIndex = (currentIndex + 1) % modes.length;
+                    audio.setRepeatMode(modes[nextIndex]);
+                  },
+                ),
+                _buildSecondaryIconButton(
+                  context,
+                  icon: isFavorite ? Icons.favorite : Icons.favorite_border,
+                  tooltip: isFavorite ? 'Remove from likes' : 'Add to likes',
+                  active: isFavorite,
+                  onTap: () {
+                    if (audio.currentTrack != null) {
+                      library.toggleFavorite(audio.currentTrack!);
+                    }
+                  },
+                ),
+                _buildSecondaryIconButton(
+                  context,
+                  icon: _lyricsOpen ? Icons.lyrics_rounded : Icons.lyrics_outlined,
+                  tooltip: _lyricsOpen ? 'Hide lyrics' : 'Lyrics',
+                  active: _lyricsOpen,
+                  onTap: () {
+                    final track = audio.currentTrack;
+                    if (track != null) _toggleLyrics(track);
+                  },
+                ),
+                _buildSecondaryIconButton(
+                  context,
+                  icon: Icons.queue_music_rounded,
+                  tooltip: 'View queue',
+                  active: false,
+                  tileShape: isOnlineTrack
+                      ? null
+                      : const BorderRadius.horizontal(
+                          left: Radius.circular(16),
+                          right: Radius.circular(30),
+                        ),
+                  onTap: () => _showQueueSheet(context),
+                ),
+                if (isOnlineTrack)
+                  _buildSecondaryIconButton(
+                    context,
+                    icon: Icons.download,
+                    tooltip: 'Download track',
+                    tileShape: const BorderRadius.horizontal(
+                      left: Radius.circular(16),
+                      right: Radius.circular(30),
+                    ),
+                    onTap: () {
+                      if (audio.currentTrack != null) {
+                        _downloadTrack(context, audio.currentTrack!);
+                      }
+                    },
+                  ),
               ],
             ),
           ),
@@ -1366,32 +1350,32 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     final shape = tileShape ?? BorderRadius.circular(16);
     return PressableScale(
       child: Tooltip(
-      message: tooltip,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: shape,
-          onTap: onTap,
-          child: AnimatedContainer(
-            duration: EMotion.fast,
-            margin: const EdgeInsets.symmetric(horizontal: 3),
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: active
-                  ? colorScheme.primaryContainer
-                  : colorScheme.surfaceContainerHighest,
-              borderRadius: shape,
-            ),
-            child: Icon(
-              icon,
-              size: 24,
-              color: active
-                  ? colorScheme.onPrimaryContainer
-                  : colorScheme.onSurfaceVariant,
+        message: tooltip,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: shape,
+            onTap: onTap,
+            child: AnimatedContainer(
+              duration: EMotion.fast,
+              margin: const EdgeInsets.symmetric(horizontal: 2.5),
+              padding: const EdgeInsets.all(11),
+              decoration: BoxDecoration(
+                color: active
+                    ? colorScheme.primaryContainer
+                    : colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                borderRadius: shape,
+              ),
+              child: Icon(
+                icon,
+                size: 22,
+                color: active
+                    ? colorScheme.onPrimaryContainer
+                    : colorScheme.onSurfaceVariant,
+              ),
             ),
           ),
         ),
-      ),
       ),
     );
   }
