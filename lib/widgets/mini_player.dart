@@ -1,6 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
-
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'loading_indicator.dart';
@@ -13,7 +11,7 @@ import '../providers/audio_provider.dart';
 import '../providers/settings_provider.dart';
 import '../theme/app_theme.dart';
 import '../theme/radii.dart';
-import '../services/local_media_server.dart';
+import '../services/cast_service.dart';
 import '../utils/hero_transitions.dart';
 import '../utils/platform.dart';
 import '../models/track.dart';
@@ -72,11 +70,7 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
   double _dragDistance = 0;
   bool _isSwipingHorizontal = false;
   bool _reporting = true;
-  StreamSubscription<GoogleCastSession?>? _castSessionSubscription;
   bool _castingEnabled = false;
-  bool _wasCasting = false;
-  Timer? _castConnectionDebounce;
-  bool _isCastConnecting = false;
 
   @override
   void initState() {
@@ -108,183 +102,9 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
     _slideController.addListener(_reportSlide);
 
     final settings = Provider.of<SettingsProvider>(context, listen: false);
-    // chromecast only exists on mobile, no plugin channels on desktop
-    final castSupported = isMobile;
-    _castingEnabled = settings.enableCasting && castSupported;
-
-    if (castSupported) {
-      _castSessionSubscription = GoogleCastSessionManager
-          .instance.currentSessionStream
-          .listen((session) {
-        if (!mounted) return;
-
-        if (session != null) {
-          debugPrint(
-              '[Cast] Session connected to ${session.device?.friendlyName}');
-          _wasCasting = true;
-
-          // Debounce to prevent reconnect loops
-          _castConnectionDebounce?.cancel();
-          _castConnectionDebounce =
-              Timer(const Duration(milliseconds: 500), () {
-            if (mounted && !_isCastConnecting) {
-              _isCastConnecting = true;
-              _onCastConnected().then((_) {
-                _isCastConnecting = false;
-              }).catchError((e) {
-                _isCastConnecting = false;
-                debugPrint('[Cast] Connection handler error: $e');
-              });
-            }
-          });
-        } else {
-          // stream replays null on subscribe
-          if (!_wasCasting) return;
-          _wasCasting = false;
-          debugPrint('[Cast] Session disconnected - restoring local playback');
-          _castConnectionDebounce?.cancel();
-          _isCastConnecting = false;
-          LocalMediaServer.instance.stop();
-
-          // Restore local playback asynchronously
-          final audioProvider =
-              Provider.of<AudioProvider>(context, listen: false);
-
-          Future.microtask(() async {
-            await audioProvider.audioPlayer.setVolume(1.0);
-
-            if (audioProvider.currentTrack != null) {
-              try {
-                await audioProvider.audioPlayer.play();
-                debugPrint('[Cast] Local playback restored');
-              } catch (e) {
-                debugPrint('[Cast] Failed to restore playback: $e');
-              }
-            }
-          });
-        }
-      });
-
-      if (_castingEnabled) {
-        GoogleCastDiscoveryManager.instance.startDiscovery();
-      }
-    }
-  }
-
-  Future<void> _onCastConnected() async {
-    // resolve the messenger up front so it survives the async gap below
-    final messenger = ScaffoldMessenger.of(context);
-    final audioProvider = Provider.of<AudioProvider>(context, listen: false);
-    final track = audioProvider.currentTrack;
-    if (track == null) {
-      debugPrint('[Cast] No track to cast');
-      return;
-    }
-
-    try {
-      String streamUrl;
-      final isRemoteUrl =
-          track.path.startsWith('http://') || track.path.startsWith('https://');
-
-      if (isRemoteUrl) {
-        // For YouTube/remote streams, cast the URL directly
-        streamUrl = track.path;
-      } else {
-        // For local files, use the media server
-        final server = LocalMediaServer.instance;
-        final baseUrl = await server.ensureStarted();
-        final serverUrl =
-            baseUrl != null ? server.buildStreamUrl(track.path) : null;
-
-        if (serverUrl == null) {
-          debugPrint('[Cast] Failed to start local media server');
-          messenger.showSnackBar(
-            const SnackBar(
-                content: Text('Unable to start local media server for casting.')),
-          );
-          return;
-        }
-        streamUrl = serverUrl;
-      }
-
-      await audioProvider.audioPlayer.pause();
-      await audioProvider.audioPlayer.setVolume(0.0);
-
-      final contentType = _inferTrackMimeType(track.path) ?? 'audio/mpeg';
-
-      // Use generic metadata with explicit duration as int to avoid null Long error
-      final metadata = GoogleCastGenericMediaMetadata(
-        title: track.title,
-        subtitle: track.artist,
-        images: track.albumArt != null
-            ? [
-                GoogleCastImage(
-                    url: Uri.parse(
-                        'data:image/jpeg;base64,${base64Encode(track.albumArt!)}'))
-              ]
-            : [],
-      );
-
-      await GoogleCastRemoteMediaClient.instance.loadMedia(
-        GoogleCastMediaInformationIOS(
-          contentId: streamUrl,
-          streamType: CastMediaStreamType.buffered,
-          contentUrl: Uri.parse(streamUrl),
-          contentType: contentType,
-          metadata: metadata,
-        ),
-        autoPlay: true,
-        playPosition: audioProvider.position,
-        playbackRate: 1.0,
-      );
-
-      // Wait a moment for media to load on TV, then explicitly send play command
-      await Future.delayed(const Duration(milliseconds: 800));
-
-      try {
-        await GoogleCastRemoteMediaClient.instance.play();
-      } catch (e) {
-        debugPrint('[Cast] Play command failed: $e');
-      }
-    } catch (e) {
-      debugPrint('[Cast] Error loading media: $e');
-      messenger.showSnackBar(
-        SnackBar(content: Text('Cast error: $e')),
-      );
-    }
-  }
-
-  Future<void> _toggleCastPlayPause() async {
-    try {
-      final audioProvider = Provider.of<AudioProvider>(context, listen: false);
-      if (audioProvider.isPlaying) {
-        await GoogleCastRemoteMediaClient.instance.pause();
-      } else {
-        await GoogleCastRemoteMediaClient.instance.play();
-      }
-    } catch (e) {
-      debugPrint('[Cast] Toggle play/pause error: $e');
-    }
-  }
-
-  Future<void> _castSkipNext() async {
-    // resolve before awaiting so it doesn't cross the async gap
-    final audioProvider = Provider.of<AudioProvider>(context, listen: false);
-    try {
-      // Stop current cast media
-      await GoogleCastRemoteMediaClient.instance.stop();
-      debugPrint('[Cast] Stopped current cast media');
-
-      // Skip to next track in local queue
-      await audioProvider.skipNext();
-
-      // Wait a moment for the new track to load locally
-      await Future.delayed(const Duration(milliseconds: 500));
-
-      // Cast the new track
-      await _onCastConnected();
-    } catch (e) {
-      debugPrint('[Cast] Skip next error: $e');
+    _castingEnabled = settings.enableCasting && isMobile;
+    if (_castingEnabled) {
+      GoogleCastDiscoveryManager.instance.startDiscovery();
     }
   }
 
@@ -295,26 +115,12 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
   @override
   void dispose() {
     _slideController.removeListener(_reportSlide);
-    _castConnectionDebounce?.cancel();
-    _castSessionSubscription?.cancel();
     if (_castingEnabled) {
       GoogleCastDiscoveryManager.instance.stopDiscovery();
     }
     _slideController.dispose();
     _swipeController.dispose();
     super.dispose();
-  }
-
-  String? _inferTrackMimeType(String path) {
-    final lower = path.toLowerCase();
-
-    if (lower.endsWith('.mp3')) return 'audio/mpeg';
-    if (lower.endsWith('.m4a') || lower.endsWith('.aac')) return 'audio/mp4';
-    if (lower.endsWith('.flac')) return 'audio/flac';
-    if (lower.endsWith('.wav')) return 'audio/wav';
-    if (lower.endsWith('.ogg')) return 'audio/ogg';
-
-    return null;
   }
 
   bool _isExpanding = false;
@@ -378,14 +184,6 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
     _isSwipingHorizontal = false;
   }
 
-  // chromecast has no plugin channels on desktop, so skip the session stream
-  Widget _withCastSession(Widget Function(bool isCasting) builder) {
-    if (isDesktop) return builder(false);
-    return StreamBuilder<GoogleCastSession?>(
-      stream: GoogleCastSessionManager.instance.currentSessionStream,
-      builder: (context, castSnapshot) => builder(castSnapshot.data != null),
-    );
-  }
 
   // desktop: click the progress strip to seek; the bar itself looks the same
   Widget _seekableProgress(int totalMillis, Widget progressBar) {
@@ -505,14 +303,21 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
                                 const SizedBox(width: 10),
                               ] else ...[
                                 if (settings.enableCasting && !isDesktop)
-                                  IconButton(
-                                    icon: Icon(
-                                      Icons.cast,
-                                      color: colorScheme.onSurfaceVariant,
+                                  ListenableBuilder(
+                                    listenable: CastService.instance,
+                                    builder: (context, _) => IconButton(
+                                      icon: Icon(
+                                        CastService.instance.isCasting
+                                            ? Icons.cast_connected
+                                            : Icons.cast,
+                                        color: CastService.instance.isCasting
+                                            ? colorScheme.primary
+                                            : colorScheme.onSurfaceVariant,
+                                      ),
+                                      iconSize: 22,
+                                      onPressed: () => _showCastDialog(context),
+                                      splashRadius: 22,
                                     ),
-                                    iconSize: 22,
-                                    onPressed: () => _showCastDialog(context),
-                                    splashRadius: 22,
                                   ),
                                 IconButton(
                                   tooltip: isDesktop ? 'Previous' : null,
@@ -526,64 +331,48 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
                                       .skipPrevious(),
                                   splashRadius: 24,
                                 ),
-                                _withCastSession(
-                                  (isCasting) => IconButton(
-                                    tooltip: isDesktop ? 'Next' : null,
-                                    icon: Icon(
-                                      Icons.skip_next_rounded,
-                                      color: colorScheme.onSurface,
-                                    ),
-                                    iconSize: 26,
-                                    onPressed: () => isCasting
-                                        ? _castSkipNext()
-                                        : context
-                                            .read<AudioProvider>()
-                                            .skipNext(),
-                                    splashRadius: 24,
+                                IconButton(
+                                  tooltip: isDesktop ? 'Next' : null,
+                                  icon: Icon(
+                                    Icons.skip_next_rounded,
+                                    color: colorScheme.onSurface,
                                   ),
+                                  iconSize: 26,
+                                  onPressed: () => context
+                                      .read<AudioProvider>()
+                                      .skipNext(),
+                                  splashRadius: 24,
                                 ),
                                 const SizedBox(width: 2),
-                                _withCastSession(
-                                  (isCasting) {
-                                    final playButton = PressableScale(
-                                        child: Material(
-                                      color: colorScheme.primaryContainer,
+                                PressableScale(
+                                  child: Material(
+                                    color: colorScheme.primaryContainer,
+                                    borderRadius: BorderRadius.circular(rMd),
+                                    child: InkWell(
                                       borderRadius: BorderRadius.circular(rMd),
-                                      child: InkWell(
-                                        borderRadius: BorderRadius.circular(rMd),
-                                        onTap: () => isCasting
-                                            ? _toggleCastPlayPause()
-                                            : context
-                                                .read<AudioProvider>()
-                                                .togglePlayPause(),
-                                        child: SizedBox(
-                                          width: 46,
-                                          height: 46,
-                                          child: Padding(
-                                            padding: EdgeInsets.only(
-                                                left: snapshot.isPlaying
-                                                    ? 0
-                                                    : 1.5),
-                                            child: Icon(
-                                              snapshot.isPlaying
-                                                  ? Icons.pause_rounded
-                                                  : Icons.play_arrow_rounded,
-                                              size: 26,
-                                              color: colorScheme
-                                                  .onPrimaryContainer,
-                                            ),
+                                      onTap: () => context
+                                          .read<AudioProvider>()
+                                          .togglePlayPause(),
+                                      child: SizedBox(
+                                        width: 46,
+                                        height: 46,
+                                        child: Padding(
+                                          padding: EdgeInsets.only(
+                                              left: snapshot.isPlaying
+                                                  ? 0
+                                                  : 1.5),
+                                          child: Icon(
+                                            snapshot.isPlaying
+                                                ? Icons.pause_rounded
+                                                : Icons.play_arrow_rounded,
+                                            size: 26,
+                                            color: colorScheme
+                                                .onPrimaryContainer,
                                           ),
                                         ),
                                       ),
-                                    ));
-                                    if (!isDesktop) return playButton;
-                                    return Tooltip(
-                                      message: snapshot.isPlaying
-                                          ? 'Pause'
-                                          : 'Play',
-                                      child: playButton,
-                                    );
-                                  },
+                                    ),
+                                  ),
                                 ),
                               ],
                               // swipe-down-to-dismiss needs a visible
@@ -697,254 +486,185 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
                 session?.device?.friendlyName ?? 'Cast device';
 
             Future<void> stopCasting() async {
-              debugPrint('[Cast] Stopping cast session...');
-
-              try {
-                // Stop remote media first
-                try {
-                  await GoogleCastRemoteMediaClient.instance.stop();
-                  debugPrint('[Cast] Remote media stopped');
-                } catch (e) {
-                  debugPrint('[Cast] Error stopping remote media: $e');
-                }
-
-                // End the cast session
-                final result = await GoogleCastSessionManager.instance
-                    .endSessionAndStopCasting();
-                debugPrint('[Cast] endSessionAndStopCasting result: $result');
-
-                // Wait a bit for session state to update
-                await Future.delayed(const Duration(milliseconds: 300));
-
-                if (result == false) {
-                  debugPrint('[Cast] Trying fallback endSession()');
-                  final fallback =
-                      await GoogleCastSessionManager.instance.endSession();
-                  debugPrint('[Cast] endSession result: $fallback');
-
-                  await Future.delayed(const Duration(milliseconds: 300));
-
-                  if (fallback == true) {
-                    if (dialogContext.mounted) {
-                      Navigator.of(dialogContext).pop();
-                    }
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                            content:
-                                Text('Disconnected from $connectedDeviceName')),
-                      );
-                    }
-                    return;
-                  }
-
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                          content: Text(
-                              'Could not disconnect from $connectedDeviceName')),
-                    );
-                  }
-                  if (dialogContext.mounted) Navigator.of(dialogContext).pop();
-                  return;
-                }
-
-                if (dialogContext.mounted) Navigator.of(dialogContext).pop();
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                        content:
-                            Text('Disconnected from $connectedDeviceName')),
-                  );
-                }
-              } catch (error) {
-                debugPrint('[Cast] Disconnect error: $error');
-                if (dialogContext.mounted) Navigator.of(dialogContext).pop();
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Failed to disconnect: $error')),
-                  );
-                }
+              if (dialogContext.mounted) Navigator.of(dialogContext).pop();
+              await CastService.instance.endSession();
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Disconnected from $connectedDeviceName')),
+                );
               }
             }
 
             return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
               titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
-              contentPadding: const EdgeInsets.fromLTRB(0, 0, 0, 0),
-              insetPadding:
-                  const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-              title: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Cast to Device',
-                    style: theme.textTheme.headlineMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.5,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  if (session != null)
-                    Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: colorScheme.primaryContainer.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(rMd),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(Icons.cast_connected,
-                              color: colorScheme.primary),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  'Currently casting',
-                                  style: theme.textTheme.labelMedium?.copyWith(
-                                    color: colorScheme.onPrimaryContainer,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                                if (session.deviceStatusText.isNotEmpty)
-                                  Text(
-                                    session.deviceStatusText,
-                                    style: theme.textTheme.bodySmall?.copyWith(
-                                      color: colorScheme.onPrimaryContainer
-                                          .withValues(alpha: 0.8),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          FilledButton.tonalIcon(
-                            onPressed: stopCasting,
-                            icon: const Icon(Icons.close),
-                            label: const Text('Disconnect'),
-                          ),
-                        ],
-                      ),
-                    ),
-                ],
+              contentPadding: const EdgeInsets.symmetric(vertical: 8),
+              insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+              title: Text(
+                'Cast to Device',
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
               ),
               content: SizedBox(
-                height: 280,
                 width: 320,
-                child: StreamBuilder<List<GoogleCastDevice>>(
-                  stream: GoogleCastDiscoveryManager.instance.devicesStream,
-                  builder: (context, snapshot) {
-                    final devices = snapshot.data ?? [];
-
-                    if (devices.isEmpty) {
-                      return Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (session != null)
+                      Container(
+                        margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: colorScheme.primaryContainer.withValues(alpha: 0.35),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Row(
                           children: [
-                            Icon(Icons.cast,
-                                size: 36,
-                                color: colorScheme.onSurfaceVariant
-                                    .withValues(alpha: 0.5)),
-                            const SizedBox(height: 12),
-                            Text(
-                              'Searching for cast devices...',
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                color: colorScheme.onSurfaceVariant,
+                            CircleAvatar(
+                              backgroundColor: colorScheme.primary,
+                              radius: 18,
+                              child: Icon(
+                                Icons.cast_connected,
+                                color: colorScheme.onPrimary,
+                                size: 18,
                               ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    connectedDeviceName,
+                                    style: theme.textTheme.titleMedium?.copyWith(
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  Text(
+                                    'Connected',
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: colorScheme.primary,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            FilledButton.tonal(
+                              onPressed: stopCasting,
+                              style: FilledButton.styleFrom(
+                                visualDensity: VisualDensity.compact,
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 6),
+                              ),
+                              child: const Text('Disconnect'),
                             ),
                           ],
                         ),
-                      );
-                    }
+                      ),
+                    StreamBuilder<List<GoogleCastDevice>>(
+                      stream: GoogleCastDiscoveryManager.instance.devicesStream,
+                      builder: (context, snapshot) {
+                        final allDevices = snapshot.data ?? [];
+                        final availableDevices = allDevices
+                            .where((d) => d.deviceID != connectedDeviceId)
+                            .toList();
 
-                    return ListView.separated(
-                      padding: const EdgeInsets.only(bottom: 16),
-                      itemBuilder: (context, index) {
-                        final device = devices[index];
-                        final isConnected =
-                            device.deviceID == connectedDeviceId;
-
-                        Future<void> connectToDevice() async {
-                          debugPrint(
-                              '[Cast] Connecting to ${device.friendlyName} (${device.deviceID})');
-                          if (dialogContext.mounted) {
-                            Navigator.of(dialogContext).pop();
-                          }
-
-                          try {
-                            final result = await GoogleCastSessionManager
-                                .instance
-                                .startSessionWithDevice(device);
-                            debugPrint(
-                                '[Cast] startSessionWithDevice result: $result');
-
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                    content: Text(
-                                        'Connecting to ${device.friendlyName}...')),
-                              );
-                            }
-                          } catch (error) {
-                            debugPrint('[Cast] Connection error: $error');
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                    content: Text('Failed to connect: $error')),
-                              );
-                            }
-                          }
+                        if (availableDevices.isEmpty) {
+                          if (session != null) return const SizedBox.shrink();
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 32),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.cast,
+                                  size: 32,
+                                  color: colorScheme.onSurfaceVariant
+                                      .withValues(alpha: 0.5),
+                                ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  'Searching for cast devices...',
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    color: colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
                         }
 
-                        return ListTile(
-                          leading: CircleAvatar(
-                            backgroundColor: isConnected
-                                ? colorScheme.primary.withValues(alpha: 0.15)
-                                : colorScheme.surfaceContainerHighest,
-                            child: Icon(
-                              isConnected ? Icons.cast_connected : Icons.cast,
-                              color: isConnected
-                                  ? colorScheme.primary
-                                  : colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                          title: Text(
-                            device.friendlyName,
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w600,
-                              color: isConnected
-                                  ? colorScheme.primary
-                                  : colorScheme.onSurface,
-                            ),
-                          ),
-                          subtitle: Text(
-                            isConnected
-                                ? 'Connected'
-                                : (device.modelName ?? 'Tap to connect'),
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: isConnected
-                                  ? colorScheme.primary
-                                  : colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                          trailing: isConnected
-                              ? Icon(
-                                  Icons.cast_connected,
-                                  color: colorScheme.primary,
-                                )
-                              : Icon(
-                                  Icons.chevron_right,
+                        return Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+                              child: Text(
+                                session != null ? 'Switch device' : 'Available devices',
+                                style: theme.textTheme.labelMedium?.copyWith(
                                   color: colorScheme.onSurfaceVariant,
+                                  fontWeight: FontWeight.w600,
                                 ),
-                          onTap: isConnected ? null : connectToDevice,
+                              ),
+                            ),
+                            ConstrainedBox(
+                              constraints: const BoxConstraints(maxHeight: 220),
+                              child: ListView.builder(
+                                shrinkWrap: true,
+                                itemCount: availableDevices.length,
+                                itemBuilder: (context, index) {
+                                  final device = availableDevices[index];
+                                  return ListTile(
+                                    leading: CircleAvatar(
+                                      backgroundColor:
+                                          colorScheme.surfaceContainerHighest,
+                                      child: Icon(
+                                        Icons.cast,
+                                        color: colorScheme.onSurfaceVariant,
+                                      ),
+                                    ),
+                                    title: Text(
+                                      device.friendlyName,
+                                      style: theme.textTheme.titleMedium?.copyWith(
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                    subtitle: device.modelName != null
+                                        ? Text(
+                                            device.modelName!,
+                                            style: theme.textTheme.bodySmall?.copyWith(
+                                              color: colorScheme.onSurfaceVariant,
+                                            ),
+                                          )
+                                        : null,
+                                    onTap: () async {
+                                      if (dialogContext.mounted) {
+                                        Navigator.of(dialogContext).pop();
+                                      }
+                                      try {
+                                        await GoogleCastSessionManager.instance
+                                            .startSessionWithDevice(device);
+                                      } catch (e) {
+                                        debugPrint('[Cast] Connection error: $e');
+                                      }
+                                    },
+                                  );
+                                },
+                              ),
+                            ),
+                          ],
                         );
                       },
-                      separatorBuilder: (_, __) => const Divider(height: 0),
-                      itemCount: devices.length,
-                    );
-                  },
+                    ),
+                  ],
                 ),
               ),
               actions: [

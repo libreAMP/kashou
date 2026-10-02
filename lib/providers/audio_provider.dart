@@ -15,6 +15,7 @@ import '../services/ytdl_service.dart';
 import '../providers/settings_provider.dart';
 import '../providers/recommendation_provider.dart';
 import '../providers/library_provider.dart';
+import '../services/cast_service.dart';
 import '../services/custom_equalizer.dart';
 import '../models/stream_history_entry.dart';
 
@@ -98,8 +99,12 @@ class AudioProvider extends ChangeNotifier {
   Track? get currentTrack => _pendingTrack ?? _currentTrack;
   List<Track> get queue => _queue;
   int get currentIndex => _currentIndex;
-  bool get isPlaying => _isPlaying;
-  Duration get position => _position;
+  bool get isPlaying => CastService.instance.isCasting
+      ? CastService.instance.isCastPlaying
+      : _isPlaying;
+  Duration get position => CastService.instance.isCasting
+      ? CastService.instance.castPosition
+      : _position;
   Duration get bufferedPosition => _bufferedPosition;
   Duration get duration => _duration;
   bool get isLoadingTrack => _isLoadingTrack;
@@ -363,6 +368,9 @@ class AudioProvider extends ChangeNotifier {
   void _initializePlayer() {
     _configureAudioSession();
 
+    CastService.instance.removeListener(_onCastServiceUpdate);
+    CastService.instance.addListener(_onCastServiceUpdate);
+
     _playerSubs.add(audioPlayer.positionStream.listen((position) {
       _position = position;
       if (_isLoadingTrack &&
@@ -431,6 +439,18 @@ class AudioProvider extends ChangeNotifier {
         }
       }));
     }
+  }
+
+  void _onCastServiceUpdate() {
+    if (CastService.instance.isCasting) {
+      if (audioPlayer.playing) {
+        audioPlayer.pause();
+      }
+      audioPlayer.setVolume(0.0);
+    } else {
+      audioPlayer.setVolume(_masterVolume);
+    }
+    notifyListeners();
   }
 
   Future<void> _configureAudioSession() async {
@@ -686,7 +706,10 @@ class AudioProvider extends ChangeNotifier {
       final crossfadeDuration = _settingsProvider?.crossfadeDuration ?? 3.0;
       final enableReplayGain = _settingsProvider?.enableReplayGain ?? false;
 
-      if (enableGapless && _queue.length > 1 && !_isRemotePath(track.path)) {
+      if (!CastService.instance.isCasting &&
+          enableGapless &&
+          _queue.length > 1 &&
+          !_isRemotePath(track.path)) {
         await _applyLoudness(track, enableReplayGain);
         await _setupGaplessPlayback();
       } else {
@@ -699,7 +722,13 @@ class AudioProvider extends ChangeNotifier {
           await _crossfadeToTrack(track, crossfadeDuration);
         } else {
           await _loadTrackIntoPlayer(track);
-          await audioPlayer.play();
+          if (CastService.instance.isCasting) {
+            await audioPlayer.pause();
+            await audioPlayer.setVolume(0.0);
+            await CastService.instance.loadTrack(track);
+          } else {
+            await audioPlayer.play();
+          }
         }
       }
 
@@ -767,7 +796,13 @@ class AudioProvider extends ChangeNotifier {
       debugPrint('[Audio] retrying via fallback: ${track.title}');
       track = track.copyWith(path: fallbackUrl);
       await _loadTrackIntoPlayer(track);
-      await audioPlayer.play();
+      if (CastService.instance.isCasting) {
+        await audioPlayer.pause();
+        await audioPlayer.setVolume(0.0);
+        await CastService.instance.loadTrack(track);
+      } else {
+        await audioPlayer.play();
+      }
       if (seq != _playSeq) return true;
       _isPlaying = audioPlayer.playing;
       _currentTrack = track;
@@ -949,6 +984,11 @@ class AudioProvider extends ChangeNotifier {
   }
 
   Future<void> togglePlayPause() async {
+    if (CastService.instance.isCasting) {
+      await CastService.instance.togglePlayPause();
+      notifyListeners();
+      return;
+    }
     if (audioPlayer.playing) {
       await audioPlayer.pause();
     } else {
@@ -1046,6 +1086,11 @@ class AudioProvider extends ChangeNotifier {
   }
 
   Future<void> seek(Duration position) async {
+    if (CastService.instance.isCasting) {
+      await CastService.instance.seek(position);
+      notifyListeners();
+      return;
+    }
     await audioPlayer.seek(position);
   }
 

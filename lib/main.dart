@@ -27,6 +27,7 @@ import 'providers/settings_provider.dart';
 import 'providers/recommendation_provider.dart';
 import 'services/youtube/youtube_service.dart';
 import 'services/ytmusic_service.dart';
+import 'services/cast_service.dart';
 import 'screens/splash_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/library_screen.dart';
@@ -77,6 +78,7 @@ void main() async {
     }
 
     GoogleCastContext.instance.setSharedInstanceWithOptions(options);
+    CastService.instance.initialize();
   }
 
   // no status/nav bars to tint on desktop
