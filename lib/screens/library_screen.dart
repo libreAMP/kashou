@@ -314,6 +314,44 @@ class _LibraryScreenState extends State<LibraryScreen>
     );
   }
 
+  void _goToTab(String name) {
+    final idx = _tabOrder.indexOf(name);
+    if (idx != -1) _tabController.animateTo(idx);
+  }
+
+  Widget _statChip(
+      BuildContext context, IconData icon, int count, String label,
+      {VoidCallback? onTap}) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
+    return Material(
+      color: scheme.surfaceContainerHigh,
+      borderRadius: BorderRadius.circular(rSm),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(8, 8, 12, 8),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 16, color: scheme.primary),
+              const SizedBox(width: 6),
+              Text(
+                '$count $label',
+                style: theme.textTheme.labelMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: scheme.onSurface,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
@@ -366,29 +404,57 @@ class _LibraryScreenState extends State<LibraryScreen>
                         return [
                           SliverToBoxAdapter(
                             child: Padding(
-                              padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
+                              padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(
-                                    'Library',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .headlineMedium
-                                        ?.copyWith(
-                                          fontWeight: FontWeight.w800,
-                                          letterSpacing: -0.5,
-                                        ),
+                                  Padding(
+                                    padding:
+                                        const EdgeInsets.fromLTRB(0, 0, 0, 12),
+                                    child: Text(
+                                      'Library',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .headlineMedium
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.w800,
+                                            letterSpacing: -0.5,
+                                          ),
+                                    ),
                                   ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    '$songCount songs, $albumCount albums, $artistCount artists, $playlistCount playlists',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .bodySmall
-                                        ?.copyWith(
-                                          color: scheme.onSurfaceVariant,
-                                        ),
+                                  Wrap(
+                                    spacing: 8,
+                                    runSpacing: 8,
+                                    children: [
+                                      _statChip(
+                                        context,
+                                        Icons.music_note_rounded,
+                                        songCount,
+                                        'songs',
+                                        onTap: () => _goToTab('Songs'),
+                                      ),
+                                      _statChip(
+                                        context,
+                                        Icons.album_rounded,
+                                        albumCount,
+                                        'albums',
+                                        onTap: () => _goToTab('Albums'),
+                                      ),
+                                      _statChip(
+                                        context,
+                                        Icons.person_rounded,
+                                        artistCount,
+                                        'artists',
+                                        onTap: () => _goToTab('Artists'),
+                                      ),
+                                      _statChip(
+                                        context,
+                                        Icons.playlist_play_rounded,
+                                        playlistCount,
+                                        'playlists',
+                                        onTap: () => _goToTab('Playlists'),
+                                      ),
+                                    ],
                                   ),
                                   const SizedBox(height: 8),
                                 ],

@@ -9,6 +9,7 @@ import '../services/ytdl_service.dart';
 import '../models/track.dart';
 import '../theme/radii.dart';
 import '../utils/platform.dart';
+import '../widgets/back_chip.dart';
 import '../widgets/square_art.dart';
 import '../widgets/page_mini_player.dart';
 import '../services/ytmusic_service.dart';
@@ -208,7 +209,9 @@ class _SectionPageState extends State<SectionPage> {
       bottomNavigationBar: const PageMiniPlayer(),
       backgroundColor: colorScheme.surface,
       appBar: AppBar(
+        leading: const BackChip(),
         backgroundColor: colorScheme.surface,
+        surfaceTintColor: Colors.transparent,
         foregroundColor: colorScheme.onSurface,
         elevation: 0,
         actions: [

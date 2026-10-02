@@ -16,27 +16,9 @@ class DownloadsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final manager = DownloadManager.instance;
     final scheme = Theme.of(context).colorScheme;
-    final screenWidth = MediaQuery.sizeOf(context).width;
-    final horizontalPadding =
-        isDesktop && screenWidth > _maxContentWidth
-            ? (screenWidth - _maxContentWidth) / 2
-            : 0.0;
-    return Scaffold(
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar.large(
-            title: const Text('Downloads'),
-            backgroundColor: Theme.of(context).colorScheme.surface,
-            surfaceTintColor: Colors.transparent,
-            elevation: 0,
-            scrolledUnderElevation: 0,
-            leading: const BackChip(),
-          ),
-          SliverPadding(
-            padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
-            sliver: ListenableBuilder(
-              listenable: manager,
-              builder: (context, _) {
+    final contentSliver = ListenableBuilder(
+      listenable: manager,
+      builder: (context, _) {
                 final jobs = manager.jobs;
                 if (jobs.isEmpty) {
                   return const SliverFillRemaining(
@@ -152,10 +134,31 @@ class DownloadsScreen extends StatelessWidget {
                   ),
                 );
               },
-            ),
-          ),
-          const SliverToBoxAdapter(child: SizedBox(height: 24)),
-        ],
+            );
+
+    final scrollView = CustomScrollView(
+      slivers: [
+        SliverAppBar.large(
+          title: const Text('Downloads'),
+          backgroundColor: Theme.of(context).colorScheme.surface,
+          surfaceTintColor: Colors.transparent,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          leading: const BackChip(),
+        ),
+        contentSliver,
+        const SliverToBoxAdapter(child: SizedBox(height: 24)),
+      ],
+    );
+
+    if (!isDesktop) return Scaffold(body: scrollView);
+
+    return Scaffold(
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: _maxContentWidth),
+          child: scrollView,
+        ),
       ),
     );
   }

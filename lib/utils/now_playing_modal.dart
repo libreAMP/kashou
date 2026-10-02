@@ -5,9 +5,7 @@ import 'package:flutter/material.dart';
 import '../screens/now_playing_screen.dart';
 import 'platform.dart';
 
-// opens the full now-playing experience: full-height drag sheet on mobile,
-// centered dialog on desktop. Shared by the main shell and pushed pages so
-// both entry points stay in sync.
+// full-height sheet on mobile, centered dialog on desktop
 Future<void> openNowPlaying(BuildContext context) {
   if (isDesktop) {
     return showDialog<void>(
@@ -51,9 +49,12 @@ Future<void> openNowPlaying(BuildContext context) {
     ),
     constraints: const BoxConstraints.expand(),
     clipBehavior: Clip.none,
-    builder: (sheetContext) => MediaQuery(
-      data: MediaQuery.of(context),
-      child: const NowPlayingScreen(),
-    ),
+    builder: (sheetContext) {
+      final mq = MediaQuery.of(sheetContext);
+      return MediaQuery(
+        data: mq.copyWith(padding: mq.viewPadding),
+        child: const NowPlayingScreen(),
+      );
+    },
   );
 }

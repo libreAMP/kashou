@@ -17,34 +17,28 @@ class PersonalizationScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scrollView = CustomScrollView(
+      slivers: [
+        SliverAppBar.large(
+          title: const Text('Personalization'),
+          backgroundColor: Theme.of(context).colorScheme.surface,
+          surfaceTintColor: Colors.transparent,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          leading: const BackChip(),
+        ),
+        _contentSliver(context),
+      ],
+    );
+
+    if (!isDesktop) return Scaffold(body: scrollView);
+
     return Scaffold(
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar.large(
-            title: const Text('Personalization'),
-            backgroundColor: Theme.of(context).colorScheme.surface,
-            surfaceTintColor: Colors.transparent,
-            elevation: 0,
-            scrolledUnderElevation: 0,
-            leading: const BackChip(),
-          ),
-          if (isDesktop)
-            SliverLayoutBuilder(
-              builder: (context, constraints) {
-                final padding = constraints.crossAxisExtent >
-                        _desktopMaxContentWidth
-                    ? (constraints.crossAxisExtent - _desktopMaxContentWidth) /
-                        2
-                    : 0.0;
-                return SliverPadding(
-                  padding: EdgeInsets.symmetric(horizontal: padding),
-                  sliver: _contentSliver(context),
-                );
-              },
-            )
-          else
-            _contentSliver(context),
-        ],
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: _desktopMaxContentWidth),
+          child: scrollView,
+        ),
       ),
     );
   }

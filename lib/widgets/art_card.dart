@@ -18,8 +18,9 @@ class ArtCard extends StatelessWidget {
 
   static double get defaultWidth => isDesktop ? 180.0 : 152.0;
 
-  static double heightFor([double? artWidth]) {
-    final w = artWidth ?? (isDesktop ? defaultWidth : defaultWidth * 1.18);
+  static double heightFor([double? artWidth, bool emphasized = false]) {
+    final base = artWidth ?? defaultWidth;
+    final w = (!isDesktop && emphasized) ? base * 1.18 : base;
     return w + _artGap + _titleLine + _subLine;
   }
 

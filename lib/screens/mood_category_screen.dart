@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../services/ytmusic_service.dart';
 import '../utils/platform.dart';
+import '../widgets/back_chip.dart';
 import '../widgets/art_card.dart';
 import '../widgets/loading_indicator.dart';
 import 'section_page.dart';
@@ -57,7 +58,13 @@ class _MoodCategoryScreenState extends State<MoodCategoryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(widget.title)),
+      appBar: AppBar(
+        leading: const BackChip(),
+        title: Text(widget.title),
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+      ),
       body: _loading
           ? const Center(child: KashouLoader())
           : _shelves.isEmpty
@@ -135,13 +142,12 @@ class _MoodCategoryScreenState extends State<MoodCategoryScreen> {
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 itemCount: items.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 16),
+                separatorBuilder: (_, __) => const SizedBox(width: 12),
                 itemBuilder: (_, i) => ArtCard(
                   thumbnail: items[i]['thumbnail'] as String?,
                   title: items[i]['title'] as String? ?? '',
                   subtitle: items[i]['subtitle'] as String?,
                   onTap: () => _openPlaylist(items[i]),
-                  emphasized: i == 0,
                 ),
               ),
             ),

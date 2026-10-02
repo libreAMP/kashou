@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/scheduler.dart';
 
 class KashouScrollBehavior extends MaterialScrollBehavior {
   const KashouScrollBehavior();
@@ -12,7 +13,7 @@ class KashouScrollBehavior extends MaterialScrollBehavior {
         PointerDeviceKind.stylus,
         PointerDeviceKind.invertedStylus,
         PointerDeviceKind.trackpad,
-                PointerDeviceKind.mouse,
+        PointerDeviceKind.mouse,
       };
 
   @override
@@ -76,21 +77,43 @@ class RenderDesktopSmoothScroll extends RenderProxyBox {
   ScrollController? _controller;
   AxisDirection _direction;
 
+  Ticker? _ticker;
   double _targetOffset = 0.0;
-  bool _isAnimating = false;
 
-  // a wheel notch covers a fraction of a trackpad flick
-  static const double _mouseWheelScale = 6.5;
-  static const Duration _settle = Duration(milliseconds: 130);
+  static const double _mouseWheelScale = 2.4;
+
+  void _onTick(Duration elapsed) {
+    final c = _controller;
+    if (c == null || !c.hasClients) {
+      _ticker?.stop();
+      return;
+    }
+    final current = c.offset;
+    final diff = _targetOffset - current;
+    if (diff.abs() < 0.5) {
+      c.jumpTo(_targetOffset);
+      _ticker?.stop();
+      return;
+    }
+    c.jumpTo(current + diff * 0.18);
+  }
 
   set controller(ScrollController? value) {
     if (_controller == value) return;
     _controller = value;
-    _isAnimating = false;
+    _ticker?.stop();
   }
 
   set direction(AxisDirection value) {
     _direction = value;
+  }
+
+  @override
+  void detach() {
+    _ticker?.stop();
+    _ticker?.dispose();
+    _ticker = null;
+    super.detach();
   }
 
   @override
@@ -111,7 +134,7 @@ class RenderDesktopSmoothScroll extends RenderProxyBox {
   @override
   void handleEvent(PointerEvent event, BoxHitTestEntry entry) {
     if (event is PointerDownEvent) {
-      _isAnimating = false;
+      _ticker?.stop();
     } else if (event is PointerScrollEvent) {
       final c = _controller;
       if (c == null || !c.hasClients) return;
@@ -138,19 +161,18 @@ class RenderDesktopSmoothScroll extends RenderProxyBox {
         if (!c.hasClients) return;
 
         if (event.kind == PointerDeviceKind.trackpad) {
-          _isAnimating = false;
+          _ticker?.stop();
           c.jumpTo((c.offset + delta).clamp(minExt, maxExt));
           return;
         }
 
-        // held wheel retargets instead of restarting
-        final base = _isAnimating ? _targetOffset : c.offset;
-        final next = (base + delta).clamp(minExt, maxExt);
-        _targetOffset = next;
-        _isAnimating = true;
-        c
-            .animateTo(next, duration: _settle, curve: Curves.easeOutQuad)
-            .whenComplete(() => _isAnimating = false);
+        final base = (_ticker?.isActive == true) ? _targetOffset : c.offset;
+        _targetOffset = (base + delta).clamp(minExt, maxExt);
+
+        _ticker ??= Ticker(_onTick);
+        if (!_ticker!.isActive) {
+          _ticker!.start();
+        }
       });
     }
     super.handleEvent(event, entry);

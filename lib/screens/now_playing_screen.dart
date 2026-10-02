@@ -325,8 +325,13 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           if (!isDesktop)
-                            SafeArea(
-                              bottom: false,
+                            Padding(
+                              padding: EdgeInsets.only(
+                                top: math.max(
+                                  MediaQuery.paddingOf(context).top,
+                                  MediaQuery.viewPaddingOf(context).top,
+                                ),
+                              ),
                               child: Center(
                                 child: Container(
                                   margin:

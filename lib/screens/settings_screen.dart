@@ -14,44 +14,52 @@ import '../widgets/settings_tiles.dart';
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
+  static const double _maxContentWidth = 1100;
+
   @override
   Widget build(BuildContext context) {
     final sections = _buildSections(context);
-    return Scaffold(
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar.large(
-            title: const Text('Settings'),
-            backgroundColor: Theme.of(context).colorScheme.surface,
-            surfaceTintColor: Colors.transparent,
-            elevation: 0,
-            scrolledUnderElevation: 0,
-            leading: const BackChip(),
+    final scrollView = CustomScrollView(
+      slivers: [
+        SliverAppBar.large(
+          title: const Text('Settings'),
+          backgroundColor: Theme.of(context).colorScheme.surface,
+          surfaceTintColor: Colors.transparent,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          leading: const BackChip(),
+        ),
+        if (isDesktop)
+          SliverToBoxAdapter(child: _buildDesktopBody(sections))
+        else
+          SliverList(
+            delegate: SliverChildListDelegate([
+              ...sections,
+              const SizedBox(height: 32),
+            ]),
           ),
-          if (isDesktop)
-            SliverToBoxAdapter(child: _buildDesktopBody(sections))
-          else
-            SliverList(
-              delegate: SliverChildListDelegate([
-                ...sections,
-                const SizedBox(height: 32),
-              ]),
-            ),
-        ],
+      ],
+    );
+
+    if (!isDesktop) return Scaffold(body: scrollView);
+
+    return Scaffold(
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: _maxContentWidth),
+          child: scrollView,
+        ),
       ),
     );
   }
 
   Widget _buildDesktopBody(List<Widget> sections) {
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 1100),
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final wide = constraints.maxWidth >= 840;
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 32),
-              child: wide
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final wide = constraints.maxWidth >= 840;
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 32),
+          child: wide
                   ? Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -64,10 +72,8 @@ class SettingsScreen extends StatelessWidget {
                       ],
                     )
                   : Column(children: sections),
-            );
-          },
-        ),
-      ),
+        );
+      },
     );
   }
 

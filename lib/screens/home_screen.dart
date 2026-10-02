@@ -90,56 +90,57 @@ class HomeScreen extends StatelessWidget {
         child: Row(
           children: [
             Expanded(
-              child: Material(
-                color: scheme.surfaceContainerHigh,
-                borderRadius: BorderRadius.circular(rFull),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(rFull),
+              child: SizedBox(
+                height: 48,
+                child: TextField(
+                  readOnly: true,
                   onTap: () => Navigator.push(
-                  context,
-                  PageRouteBuilder(
-                    transitionDuration: const Duration(milliseconds: 280),
-                    reverseTransitionDuration:
-                        const Duration(milliseconds: 220),
-                    pageBuilder: (_, animation, __) => const SearchScreen(),
-                    transitionsBuilder: (_, animation, __, child) {
-                      final move = Tween(
-                        begin: const Offset(0, 0.03),
-                        end: Offset.zero,
-                      ).animate(CurvedAnimation(
-                        parent: animation,
-                        curve: Curves.easeOutCubic,
-                      ));
-                      return FadeTransition(
-                        opacity: animation,
-                        child: SlideTransition(position: move, child: child),
-                      );
-                    },
+                    context,
+                    PageRouteBuilder(
+                      transitionDuration: const Duration(milliseconds: 280),
+                      reverseTransitionDuration:
+                          const Duration(milliseconds: 220),
+                      pageBuilder: (_, animation, __) => const SearchScreen(),
+                      transitionsBuilder: (_, animation, __, child) {
+                        final move = Tween(
+                          begin: const Offset(0, 0.03),
+                          end: Offset.zero,
+                        ).animate(CurvedAnimation(
+                          parent: animation,
+                          curve: Curves.easeOutCubic,
+                        ));
+                        return FadeTransition(
+                          opacity: animation,
+                          child: SlideTransition(position: move, child: child),
+                        );
+                      },
+                    ),
                   ),
-                ),
-                child: SizedBox(
-                  height: 48,
-                  child: Row(
-                    children: [
-                      const SizedBox(width: 14),
-                      Icon(Icons.search_rounded,
-                          color: scheme.onSurfaceVariant),
-                      const SizedBox(width: 12),
-                      Text(
-                        'Search your music',
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodyLarge
-                            ?.copyWith(color: scheme.onSurfaceVariant),
-                      ),
-                    ],
+                  style: Theme.of(context).textTheme.bodyLarge,
+                  decoration: InputDecoration(
+                    hintText: 'Search your music',
+                    prefixIcon: const Padding(
+                      padding: EdgeInsets.fromLTRB(14, 0, 12, 0),
+                      child: Icon(Icons.search_rounded),
+                    ),
+                    prefixIconConstraints: const BoxConstraints(
+                        minWidth: 50, maxWidth: 50, minHeight: 0),
+                    hintStyle: Theme.of(context)
+                        .textTheme
+                        .bodyLarge
+                        ?.copyWith(color: scheme.onSurfaceVariant),
+                    filled: true,
+                    fillColor: scheme.surfaceContainerHigh,
+                    contentPadding: EdgeInsets.zero,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(rFull),
+                      borderSide: BorderSide.none,
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
           const SizedBox(width: 4),
-          // desktop gets a refresh button
           if (isDesktop)
             IconButton(
               icon: const Icon(Icons.refresh_rounded),
@@ -149,11 +150,12 @@ class HomeScreen extends StatelessWidget {
                 listen: false,
               ).scanLibrary(force: true),
             ),
-          IconButton(
-            icon: const Icon(Icons.settings_outlined),
-            tooltip: 'Settings',
-            onPressed: () => Navigator.pushNamed(context, '/settings'),
-          ),
+          if (!isDesktop)
+            IconButton(
+              icon: const Icon(Icons.settings_outlined),
+              tooltip: 'Settings',
+              onPressed: () => Navigator.pushNamed(context, '/settings'),
+            ),
         ],
       ),
     ));

@@ -32,8 +32,9 @@ import 'youtube_history_screen.dart';
 // the skeleton shares these
 const int _quickPicksRows = 4;
 const double _quickPicksRowHeight = 60;
-const double _quickPicksGap = 8;
-const double _quickPicksHeight = _quickPicksRows * _quickPicksRowHeight +
+double get _quickPicksGap => isDesktop ? 8 : 2;
+double get _quickPicksHeight =>
+    _quickPicksRows * _quickPicksRowHeight +
     (_quickPicksRows - 1) * _quickPicksGap +
     4;
 const EdgeInsets _quickPicksPadding = EdgeInsets.fromLTRB(20, 2, 20, 2);
@@ -44,7 +45,7 @@ const double _quickPicksColumn = 340;
 SliverGridDelegate _quickPicksGrid(double width) {
   return SliverGridDelegateWithFixedCrossAxisCount(
     crossAxisCount: _quickPicksRows,
-    mainAxisExtent: width,
+    mainAxisExtent: isDesktop ? width : width - 48,
     mainAxisSpacing: 12,
     crossAxisSpacing: _quickPicksGap,
   );
@@ -535,7 +536,8 @@ class _StreamScreenState extends State<StreamScreen>
                               tooltip: 'Refresh',
                               onPressed: () => _loadDiscover(refresh: true),
                             ),
-                          ListenableBuilder(
+                          if (!isDesktop)
+                            ListenableBuilder(
                             listenable: DownloadManager.instance,
                             builder: (context, _) {
                               final active = DownloadManager.instance.jobs
@@ -575,7 +577,8 @@ class _StreamScreenState extends State<StreamScreen>
                               );
                             },
                           ),
-                          IconButton(
+                          if (!isDesktop)
+                            IconButton(
                             icon: const Icon(Icons.settings_outlined),
                             tooltip: 'Settings',
                             onPressed: () =>
@@ -650,13 +653,12 @@ class _StreamScreenState extends State<StreamScreen>
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 itemCount: _searchPlaylists.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 16),
+                separatorBuilder: (_, __) => const SizedBox(width: 12),
                 itemBuilder: (_, i) => ArtCard(
                   thumbnail: _searchPlaylists[i]['thumbnail'] as String?,
                   title: _searchPlaylists[i]['title'] as String? ?? '',
                   subtitle: _searchPlaylists[i]['subtitle'] as String?,
                   onTap: () => _openPlaylist(_searchPlaylists[i]),
-                  emphasized: i == 0,
                 ),
               ),
             ),
@@ -676,13 +678,12 @@ class _StreamScreenState extends State<StreamScreen>
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 itemCount: _searchAlbums.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 16),
+                separatorBuilder: (_, __) => const SizedBox(width: 12),
                 itemBuilder: (_, i) => ArtCard(
                   thumbnail: _searchAlbums[i]['thumbnail'] as String?,
                   title: _searchAlbums[i]['title'] as String? ?? '',
                   subtitle: _searchAlbums[i]['subtitle'] as String?,
                   onTap: () => _openPlaylist(_searchAlbums[i]),
-                  emphasized: i == 0,
                 ),
               ),
             ),
@@ -930,7 +931,7 @@ class _StreamScreenState extends State<StreamScreen>
     if (shelf['kind'] == 'songs') return _buildQuickPicks(shelf);
     if (shelf['kind'] == 'artists') return _buildArtistShelf(shelf);
     final title = shelf['title'] as String? ?? '';
-    final hasMore = items.length > 5;
+    final hasMore = items.length > 10;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1008,7 +1009,7 @@ class _StreamScreenState extends State<StreamScreen>
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 itemCount: items.length > 10 ? 11 : items.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 16),
+                separatorBuilder: (_, __) => const SizedBox(width: 12),
                 itemBuilder: (_, i) {
                   if (items.length > 10 && i == 10) {
                     return _buildViewAllCard(title, items);
@@ -1018,13 +1019,12 @@ class _StreamScreenState extends State<StreamScreen>
                     title: items[i]['title'] as String? ?? '',
                     subtitle: items[i]['subtitle'] as String?,
                     onTap: () => _openPlaylist(items[i]),
-                    emphasized: false,
                   );
                 },
               ),
             ),
           ),
-        const SizedBox(height: 36),
+        SizedBox(height: isDesktop ? 36 : 16),
       ],
     );
   }
@@ -1082,7 +1082,7 @@ class _StreamScreenState extends State<StreamScreen>
                   ],
                 ),
               ),
-              if (items.length > 5)
+              if (items.length > 10)
                 TextButton(
                   onPressed: () => Navigator.push(
                     context,
@@ -1136,7 +1136,7 @@ class _StreamScreenState extends State<StreamScreen>
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 itemCount: items.length > 10 ? 11 : items.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 16),
+                separatorBuilder: (_, __) => const SizedBox(width: 12),
                 itemBuilder: (_, i) {
                   if (items.length > 10 && i == 10) {
                     return _buildViewAllCard(title, items, isCircular: true);
@@ -1146,7 +1146,7 @@ class _StreamScreenState extends State<StreamScreen>
               ),
             ),
           ),
-        const SizedBox(height: 36),
+        SizedBox(height: isDesktop ? 36 : 16),
       ],
     );
   }
@@ -1301,7 +1301,7 @@ class _StreamScreenState extends State<StreamScreen>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   for (var c = 0; c < columns; c++) ...[
-                    if (c > 0) const SizedBox(width: _quickPicksGap),
+                    if (c > 0) SizedBox(width: _quickPicksGap),
                     Expanded(
                       child: Column(
                         children: [
@@ -1337,13 +1337,13 @@ class _StreamScreenState extends State<StreamScreen>
             ),
           );
         }),
-        const SizedBox(height: 36),
+        SizedBox(height: isDesktop ? 36 : 16),
       ],
     );
   }
 
   Widget _buildRecCarousel(String title, List<Map<String, dynamic>> items) {
-    final hasMore = items.length > 5;
+    final hasMore = items.length > 10;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1421,7 +1421,7 @@ class _StreamScreenState extends State<StreamScreen>
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 itemCount: items.length > 10 ? 11 : items.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 16),
+                separatorBuilder: (_, __) => const SizedBox(width: 12),
                 itemBuilder: (_, i) {
                   if (items.length > 10 && i == 10) {
                     return _buildViewAllCard(title, items);
@@ -1431,13 +1431,12 @@ class _StreamScreenState extends State<StreamScreen>
                     title: items[i]['title'] as String? ?? '',
                     subtitle: items[i]['channel'] as String?,
                     onTap: () => _playVideo(items[i]),
-                    emphasized: i == 0,
                   );
                 },
               ),
             ),
           ),
-        const SizedBox(height: 36),
+        SizedBox(height: isDesktop ? 36 : 16),
       ],
     );
   }
@@ -1757,7 +1756,7 @@ class _QuickPicksSkeletonState extends State<_QuickPicksSkeleton>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       for (var c = 0; c < columns; c++) ...[
-                        if (c > 0) const SizedBox(width: _quickPicksGap),
+                        if (c > 0) SizedBox(width: _quickPicksGap),
                         Expanded(
                           child: Column(
                             children: [
