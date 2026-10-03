@@ -14,7 +14,7 @@ import 'package:dynamic_color/dynamic_color.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_chrome_cast/flutter_chrome_cast.dart';
 import 'dart:convert';
-import 'package:just_audio_media_kit/just_audio_media_kit.dart';
+import 'services/desktop_audio_platform.dart';
 import 'dart:io';
 import 'dart:math';
 import 'package:http/http.dart' as http;
@@ -51,7 +51,7 @@ void main() async {
 
   // just_audio has no desktop backend of its own, mpv fills in
   if (Platform.isLinux || Platform.isWindows) {
-    JustAudioMediaKit.ensureInitialized();
+    DesktopAudioPlatform.ensureInitialized();
   }
 
   if (Platform.isAndroid) {

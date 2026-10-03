@@ -12,8 +12,10 @@ dependencies:
   
   flutter_displaymode: ^0.7.0
   just_audio: ^0.10.5
+  just_audio_platform_interface: ^4.6.0
   just_audio_media_kit: ^2.1.0
   media_kit_libs_linux: ^1.2.1
+  media_kit: ^1.2.6
   just_audio_background: ^0.0.1-beta.10
   audio_service: ^0.18.12
   audio_session: ^0.2.2

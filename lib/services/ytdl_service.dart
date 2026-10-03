@@ -9,7 +9,6 @@ import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 import 'package:innertube_dart/innertube_dart.dart' as innertube;
 
 import '../models/youtube_streaming_data.dart';
-import 'potoken/po_token_service.dart';
 import 'youtube/youtube_service.dart';
 
 /// A playable audio url plus whatever metadata the source reported with it.
@@ -68,13 +67,9 @@ class YtdlWrapperService {
     String watchUrl, {
     required bool forceRefresh,
   }) async {
-    // Desktop has no PoToken (see po_token_service.dart). Where one can be
-    // minted, InnerTube stays first: it is the path that mints it.
-    if (PoTokenService.supported) {
-      final inner = await _resolveInnerTubeAudio(watchUrl,
-          forceRefresh: forceRefresh);
-      if (inner != null) return inner;
-    }
+    final inner = await _resolveInnerTubeAudio(watchUrl,
+        forceRefresh: forceRefresh);
+    if (inner != null) return inner;
     return _resolveExplodeAudio(watchUrl, forceRefresh: forceRefresh);
   }
 
@@ -124,19 +119,25 @@ class YtdlWrapperService {
 
     var info = await YoutubeService.instance
         .fetchStreams(videoId, forceRefresh: forceRefresh);
-    if ((info == null || info.audioStreams.isEmpty) && !forceRefresh) {
-      // a cold client often needs a second, uncached attempt
+    if ((info == null ||
+            (info.audioStreams.isEmpty && info.videoStreams.isEmpty)) &&
+        !forceRefresh) {
       await Future.delayed(const Duration(milliseconds: 800));
       info = await YoutubeService.instance
           .fetchStreams(videoId, forceRefresh: true);
     }
-    if (info == null || info.audioStreams.isEmpty) return null;
+    if (info == null) return null;
 
     final mp4 = info.audioStreams
         .where((s) => s.mimeType.contains('mp4'))
         .toList()
       ..sort((a, b) => b.bitrate.compareTo(a.bitrate));
-    final stream = mp4.isNotEmpty ? mp4.first : info.audioStreams.first;
+    final stream = mp4.isNotEmpty
+        ? mp4.first
+        : (info.audioStreams.isNotEmpty
+            ? info.audioStreams.first
+            : (info.videoStreams.isNotEmpty ? info.videoStreams.first : null));
+    if (stream == null) return null;
 
     return ResolvedAudioStream(
       url: stream.url,
