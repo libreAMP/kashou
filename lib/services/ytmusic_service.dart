@@ -347,6 +347,69 @@ class YtMusicService {
     }
   }
 
+  Future<String?> findArtistThumb(String name) async {
+    name = name.replaceAll(RegExp(r'\s*-\s*Topic$'), '').trim();
+    if (name.isEmpty ||
+        name.toLowerCase() == 'unknown' ||
+        name.toLowerCase() == 'unknown artist') {
+      return null;
+    }
+    final key = 'arthumb_${name.toLowerCase()}';
+    final hit = _cache[key];
+    if (hit != null && DateTime.now().difference(hit.at) < _ttl) {
+      return hit.value.isEmpty ? null : hit.value.first['url'] as String?;
+    }
+
+    try {
+      final res = await http.post(
+        Uri.parse(
+            'https://music.youtube.com/youtubei/v1/search?prettyPrint=false'),
+        headers: const {
+          'Content-Type': 'application/json',
+          'User-Agent': 'Mozilla/5.0',
+        },
+        body: jsonEncode({
+          'context': {
+            'client': {
+              'clientName': 'WEB_REMIX',
+              'clientVersion': _clientVersion,
+              'hl': PlatformDispatcher.instance.locale.languageCode,
+              if (PlatformDispatcher.instance.locale.countryCode != null)
+                'gl': PlatformDispatcher.instance.locale.countryCode,
+            }
+          },
+          'query': name,
+          'params': 'EgWKAQIgAWoKEAkQChAFEAMQBA%3D%3D',
+        }),
+      ).timeout(const Duration(seconds: 8));
+      if (res.statusCode != 200) return null;
+
+      final rows = <dynamic>[];
+      _collect(jsonDecode(res.body), 'musicResponsiveListItemRenderer', rows);
+      for (final r in rows) {
+        final bid = r['navigationEndpoint']?['browseEndpoint']?['browseId'];
+        if (bid is String && bid.startsWith('UC')) {
+          final thumbs = r['thumbnail']?['musicThumbnailRenderer']
+              ?['thumbnail']?['thumbnails'];
+          if (thumbs is List && thumbs.isNotEmpty) {
+            var url = thumbs.last['url'] as String?;
+            if (url != null) {
+              if (url.contains('=w120-h120')) {
+                url = url.replaceAll('=w120-h120', '=w512-h512');
+              }
+              _cache[key] = _Cached([{'url': url}]);
+              return url;
+            }
+          }
+        }
+      }
+      _cache[key] = _Cached(const []);
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   // the artist run in a flex column links to their channel browse
   String? _artistIdFrom(dynamic col) =>
       _artistIdFromRuns(col['musicResponsiveListItemFlexColumnRenderer']?['text']);

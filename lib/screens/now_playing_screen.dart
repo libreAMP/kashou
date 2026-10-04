@@ -23,6 +23,7 @@ import '../widgets/loading_indicator.dart';
 import '../widgets/pressable.dart';
 import '../widgets/scrolling_text.dart';
 import '../widgets/sheet_handle.dart';
+import '../widgets/square_art.dart';
 import '../widgets/squiggly_slider.dart';
 import '../providers/settings_provider.dart';
 import '../services/ytmusic_service.dart';
@@ -1482,13 +1483,17 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           height: MediaQuery.of(dialogContext).size.height * 0.75,
           child: _buildQueueBody(dialogContext),
         ),
-        maxWidth: 540,
+        maxWidth: 520,
       );
       return;
     }
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(rXl)),
+      ),
       builder: (context) {
         return DraggableScrollableSheet(
           initialChildSize: 0.7,
@@ -1505,62 +1510,182 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
 
   Widget _buildQueueBody(BuildContext context,
       {ScrollController? scrollController}) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
     return Consumer<AudioProvider>(
       builder: (context, audio, child) {
+        final count = audio.queue.length;
         return Column(
           children: [
+            if (!isDesktop) sheetHandle(context),
             Padding(
-              padding: const EdgeInsets.all(16),
-              child: Text(
-                'Queue',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
+              padding: const EdgeInsets.fromLTRB(20, 12, 12, 8),
+              child: Row(
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Queue',
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '$count track${count == 1 ? '' : 's'}',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: scheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const Spacer(),
+                  if (count > 1)
+                    IconButton(
+                      icon: const Icon(Icons.clear_all_rounded),
+                      tooltip: 'Clear queue',
+                      onPressed: () => audio.clearQueueAfterCurrent(),
                     ),
+                  if (isDesktop)
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded),
+                      tooltip: 'Close',
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                ],
               ),
             ),
+            const Divider(height: 1, thickness: 0.5),
             Expanded(
-              child: ReorderableListView.builder(
-                scrollController: scrollController,
-                itemCount: audio.queue.length,
-                onReorder: audio.moveQueueItem,
-                itemBuilder: (context, index) {
-                  final track = audio.queue[index];
-                  final isCurrent = index == audio.currentIndex;
-
-                  return ListTile(
-                    key: ValueKey('${track.id}_$index'),
-                    leading: Icon(
-                      isCurrent ? Icons.play_circle_filled : Icons.music_note,
-                      color: isCurrent
-                          ? Theme.of(context).colorScheme.primary
-                          : null,
-                    ),
-                    title: Text(
-                      track.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: isCurrent
-                            ? Theme.of(context).colorScheme.primary
-                            : null,
-                        fontWeight: isCurrent ? FontWeight.bold : null,
+              child: count == 0
+                  ? Center(
+                      child: Text(
+                        'Queue is empty',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: scheme.onSurfaceVariant,
+                        ),
                       ),
+                    )
+                  : ReorderableListView.builder(
+                      buildDefaultDragHandles: false,
+                      scrollController: scrollController,
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      itemCount: count,
+                      onReorder: audio.moveQueueItem,
+                      itemBuilder: (context, index) {
+                        final track = audio.queue[index];
+                        final isCurrent = index == audio.currentIndex;
+
+                        return Padding(
+                          key: ValueKey('${track.id}_$index'),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 2),
+                          child: Material(
+                            color: isCurrent
+                                ? scheme.primaryContainer
+                                    .withValues(alpha: 0.35)
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(rSm),
+                            child: InkWell(
+                              onTap: isCurrent
+                                  ? null
+                                  : () => audio.playAt(index),
+                              borderRadius: BorderRadius.circular(rSm),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 6),
+                                child: Row(
+                                  children: [
+                                    Stack(
+                                      alignment: Alignment.center,
+                                      children: [
+                                        SquareArt(
+                                          bytes: track.albumArt,
+                                          url: _buildYoutubeThumbnailUrl(track),
+                                          size: 44,
+                                          radius: rSm,
+                                        ),
+                                        if (isCurrent)
+                                          Container(
+                                            width: 44,
+                                            height: 44,
+                                            decoration: BoxDecoration(
+                                              color: Colors.black
+                                                  .withValues(alpha: 0.45),
+                                              borderRadius:
+                                                  BorderRadius.circular(rSm),
+                                            ),
+                                            child: Icon(
+                                              Icons.equalizer_rounded,
+                                              size: 20,
+                                              color: scheme.primary,
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text(
+                                            track.title,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: theme.textTheme.bodyMedium
+                                                ?.copyWith(
+                                              color: isCurrent
+                                                  ? scheme.primary
+                                                  : scheme.onSurface,
+                                              fontWeight: isCurrent
+                                                  ? FontWeight.w700
+                                                  : FontWeight.w500,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            track.views != null &&
+                                                    track.views!.isNotEmpty
+                                                ? '${track.artist} · ${track.views}'
+                                                : track.artist,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: theme.textTheme.bodySmall
+                                                ?.copyWith(
+                                              color: isCurrent
+                                                  ? scheme.primary
+                                                      .withValues(alpha: 0.8)
+                                                  : scheme.onSurfaceVariant,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    ReorderableDragStartListener(
+                                      index: index,
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 8, vertical: 8),
+                                        child: Icon(
+                                          Icons.reorder_rounded,
+                                          size: 20,
+                                          color: scheme.onSurfaceVariant
+                                              .withValues(alpha: 0.7),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      },
                     ),
-                    subtitle: Text(
-                      track.views != null && track.views!.isNotEmpty
-                          ? '${track.artist} · ${track.views}'
-                          : track.artist,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    trailing: ReorderableDragStartListener(
-                      index: index,
-                      child: const Icon(Icons.drag_handle_rounded),
-                    ),
-                    onTap: isCurrent ? null : () => audio.playAt(index),
-                  );
-                },
-              ),
             ),
           ],
         );

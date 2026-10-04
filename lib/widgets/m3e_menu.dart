@@ -34,7 +34,7 @@ class M3EMenu extends StatelessWidget {
 }
 
 class M3EMenuRow extends StatefulWidget {
-  const M3EMenuRow({super.key, required this.item, this.dense = false});
+  const M3EMenuRow({super.key, required this.item, this.dense = true});
 
   final M3EMenuItem item;
   final bool dense;
@@ -137,7 +137,7 @@ Future<void> showM3EMenu(
   double minWidth = 160,
   double maxWidth = 280,
   bool alignEnd = false,
-  bool dense = false,
+  bool dense = true,
 }) {
   final scheme = Theme.of(context).colorScheme;
   final screen = Overlay.of(context).context.size!;

@@ -255,8 +255,11 @@ class HomeScreen extends StatelessWidget {
                 subtitle,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style:
-                    theme.textTheme.bodySmall?.copyWith(color: fg, height: 1.2),
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: fg,
+                  fontSize: isDesktop ? 13 : null,
+                  height: isDesktop ? null : 1.2,
+                ),
               ),
             ],
           ),
@@ -369,7 +372,7 @@ class HomeScreen extends StatelessWidget {
                 crossAxisSpacing: 12,
                 mainAxisSpacing: 12,
                 // art is square plus two text lines
-                childAspectRatio: cellWidth / (cellWidth + 41),
+                childAspectRatio: cellWidth / (cellWidth + 48),
               ),
               itemCount: tracks.length,
               itemBuilder: (context, index) =>
@@ -511,7 +514,7 @@ class HomeScreen extends StatelessWidget {
                         crossAxisSpacing: 12,
                         mainAxisSpacing: 12,
                         // art is square plus two text lines
-                        childAspectRatio: cellWidth / (cellWidth + 41),
+                        childAspectRatio: cellWidth / (cellWidth + 48),
                       ),
                       itemCount: albums.length,
                       itemBuilder: (context, index) =>
@@ -589,16 +592,21 @@ class HomeScreen extends StatelessWidget {
               track.title,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodySmall
-                  ?.copyWith(fontWeight: FontWeight.w600),
+              style: (isDesktop
+                      ? theme.textTheme.bodyMedium
+                          ?.copyWith(fontWeight: FontWeight.w600)
+                      : theme.textTheme.bodySmall
+                          ?.copyWith(fontWeight: FontWeight.w600)),
             ),
             const SizedBox(height: 2),
             Text(
               track.artist,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodySmall
-                  ?.copyWith(color: scheme.onSurfaceVariant),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: scheme.onSurfaceVariant,
+                fontSize: isDesktop ? 12.5 : null,
+              ),
             ),
           ],
         ),
@@ -610,6 +618,7 @@ class HomeScreen extends StatelessWidget {
     final trackCount = library.allTracks.length;
     final albumCount = library.albums.length;
     final artistCount = library.artists.length;
+    final playlistCount = library.playlists.length;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -624,50 +633,79 @@ class HomeScreen extends StatelessWidget {
                 ),
           ),
         ),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            _chip(context, Icons.music_note_rounded, trackCount, 'songs'),
-            _chip(context, Icons.album_rounded, albumCount, 'albums'),
-            _chip(context, Icons.person_rounded, artistCount, 'artists'),
-          ],
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              _chip(
+                context,
+                Icons.music_note_rounded,
+                trackCount,
+                'songs',
+                onTap: trackCount > 0
+                    ? () => Navigator.of(context).push(MaterialPageRoute(
+                          builder: (_) => TrackListPage(
+                            title: 'Songs',
+                            tracks: library.allTracks,
+                          ),
+                        ))
+                    : null,
+              ),
+              const SizedBox(width: 8),
+              _chip(context, Icons.album_rounded, albumCount, 'albums'),
+              const SizedBox(width: 8),
+              _chip(context, Icons.person_rounded, artistCount, 'artists'),
+              if (playlistCount > 0) ...[
+                const SizedBox(width: 8),
+                _chip(context, Icons.playlist_play_rounded, playlistCount,
+                    'playlists'),
+              ],
+            ],
+          ),
         ),
       ],
     );
   }
 
-  Widget _chip(BuildContext context, IconData icon, int count, String label) {
+  Widget _chip(
+    BuildContext context,
+    IconData icon,
+    int count,
+    String label, {
+    VoidCallback? onTap,
+  }) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+
+    final content = Padding(
+      padding: const EdgeInsets.fromLTRB(8, 8, 12, 8),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 18, color: scheme.onSurfaceVariant),
+          const SizedBox(width: 8),
+          Text(
+            '$count',
+            style: theme.textTheme.labelLarge?.copyWith(
+              color: scheme.onSurface,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: theme.textTheme.labelLarge
+                ?.copyWith(color: scheme.onSurfaceVariant),
+          ),
+        ],
+      ),
+    );
 
     return Material(
       color: scheme.surfaceContainerHigh,
       borderRadius: BorderRadius.circular(rSm),
       clipBehavior: Clip.antiAlias,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(8, 8, 12, 8),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 18, color: scheme.onSurfaceVariant),
-            const SizedBox(width: 8),
-            Text(
-              '$count',
-              style: theme.textTheme.labelLarge?.copyWith(
-                color: scheme.onSurface,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(width: 4),
-            Text(
-              label,
-              style: theme.textTheme.labelLarge
-                  ?.copyWith(color: scheme.onSurfaceVariant),
-            ),
-          ],
-        ),
-      ),
+      child: onTap != null ? InkWell(onTap: onTap, child: content) : content,
     );
   }
 

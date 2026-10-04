@@ -305,20 +305,19 @@ class _PlayerNavRailState extends State<PlayerNavRail> {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final surfaceColor = Color.alphaBlend(
+      scheme.primary.withValues(alpha: 0.04),
+      scheme.surfaceContainerLow,
+    );
 
     return AnimatedContainer(
       duration: EMotion.medium,
       curve: EMotion.standard,
-      width: _extended ? 210.0 : 72.0,
+      width: _extended ? 220.0 : 76.0,
       decoration: BoxDecoration(
-        color: scheme.surfaceContainerLow,
-        border: Border(
-          right: BorderSide(
-            color: scheme.outlineVariant.withValues(alpha: 0.25),
-            width: 1.0,
-          ),
-        ),
+        color: surfaceColor,
       ),
       child: SafeArea(
         right: false,
@@ -332,7 +331,7 @@ class _PlayerNavRailState extends State<PlayerNavRail> {
                 child: Row(
                   children: [
                     SizedBox(
-                      width: 48,
+                      width: 52,
                       child: Center(
                         child: IconButton(
                           icon: Icon(
@@ -349,20 +348,22 @@ class _PlayerNavRailState extends State<PlayerNavRail> {
                     ),
                     Expanded(
                       child: ClipRect(
-                        child: Padding(
-                          padding: const EdgeInsets.only(left: 4, right: 12),
-                          child: Text(
-                            'Kashou',
-                            maxLines: 1,
-                            softWrap: false,
-                            overflow: TextOverflow.clip,
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleMedium
-                                ?.copyWith(
-                                  fontWeight: FontWeight.w700,
-                                  color: scheme.onSurface,
-                                ),
+                        child: AnimatedOpacity(
+                          duration: EMotion.fast,
+                          opacity: _extended ? 1.0 : 0.0,
+                          child: Padding(
+                            padding: const EdgeInsets.only(left: 4, right: 12),
+                            child: Text(
+                              'Kashou',
+                              maxLines: 1,
+                              softWrap: false,
+                              overflow: TextOverflow.clip,
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: -0.5,
+                                color: scheme.onSurface,
+                              ),
+                            ),
                           ),
                         ),
                       ),
@@ -370,7 +371,8 @@ class _PlayerNavRailState extends State<PlayerNavRail> {
                   ],
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 8),
+              _buildSectionHeader(context, 'DISCOVER'),
               for (var i = 0; i < widget.items.length; i++) ...[
                 if (i > 0) const SizedBox(height: 4),
                 _RailTile(
@@ -383,13 +385,7 @@ class _PlayerNavRailState extends State<PlayerNavRail> {
                 ),
               ],
               const Spacer(),
-              Divider(
-                height: 1,
-                color: scheme.outlineVariant.withValues(alpha: 0.2),
-                indent: 4,
-                endIndent: 4,
-              ),
-              const SizedBox(height: 8),
+              _buildSectionHeader(context, 'SYSTEM'),
               _RailTile(
                 icon: Icons.download_outlined,
                 selectedIcon: Icons.download_rounded,
@@ -414,6 +410,30 @@ class _PlayerNavRailState extends State<PlayerNavRail> {
                 onTap: () => Navigator.pushNamed(context, '/settings'),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader(BuildContext context, String title) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return Container(
+      height: 28,
+      alignment: Alignment.centerLeft,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: AnimatedOpacity(
+        duration: EMotion.fast,
+        opacity: _extended ? 1.0 : 0.0,
+        child: Text(
+          title,
+          maxLines: 1,
+          overflow: TextOverflow.clip,
+          style: theme.textTheme.labelSmall?.copyWith(
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1.2,
+            color: scheme.onSurfaceVariant.withValues(alpha: 0.7),
           ),
         ),
       ),
@@ -447,7 +467,8 @@ class _RailTileState extends State<_RailTile> {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     final fg = widget.selected
         ? scheme.onPrimaryContainer
         : scheme.onSurfaceVariant;
@@ -460,39 +481,44 @@ class _RailTileState extends State<_RailTile> {
     final content = AnimatedContainer(
       duration: EMotion.fast,
       curve: EMotion.standard,
-      height: 44,
+      height: 48,
       decoration: BoxDecoration(
         color: bg,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(24),
       ),
       child: Row(
         children: [
           SizedBox(
-            width: 48,
+            width: 52,
             child: Center(
               child: Icon(
                 widget.selected ? widget.selectedIcon : widget.icon,
                 color: fg,
-                size: 24,
+                size: widget.selected ? 24 : 22,
               ),
             ),
           ),
           Expanded(
             child: ClipRect(
-              child: Padding(
-                padding: const EdgeInsets.only(left: 4, right: 12),
-                child: Text(
-                  widget.label,
-                  maxLines: 1,
-                  softWrap: false,
-                  overflow: TextOverflow.clip,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: widget.selected
-                            ? scheme.onSurface
-                            : scheme.onSurfaceVariant,
-                        fontWeight:
-                            widget.selected ? FontWeight.w600 : FontWeight.w500,
-                      ),
+              child: AnimatedOpacity(
+                duration: EMotion.fast,
+                opacity: widget.extended ? 1.0 : 0.0,
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 4, right: 16),
+                  child: Text(
+                    widget.label,
+                    maxLines: 1,
+                    softWrap: false,
+                    overflow: TextOverflow.clip,
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      color: widget.selected
+                          ? scheme.onSurface
+                          : scheme.onSurfaceVariant,
+                      fontWeight:
+                          widget.selected ? FontWeight.w700 : FontWeight.w500,
+                      letterSpacing: widget.selected ? 0.2 : 0.1,
+                    ),
+                  ),
                 ),
               ),
             ),

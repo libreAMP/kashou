@@ -5,6 +5,7 @@ import '../models/track.dart';
 import '../providers/audio_provider.dart';
 import '../providers/library_provider.dart';
 import '../theme/radii.dart';
+import '../utils/platform.dart';
 import 'track_options_sheet.dart';
 
 class TrackListItem extends StatelessWidget {
@@ -45,7 +46,7 @@ class TrackListItem extends StatelessWidget {
                     : BorderRadius.all(inner);
 
         return Padding(
-          padding: EdgeInsets.symmetric(vertical: 2),
+          padding: const EdgeInsets.symmetric(vertical: 1),
           child: Material(
             color:
                 slot < 0 ? Colors.transparent : colorScheme.surfaceContainerLow,
@@ -65,7 +66,7 @@ class TrackListItem extends StatelessWidget {
               splashColor: colorScheme.primary.withValues(alpha: 0.05),
               highlightColor: colorScheme.primary.withValues(alpha: 0.03),
               child: Container(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
                 decoration: BoxDecoration(
                   color: isCurrent
                       ? colorScheme.primary.withValues(alpha: 0.12)
@@ -91,8 +92,8 @@ class TrackListItem extends StatelessWidget {
                     ClipRRect(
                       borderRadius: BorderRadius.circular(rSm),
                       child: Container(
-                        width: 50,
-                        height: 50,
+                        width: 48,
+                        height: 48,
                         color: colorScheme.surfaceContainerHighest,
                         child: Stack(
                           fit: StackFit.expand,
@@ -111,7 +112,7 @@ class TrackListItem extends StatelessWidget {
                         ),
                       ),
                     ),
-                    const SizedBox(width: 16),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -128,8 +129,10 @@ class TrackListItem extends StatelessWidget {
                                       : colorScheme.onSurface,
                                   fontWeight: isCurrent
                                       ? FontWeight.w600
-                                      : FontWeight.w500,
-                                  height: 1.2,
+                                      : (isDesktop
+                                          ? FontWeight.w600
+                                          : FontWeight.w500),
+                                  height: isDesktop ? null : 1.2,
                                 ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -140,8 +143,8 @@ class TrackListItem extends StatelessWidget {
                             style:
                                 Theme.of(context).textTheme.bodySmall?.copyWith(
                                       color: colorScheme.onSurfaceVariant,
-                                      fontSize: 12,
-                                      height: 1.3,
+                                      fontSize: isDesktop ? 13 : 12,
+                                      height: isDesktop ? null : 1.3,
                                     ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,

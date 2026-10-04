@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -134,95 +132,86 @@ class _YoutubeHistoryScreenState extends State<YoutubeHistoryScreen> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    return Scaffold(
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar.large(
-            title: const Text('History'),
-            backgroundColor: Theme.of(context).colorScheme.surface,
-            surfaceTintColor: Colors.transparent,
-            elevation: 0,
-            scrolledUnderElevation: 0,
-            leading: const BackChip(),
-            actions: [
-              Consumer<AudioProvider>(
-                builder: (context, audioProvider, _) {
-                  final hasHistory =
-                      audioProvider.youtubeStreamHistoryEntries.isNotEmpty;
-                  return IconButton(
-                    tooltip: 'Clear history',
-                    icon: const Icon(Icons.delete_outline),
-                    onPressed: hasHistory ? _confirmClearHistory : null,
-                  );
-                },
-              ),
-            ],
-          ),
-          Consumer<AudioProvider>(
-            builder: (context, audioProvider, _) {
-              final entries = audioProvider.youtubeStreamHistoryEntries;
-
-              if (entries.isEmpty) {
-                return SliverFillRemaining(
-                  child: Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.history,
-                            size: 48,
-                            color: colorScheme.onSurfaceVariant
-                                .withValues(alpha: 0.5)),
-                        const SizedBox(height: 16),
-                        Text(
-                          'No history yet',
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            color: colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'What you play from Stream shows up here.',
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: colorScheme.onSurfaceVariant
-                                .withValues(alpha: 0.7),
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
-                    ),
-                  ),
+    final scrollView = CustomScrollView(
+      slivers: [
+        SliverAppBar.large(
+          title: const Text('History'),
+          backgroundColor: Theme.of(context).colorScheme.surface,
+          surfaceTintColor: Colors.transparent,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          leading: const BackChip(),
+          actions: [
+            Consumer<AudioProvider>(
+              builder: (context, audioProvider, _) {
+                final hasHistory =
+                    audioProvider.youtubeStreamHistoryEntries.isNotEmpty;
+                return IconButton(
+                  tooltip: 'Clear history',
+                  icon: const Icon(Icons.delete_outline),
+                  onPressed: hasHistory ? _confirmClearHistory : null,
                 );
-              }
+              },
+            ),
+          ],
+        ),
+        Consumer<AudioProvider>(
+          builder: (context, audioProvider, _) {
+            final entries = audioProvider.youtubeStreamHistoryEntries;
 
-              final sliverList = SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) =>
-                      _buildHistoryTile(context, entries[index], colorScheme),
-                  childCount: entries.length,
+            if (entries.isEmpty) {
+              return SliverFillRemaining(
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.history,
+                          size: 48,
+                          color: colorScheme.onSurfaceVariant
+                              .withValues(alpha: 0.5)),
+                      const SizedBox(height: 16),
+                      Text(
+                        'No history yet',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'What you play from Stream shows up here.',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: colorScheme.onSurfaceVariant
+                              .withValues(alpha: 0.7),
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
                 ),
               );
+            }
 
-              if (!isDesktop) {
-                return sliverList;
-              }
+            return SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (context, index) =>
+                    _buildHistoryTile(context, entries[index], colorScheme),
+                childCount: entries.length,
+              ),
+            );
+          },
+        ),
+        const SliverToBoxAdapter(child: SizedBox(height: 24)),
+      ],
+    );
 
-              return SliverLayoutBuilder(
-                builder: (context, constraints) {
-                  final horizontalPadding = math.max(
-                    (constraints.crossAxisExtent - _desktopMaxContentWidth) / 2,
-                    0.0,
-                  );
-                  return SliverPadding(
-                    padding:
-                        EdgeInsets.symmetric(horizontal: horizontalPadding),
-                    sliver: sliverList,
-                  );
-                },
-              );
-            },
-          ),
-          const SliverToBoxAdapter(child: SizedBox(height: 24)),
-        ],
+    if (!isDesktop) return Scaffold(body: scrollView);
+
+    return Scaffold(
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: _desktopMaxContentWidth),
+          child: scrollView,
+        ),
       ),
     );
   }

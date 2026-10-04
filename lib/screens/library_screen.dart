@@ -336,14 +336,20 @@ class _LibraryScreenState extends State<LibraryScreen>
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, size: 16, color: scheme.primary),
-              const SizedBox(width: 6),
+              Icon(icon, size: 18, color: scheme.onSurfaceVariant),
+              const SizedBox(width: 8),
               Text(
-                '$count $label',
-                style: theme.textTheme.labelMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
+                '$count',
+                style: theme.textTheme.labelLarge?.copyWith(
                   color: scheme.onSurface,
+                  fontWeight: FontWeight.w600,
                 ),
+              ),
+              const SizedBox(width: 4),
+              Text(
+                label,
+                style: theme.textTheme.labelLarge
+                    ?.copyWith(color: scheme.onSurfaceVariant),
               ),
             ],
           ),
@@ -422,39 +428,43 @@ class _LibraryScreenState extends State<LibraryScreen>
                                           ),
                                     ),
                                   ),
-                                  Wrap(
-                                    spacing: 8,
-                                    runSpacing: 8,
-                                    children: [
-                                      _statChip(
-                                        context,
-                                        Icons.music_note_rounded,
-                                        songCount,
-                                        'songs',
-                                        onTap: () => _goToTab('Songs'),
-                                      ),
-                                      _statChip(
-                                        context,
-                                        Icons.album_rounded,
-                                        albumCount,
-                                        'albums',
-                                        onTap: () => _goToTab('Albums'),
-                                      ),
-                                      _statChip(
-                                        context,
-                                        Icons.person_rounded,
-                                        artistCount,
-                                        'artists',
-                                        onTap: () => _goToTab('Artists'),
-                                      ),
-                                      _statChip(
-                                        context,
-                                        Icons.playlist_play_rounded,
-                                        playlistCount,
-                                        'playlists',
-                                        onTap: () => _goToTab('Playlists'),
-                                      ),
-                                    ],
+                                  SingleChildScrollView(
+                                    scrollDirection: Axis.horizontal,
+                                    child: Row(
+                                      children: [
+                                        _statChip(
+                                          context,
+                                          Icons.music_note_rounded,
+                                          songCount,
+                                          'songs',
+                                          onTap: () => _goToTab('Songs'),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        _statChip(
+                                          context,
+                                          Icons.album_rounded,
+                                          albumCount,
+                                          'albums',
+                                          onTap: () => _goToTab('Albums'),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        _statChip(
+                                          context,
+                                          Icons.person_rounded,
+                                          artistCount,
+                                          'artists',
+                                          onTap: () => _goToTab('Artists'),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        _statChip(
+                                          context,
+                                          Icons.playlist_play_rounded,
+                                          playlistCount,
+                                          'playlists',
+                                          onTap: () => _goToTab('Playlists'),
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                   const SizedBox(height: 8),
                                 ],
@@ -1219,22 +1229,34 @@ class _LibraryScreenState extends State<LibraryScreen>
                   ),
             ),
             content: SizedBox(
-              width: double.maxFinite,
+              width: 360,
               child: ReorderableListView(
                 shrinkWrap: true,
+                buildDefaultDragHandles: false,
                 onReorder: (old, neu) {
                   setState(() {
+                    if (neu > old) neu--;
                     final moved = _tabOrder.removeAt(old);
                     _tabOrder.insert(neu, moved);
                   });
                 },
                 children: [
-                  for (final label in _tabOrder)
+                  for (var i = 0; i < _tabOrder.length; i++)
                     ListTile(
-                      key: ValueKey(label),
-                      leading: Icon(_tabIcons[label]),
-                      title: Text(label),
-                      trailing: const Icon(Icons.drag_handle_rounded),
+                      key: ValueKey(_tabOrder[i]),
+                      leading: Icon(_tabIcons[_tabOrder[i]]),
+                      title: Text(_tabOrder[i]),
+                      trailing: ReorderableDragStartListener(
+                        index: i,
+                        child: Icon(
+                          Icons.reorder_rounded,
+                          size: 20,
+                          color: Theme.of(context)
+                              .colorScheme
+                              .onSurfaceVariant
+                              .withValues(alpha: 0.7),
+                        ),
+                      ),
                     ),
                 ],
               ),

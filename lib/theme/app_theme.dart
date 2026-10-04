@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/platform.dart';
 import 'radii.dart';
 
 // m3 expressive motion tokens
@@ -60,7 +61,7 @@ SliderThemeData m3eSliderTheme(BuildContext context, {Color? holeColor}) {
 }
 
 ThemeData buildKashouTheme(ColorScheme scheme, TextTheme text) {
-  final boldText = text.copyWith(
+  var boldText = text.copyWith(
     headlineMedium: text.headlineMedium?.copyWith(
       fontWeight: FontWeight.w800,
       letterSpacing: -0.5,
@@ -68,6 +69,24 @@ ThemeData buildKashouTheme(ColorScheme scheme, TextTheme text) {
     headlineSmall: text.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
     titleLarge: text.titleLarge?.copyWith(fontWeight: FontWeight.w700),
   );
+
+  if (isDesktop) {
+    boldText = boldText.copyWith(
+      titleMedium: boldText.titleMedium?.copyWith(
+        fontSize: 15,
+        fontWeight: FontWeight.w600,
+      ),
+      titleSmall: boldText.titleSmall?.copyWith(
+        fontSize: 14,
+        fontWeight: FontWeight.w600,
+      ),
+      bodyLarge: boldText.bodyLarge?.copyWith(fontSize: 15),
+      bodyMedium: boldText.bodyMedium?.copyWith(fontSize: 13.5),
+      bodySmall: boldText.bodySmall?.copyWith(fontSize: 12.5),
+      labelLarge: boldText.labelLarge?.copyWith(fontSize: 13.5),
+      labelMedium: boldText.labelMedium?.copyWith(fontSize: 12.5),
+    );
+  }
   return ThemeData(
     useMaterial3: true,
     colorScheme: scheme,

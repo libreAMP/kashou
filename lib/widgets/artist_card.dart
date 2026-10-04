@@ -1,18 +1,93 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/artist.dart';
 import '../providers/audio_provider.dart';
 import '../models/track.dart';
+import '../services/ytmusic_service.dart';
 import '../theme/shapes.dart';
 
-class ArtistCard extends StatelessWidget {
+class ArtistCard extends StatefulWidget {
   final Artist artist;
 
   const ArtistCard({super.key, required this.artist});
 
   @override
+  State<ArtistCard> createState() => _ArtistCardState();
+}
+
+class _ArtistCardState extends State<ArtistCard> {
+  static final Map<String, String> _thumbCache = {};
+  String? _thumbUrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadThumb();
+  }
+
+  @override
+  void didUpdateWidget(ArtistCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.artist.name != widget.artist.name) {
+      _loadThumb();
+    }
+  }
+
+  Future<void> _loadThumb() async {
+    final name = widget.artist.name.trim();
+    if (name.isEmpty ||
+        name.toLowerCase() == 'unknown' ||
+        name.toLowerCase() == 'unknown artist') {
+      return;
+    }
+    if (_thumbCache.containsKey(name)) {
+      final cached = _thumbCache[name];
+      if (cached != null && cached.isNotEmpty && mounted) {
+        setState(() => _thumbUrl = cached);
+      }
+      return;
+    }
+
+    final key = 'artist_thumb_${name.toLowerCase()}';
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getString(key);
+    if (saved != null) {
+      _thumbCache[name] = saved;
+      if (saved.isNotEmpty && mounted) {
+        setState(() => _thumbUrl = saved);
+      }
+      return;
+    }
+
+    final thumb = await const YtMusicService().findArtistThumb(name);
+    _thumbCache[name] = thumb ?? '';
+    await prefs.setString(key, thumb ?? '');
+    if (thumb != null && mounted) {
+      setState(() => _thumbUrl = thumb);
+    }
+  }
+
+  Widget _fallbackLetter(ColorScheme scheme) {
+    return Center(
+      child: Text(
+        widget.artist.name.isNotEmpty
+            ? widget.artist.name[0].toUpperCase()
+            : '?',
+        style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+              color: scheme.onPrimaryContainer,
+              fontWeight: FontWeight.w800,
+            ),
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final hasImage = _thumbUrl != null && _thumbUrl!.isNotEmpty;
+
     return InkWell(
       onTap: () => _showArtistDetails(context),
       borderRadius: BorderRadius.circular(16),
@@ -23,20 +98,23 @@ class ArtistCard extends StatelessWidget {
             child: Material(
               color: scheme.primaryContainer,
               shape: const WavyCircleBorder(),
-              child: Center(
-                child: Text(
-                  artist.name[0].toUpperCase(),
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                        color: scheme.onPrimaryContainer,
-                        fontWeight: FontWeight.w800,
-                      ),
-                ),
-              ),
+              clipBehavior: Clip.antiAlias,
+              child: hasImage
+                  ? CachedNetworkImage(
+                      imageUrl: _thumbUrl!,
+                      fit: BoxFit.cover,
+                      fadeInDuration: const Duration(milliseconds: 200),
+                      fadeOutDuration: Duration.zero,
+                      placeholderFadeInDuration: Duration.zero,
+                      placeholder: (_, __) => _fallbackLetter(scheme),
+                      errorWidget: (_, __, ___) => _fallbackLetter(scheme),
+                    )
+                  : _fallbackLetter(scheme),
             ),
           ),
           const SizedBox(height: 6),
           Text(
-            artist.name,
+            widget.artist.name,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.center,
@@ -47,7 +125,7 @@ class ArtistCard extends StatelessWidget {
           ),
           const SizedBox(height: 2),
           Text(
-            '${artist.trackCount} songs',
+            '${widget.artist.trackCount} songs',
             maxLines: 1,
             textAlign: TextAlign.center,
             style: Theme.of(context)
@@ -61,6 +139,7 @@ class ArtistCard extends StatelessWidget {
   }
 
   void _showArtistDetails(BuildContext context) {
+    final hasImage = _thumbUrl != null && _thumbUrl!.isNotEmpty;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -82,21 +161,28 @@ class ArtistCard extends StatelessWidget {
                         backgroundColor: Theme.of(
                           context,
                         ).colorScheme.primaryContainer,
-                        child: Text(
-                          artist.name[0].toUpperCase(),
-                          style: Theme.of(context)
-                              .textTheme
-                              .displayLarge
-                              ?.copyWith(
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onPrimaryContainer,
-                              ),
-                        ),
+                        backgroundImage: hasImage
+                            ? CachedNetworkImageProvider(_thumbUrl!)
+                            : null,
+                        child: !hasImage
+                            ? Text(
+                                widget.artist.name.isNotEmpty
+                                    ? widget.artist.name[0].toUpperCase()
+                                    : '?',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .displayLarge
+                                    ?.copyWith(
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.onPrimaryContainer,
+                                    ),
+                              )
+                            : null,
                       ),
                       const SizedBox(height: 16),
                       Text(
-                        artist.name,
+                        widget.artist.name,
                         style: Theme.of(context)
                             .textTheme
                             .headlineSmall
@@ -105,7 +191,7 @@ class ArtistCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        '${artist.albumCount} albums • ${artist.trackCount} songs',
+                        '${widget.artist.albumCount} albums • ${widget.artist.trackCount} songs',
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
                       const SizedBox(height: 16),
@@ -118,10 +204,10 @@ class ArtistCard extends StatelessWidget {
                                 context,
                                 listen: false,
                               );
-                              if (artist.tracks.isNotEmpty) {
+                              if (widget.artist.tracks.isNotEmpty) {
                                 audio.playTrack(
-                                  artist.tracks.first,
-                                  playlist: artist.tracks,
+                                  widget.artist.tracks.first,
+                                  playlist: widget.artist.tracks,
                                 );
                               }
                               Navigator.pop(context);
@@ -136,7 +222,7 @@ class ArtistCard extends StatelessWidget {
                                 context,
                                 listen: false,
                               );
-                              final shuffled = List.from(artist.tracks)
+                              final shuffled = List.from(widget.artist.tracks)
                                 ..shuffle();
                               if (shuffled.isNotEmpty) {
                                 audio.playTrack(
@@ -191,9 +277,9 @@ class ArtistCard extends StatelessWidget {
   ) {
     return ListView.builder(
       controller: scrollController,
-      itemCount: artist.albums.length,
+      itemCount: widget.artist.albums.length,
       itemBuilder: (context, index) {
-        final album = artist.albums[index];
+        final album = widget.artist.albums[index];
         return ListTile(
           leading: Container(
             width: 56,
@@ -231,9 +317,9 @@ class ArtistCard extends StatelessWidget {
   ) {
     return ListView.builder(
       controller: scrollController,
-      itemCount: artist.tracks.length,
+      itemCount: widget.artist.tracks.length,
       itemBuilder: (context, index) {
-        final track = artist.tracks[index];
+        final track = widget.artist.tracks[index];
         return ListTile(
           leading: Text(
             '${index + 1}',
@@ -249,7 +335,7 @@ class ArtistCard extends StatelessWidget {
           ),
           onTap: () {
             final audio = Provider.of<AudioProvider>(context, listen: false);
-            audio.playTrack(track, playlist: artist.tracks);
+            audio.playTrack(track, playlist: widget.artist.tracks);
             Navigator.pop(context);
           },
         );
