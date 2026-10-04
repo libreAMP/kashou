@@ -57,6 +57,7 @@ dependencies:
   material3_expressive_loading_indicator: ^0.1.2
   material_new_shapes: ^1.0.0
   flutter_native_splash: ^2.4.1
+  media_kit_libs_windows_audio: ^1.0.9
 
 dependency_overrides:
   just_audio:
