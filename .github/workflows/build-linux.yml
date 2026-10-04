@@ -39,8 +39,28 @@ jobs:
         run: |
           tar -czvf kashou-linux-x64.tar.gz -C build/linux/x64/release/bundle .
 
-      - name: Upload Linux artifact
+      - name: Build AppImage
+        run: |
+          curl -sL https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage -o appimagetool
+          chmod +x appimagetool
+          ./appimagetool --appimage-extract
+          mkdir -p AppDir/usr/share/applications AppDir/usr/share/icons/hicolor/512x512/apps
+          cp -r build/linux/x64/release/bundle/* AppDir/
+          cp build/linux/x64/release/bundle/com.libreamp.kashou.desktop AppDir/usr/share/applications/
+          cp build/linux/x64/release/bundle/com.libreamp.kashou.png AppDir/usr/share/icons/hicolor/512x512/apps/
+          ln -sf com.libreamp.kashou.png AppDir/.DirIcon
+          chmod +x AppDir/AppRun
+          ARCH=x86_64 ./squashfs-root/AppRun AppDir Kashou-x86_64.AppImage
+          rm -rf squashfs-root appimagetool AppDir
+
+      - name: Upload Linux bundle
         uses: actions/upload-artifact@v4
         with:
           name: kashou-linux-x64
           path: kashou-linux-x64.tar.gz
+
+      - name: Upload Linux AppImage
+        uses: actions/upload-artifact@v4
+        with:
+          name: Kashou-x86_64.AppImage
+          path: Kashou-x86_64.AppImage

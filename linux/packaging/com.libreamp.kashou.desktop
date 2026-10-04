@@ -2,8 +2,8 @@
 Type=Application
 Name=Kashou
 Comment=Music player with local library playback and YouTube streaming
-Exec=kashou
+Exec=kashou %U
 Icon=com.libreamp.kashou
 Categories=Audio;Music;Player;AudioVideo;
 Terminal=false
-StartupWMClass=kashou
+StartupWMClass=com.libreamp.kashou

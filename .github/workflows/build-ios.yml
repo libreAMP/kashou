@@ -20,6 +20,9 @@ jobs:
           channel: stable
           cache: true
 
+      - name: Configure Flutter
+        run: flutter config --no-enable-swift-package-manager
+
       - name: Get dependencies
         run: flutter pub get
 

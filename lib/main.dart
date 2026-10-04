@@ -46,12 +46,56 @@ Color _launchShift(Color c) {
   return hsl.withHue((hsl.hue + _launchHue) % 360).toColor();
 }
 
+void _integrateLinuxDesktop() {
+  if (!Platform.isLinux) return;
+  try {
+    final home = Platform.environment['HOME'];
+    if (home == null) return;
+    const id = 'com.libreamp.kashou';
+    final exe = Platform.environment['APPIMAGE'] ?? Platform.resolvedExecutable;
+    final exeDir = File(Platform.resolvedExecutable).parent.path;
+
+    final appDir = Directory('$home/.local/share/applications');
+    if (!appDir.existsSync()) appDir.createSync(recursive: true);
+
+    for (final size in ['256x256', '512x512']) {
+      final iconDir = Directory('$home/.local/share/icons/hicolor/$size/apps');
+      if (!iconDir.existsSync()) iconDir.createSync(recursive: true);
+      final iconDest = File('${iconDir.path}/$id.png');
+      if (!iconDest.existsSync()) {
+        var iconSrc = File('$exeDir/com.libreamp.kashou.png');
+        if (!iconSrc.existsSync()) {
+          iconSrc = File('$exeDir/data/flutter_assets/assets/icons/icon.png');
+        }
+        if (iconSrc.existsSync()) iconSrc.copySync(iconDest.path);
+      }
+    }
+
+    final desktopFile = File('${appDir.path}/$id.desktop');
+    if (!desktopFile.existsSync() || Platform.environment['APPIMAGE'] != null) {
+      desktopFile.writeAsStringSync('''[Desktop Entry]
+Type=Application
+Name=Kashou
+Comment=Music player with local library playback and YouTube streaming
+Exec="$exe" %U
+Icon=$id
+Categories=Audio;Music;Player;AudioVideo;
+Terminal=false
+StartupWMClass=$id
+''');
+    }
+  } catch (_) {}
+}
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // just_audio has no desktop backend of its own, mpv fills in
   if (Platform.isLinux || Platform.isWindows) {
     DesktopAudioPlatform.ensureInitialized();
+  }
+  if (Platform.isLinux) {
+    _integrateLinuxDesktop();
   }
 
   if (Platform.isAndroid) {

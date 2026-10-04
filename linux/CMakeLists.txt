@@ -134,3 +134,5 @@ install(FILES "packaging/com.libreamp.kashou.desktop"
 install(FILES "${CMAKE_SOURCE_DIR}/../assets/icons/icon.png"
   DESTINATION "${CMAKE_INSTALL_PREFIX}"
   RENAME "com.libreamp.kashou.png" COMPONENT Runtime)
+install(PROGRAMS "packaging/AppRun"
+  DESTINATION "${CMAKE_INSTALL_PREFIX}" COMPONENT Runtime)

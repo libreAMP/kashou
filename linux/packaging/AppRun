@@ -1,0 +1,23 @@
+#!/bin/sh
+SELF="$(readlink -f "$0")"
+HERE="${SELF%/*}"
+export PATH="${HERE}:${PATH}"
+export LD_LIBRARY_PATH="${HERE}/lib:${LD_LIBRARY_PATH}"
+
+TARGET_EXEC="${APPIMAGE:-$HERE/kashou}"
+DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}"
+APP_DIR="$DATA_DIR/applications"
+ICON_DIR_512="$DATA_DIR/icons/hicolor/512x512/apps"
+ICON_DIR_256="$DATA_DIR/icons/hicolor/256x256/apps"
+mkdir -p "$APP_DIR" "$ICON_DIR_512" "$ICON_DIR_256"
+if [ -f "$HERE/com.libreamp.kashou.png" ]; then
+  cp -f "$HERE/com.libreamp.kashou.png" "$ICON_DIR_512/com.libreamp.kashou.png"
+  cp -f "$HERE/com.libreamp.kashou.png" "$ICON_DIR_256/com.libreamp.kashou.png"
+fi
+if [ -f "$HERE/com.libreamp.kashou.desktop" ]; then
+  sed "s|^Exec=.*|Exec=\"$TARGET_EXEC\" %U|" "$HERE/com.libreamp.kashou.desktop" > "$APP_DIR/com.libreamp.kashou.desktop"
+  chmod +x "$APP_DIR/com.libreamp.kashou.desktop"
+  command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$APP_DIR" >/dev/null 2>&1
+fi
+
+exec "${HERE}/kashou" "$@"
