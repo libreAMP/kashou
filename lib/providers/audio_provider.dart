@@ -182,17 +182,12 @@ class AudioProvider extends ChangeNotifier {
   }
 
   void _restorePendingSnapshot() {
-    if (_queueBeforePending != null) {
+    if (_queueBeforePending != null && _queueBeforePending!.isNotEmpty) {
       _queue = List<Track>.from(_queueBeforePending!);
-      if (_queue.isNotEmpty) {
-        final restoredIndex =
-            (_indexBeforePending ?? 0).clamp(0, _queue.length - 1);
-        _currentIndex = restoredIndex;
-        _currentTrack = _queue[_currentIndex];
-      } else {
-        _currentIndex = 0;
-        _currentTrack = null;
-      }
+      final restoredIndex =
+          (_indexBeforePending ?? 0).clamp(0, _queue.length - 1);
+      _currentIndex = restoredIndex;
+      _currentTrack = _queue[_currentIndex];
     }
     _clearPendingSnapshot();
   }
@@ -1051,10 +1046,18 @@ class AudioProvider extends ChangeNotifier {
       if (_repeatMode == RepeatMode.all) {
         nextIndex = 0;
       } else {
-        await audioPlayer.stop();
-        _isPlaying = false;
-        notifyListeners();
-        return;
+        final current = _currentTrack;
+        if (current != null && _isRemotePath(current.path) && _recProvider != null) {
+          await _recProvider!.queueRadioFor(current, this);
+        }
+        if (_currentIndex + 1 < _queue.length) {
+          nextIndex = _currentIndex + 1;
+        } else {
+          await audioPlayer.stop();
+          _isPlaying = false;
+          notifyListeners();
+          return;
+        }
       }
     }
 

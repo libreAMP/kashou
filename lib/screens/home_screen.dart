@@ -63,7 +63,7 @@ class HomeScreen extends StatelessWidget {
                         _padded(context, _buildQuickActions(context)),
                         _buildRecentlyPlayed(context),
                         _buildRecentlyAdded(context),
-                        _padded(context, _buildFavoriteSongs(context)),
+                        _buildFavoriteSongs(context),
                         _buildTopAlbums(context),
                       ],
                     );
@@ -414,7 +414,7 @@ class HomeScreen extends StatelessWidget {
           return !track.path.contains('youtube.com') &&
               !track.path.contains('youtu.be') &&
               track.album != 'YouTube';
-        }).toList();
+        }).take(10).toList();
 
         // Don't show section at all if no local favorites
         if (localFavoriteTracks.isEmpty) {
@@ -425,18 +425,21 @@ class HomeScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: 24),
-            _buildSectionHeader(
+            _padded(
               context,
-              title: 'Your favorite songs',
-              actionLabel: 'More',
-              onActionTap: () => Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => TrackListPage(
-                    title: 'Your favorite songs',
-                    tracks: library.favoriteTracks),
-              )),
+              _buildSectionHeader(
+                context,
+                title: 'Your favorite songs',
+                actionLabel: 'More',
+                onActionTap: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => TrackListPage(
+                      title: 'Your favorite songs',
+                      tracks: library.favoriteTracks),
+                )),
+              ),
             ),
             const SizedBox(height: 12),
-            _buildFavoriteTracksList(context, localFavoriteTracks),
+            _padded(context, _buildFavoriteTracksList(context, localFavoriteTracks)),
           ],
         );
       },
@@ -444,34 +447,19 @@ class HomeScreen extends StatelessWidget {
   }
 
   Widget _buildFavoriteTracksList(BuildContext context, List<Track> tracks) {
-    return _padded(
-      context,
-      LayoutBuilder(
-        builder: (context, constraints) {
-          final twoColumns = isDesktop && constraints.maxWidth >= 760;
-
-          if (!twoColumns) {
-            return ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: tracks.length,
-              padding: EdgeInsets.zero,
-              itemBuilder: (context, index) {
-                return TrackListItem(track: tracks[index]);
-              },
-            );
-          }
-
-          final itemWidth = (constraints.maxWidth - 12) / 2;
-          return Wrap(
-            spacing: 12,
-            children: [
-              for (final track in tracks)
-                SizedBox(width: itemWidth, child: TrackListItem(track: track)),
-            ],
-          );
-        },
-      ),
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      padding: EdgeInsets.zero,
+      itemCount: tracks.length,
+      itemBuilder: (context, index) {
+        return TrackListItem(
+          track: tracks[index],
+          playlist: tracks,
+          slot: index,
+          count: tracks.length,
+        );
+      },
     );
   }
 

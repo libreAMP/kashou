@@ -125,6 +125,7 @@ class DesktopMediaKitPlayer extends AudioPlayerPlatform {
           _setPosition = null;
         }
         _updateDuration(duration);
+        _checkLoadComplete();
         _updatePlaybackEvent();
       }),
       _player.stream.position.listen((position) {
@@ -137,18 +138,10 @@ class DesktopMediaKitPlayer extends AudioPlayerPlatform {
       _player.stream.buffering.listen((isBuffering) {
         final start = _currentMedia?.start;
         if (!isBuffering && start != null && _bufferedPosition <= start) return;
-        if (_processingState == ProcessingStateMessage.loading) {
-          if (!isBuffering && _mediaOpened) {
-            _processingState = ProcessingStateMessage.ready;
-            if (_loadCompleter?.isCompleted != true) {
-              _loadCompleter?.complete(_duration);
-            }
-          }
-        } else if (_processingState != ProcessingStateMessage.completed ||
-            isBuffering) {
-          _processingState = isBuffering
-              ? ProcessingStateMessage.buffering
-              : ProcessingStateMessage.ready;
+        if (!isBuffering) {
+          _checkLoadComplete();
+        } else if (_processingState != ProcessingStateMessage.completed) {
+          _processingState = ProcessingStateMessage.buffering;
           if (_duration == null) {
             _updateDuration(_player.state.duration);
           }
@@ -159,16 +152,7 @@ class DesktopMediaKitPlayer extends AudioPlayerPlatform {
       }),
       _player.stream.buffer.listen((buffer) {
         _bufferedPosition = buffer;
-        final start = _currentMedia?.start;
-        if (!_player.state.buffering &&
-            _mediaOpened &&
-            start != null &&
-            _bufferedPosition > start) {
-          _processingState = ProcessingStateMessage.ready;
-          if (_loadCompleter?.isCompleted != true) {
-            _loadCompleter?.complete(_duration);
-          }
-        }
+        _checkLoadComplete();
         _updatePlaybackEvent();
       }),
       _player.stream.volume.listen((volume) {
@@ -186,17 +170,13 @@ class DesktopMediaKitPlayer extends AudioPlayerPlatform {
         _updatePlaybackEvent();
       }),
       _player.stream.error.listen((error) {
-        final uriMatch = RegExp(r'Failed to open (.*)\.').firstMatch(error);
-        final uri = uriMatch?[1];
-        if (uri == null || uri == _currentMedia?.uri) {
-          _processingState = ProcessingStateMessage.idle;
-          _errorCodeValue = _errorCode;
-          _errorMessage = error;
-          if (_loadCompleter?.isCompleted != true) {
-            _loadCompleter?.completeError(Exception(error));
-          }
-          _updatePlaybackEvent();
+        _processingState = ProcessingStateMessage.idle;
+        _errorCodeValue = _errorCode;
+        _errorMessage = error;
+        if (_loadCompleter?.isCompleted != true) {
+          _loadCompleter?.completeError(Exception(error));
         }
+        _updatePlaybackEvent();
       }),
       _player.stream.playlist.listen((playlist) {
         if (_currentIndex != playlist.index) {
@@ -229,6 +209,16 @@ class DesktopMediaKitPlayer extends AudioPlayerPlatform {
     if (end != null) duration = end;
     if (start != null) duration -= start;
     _duration = duration;
+  }
+
+  void _checkLoadComplete() {
+    if (_processingState == ProcessingStateMessage.loading &&
+        !_player.state.buffering) {
+      _processingState = ProcessingStateMessage.ready;
+      if (_loadCompleter?.isCompleted != true) {
+        _loadCompleter?.complete(_duration ?? _player.state.duration);
+      }
+    }
   }
 
   void _updatePlaybackEvent() {
@@ -283,6 +273,7 @@ class DesktopMediaKitPlayer extends AudioPlayerPlatform {
       await _player.open(playable, play: _playing);
     }
     _mediaOpened = true;
+    _checkLoadComplete();
 
     if (request.initialPosition != null) {
       _setPosition = _position = request.initialPosition!;

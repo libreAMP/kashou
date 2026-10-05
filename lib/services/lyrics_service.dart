@@ -61,19 +61,25 @@ class LyricsService {
   static List<LyricLine> _parseLrc(String lrc) {
     final out = <LyricLine>[];
     for (final line in lrc.split('\n')) {
-      final m = _lrcTime.firstMatch(line);
-      if (m == null) continue;
-      final min = int.tryParse(m.group(1)!) ?? 0;
-      final sec = int.tryParse(m.group(2)!) ?? 0;
-      final frac = m.group(3);
-      final ms = frac == null ? 0 : int.tryParse(frac.padRight(3, '0')) ?? 0;
-      final text = line.substring(m.end).trim();
+      final matches = _lrcTime.allMatches(line).toList();
+      if (matches.isEmpty) continue;
+      final text = line.substring(matches.last.end).trim();
       if (text.isEmpty) continue;
-      out.add(LyricLine(
-        Duration(minutes: min, seconds: sec, milliseconds: ms),
-        text,
-      ));
+      for (final m in matches) {
+        final min = int.tryParse(m.group(1)!) ?? 0;
+        final sec = int.tryParse(m.group(2)!) ?? 0;
+        final frac = m.group(3);
+        final rawMs = frac == null
+            ? '0'
+            : (frac.length > 3 ? frac.substring(0, 3) : frac.padRight(3, '0'));
+        final ms = int.tryParse(rawMs) ?? 0;
+        out.add(LyricLine(
+          Duration(minutes: min, seconds: sec, milliseconds: ms),
+          text,
+        ));
+      }
     }
+    out.sort((a, b) => a.time.compareTo(b.time));
     return out;
   }
 }

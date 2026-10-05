@@ -641,55 +641,12 @@ class _StreamScreenState extends State<StreamScreen>
           const SizedBox(height: 16),
         ],
         if (_searchPlaylists.isNotEmpty &&
-            (_searchFilter == 'All' || _searchFilter == 'Playlists')) ...[
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
-            child: _sectionTitle('Playlists'),
-          ),
-          SizedBox(
-            height: ArtCard.heightFor(),
-            child: RepaintBoundary(
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                itemCount: _searchPlaylists.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 12),
-                itemBuilder: (_, i) => ArtCard(
-                  thumbnail: _searchPlaylists[i]['thumbnail'] as String?,
-                  title: _searchPlaylists[i]['title'] as String? ?? '',
-                  subtitle: _searchPlaylists[i]['subtitle'] as String?,
-                  onTap: () => _openPlaylist(_searchPlaylists[i]),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-        ],
+            (_searchFilter == 'All' || _searchFilter == 'Playlists'))
+          _buildPlaylistShelf(
+              {'title': 'Playlists', 'items': _searchPlaylists}),
         if (_searchAlbums.isNotEmpty &&
-            (_searchFilter == 'All' || _searchFilter == 'Albums')) ...[
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
-            child: _sectionTitle('Albums'),
-          ),
-          SizedBox(
-            height: ArtCard.heightFor(),
-            child: RepaintBoundary(
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                itemCount: _searchAlbums.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 12),
-                itemBuilder: (_, i) => ArtCard(
-                  thumbnail: _searchAlbums[i]['thumbnail'] as String?,
-                  title: _searchAlbums[i]['title'] as String? ?? '',
-                  subtitle: _searchAlbums[i]['subtitle'] as String?,
-                  onTap: () => _openPlaylist(_searchAlbums[i]),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-        ],
+            (_searchFilter == 'All' || _searchFilter == 'Albums'))
+          _buildPlaylistShelf({'title': 'Albums', 'items': _searchAlbums}),
       ],
     );
   }
@@ -931,7 +888,7 @@ class _StreamScreenState extends State<StreamScreen>
     if (shelf['kind'] == 'songs') return _buildQuickPicks(shelf);
     if (shelf['kind'] == 'artists') return _buildArtistShelf(shelf);
     final title = shelf['title'] as String? ?? '';
-    final hasMore = items.length > 10;
+    final hasMore = items.length > (isDesktop ? 6 : 10);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

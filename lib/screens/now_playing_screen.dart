@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -57,14 +58,10 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
   bool _lyricsOpen = false;
   LyricsResult? _lyrics;
   String? _lyricsForId;
-  int _activeLyric = -1;
-  final _lyricsScroll = ScrollController();
-  final Map<int, GlobalKey> _lyricKeys = {};
 
   @override
   void dispose() {
     _seekFlashTimer?.cancel();
-    _lyricsScroll.dispose();
     super.dispose();
   }
 
@@ -73,7 +70,6 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       setState(() => _lyricsOpen = false);
       return;
     }
-    _activeLyric = -1;
     setState(() => _lyricsOpen = true);
     if (_lyrics == null) {
       final res = await LyricsService.fetch(track.title, track.artist);
@@ -107,102 +103,10 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
 
   Widget _buildLyricsView(
       BuildContext context, AudioProvider audio, Track track) {
-    final scheme = Theme.of(context).colorScheme;
-    final res = _lyrics;
-    if (res == null) {
-      return const Center(child: KashouLoader());
-    }
-    if (res.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Text(
-            'No lyrics found',
-            style: Theme.of(context)
-                .textTheme
-                .titleMedium
-                ?.copyWith(color: scheme.onSurfaceVariant),
-          ),
-        ),
-      );
-    }
-    if (res.lines.isEmpty) {
-      return SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Text(
-          res.plain,
-          style: Theme.of(context).textTheme.bodyLarge?.copyWith(height: 1.6),
-        ),
-      );
-    }
-    final pos = audio.position;
-    var active = -1;
-    for (var i = 0; i < res.lines.length; i++) {
-      if (res.lines[i].time <= pos) {
-        active = i;
-      } else {
-        break;
-      }
-    }
-    if (active != _activeLyric) {
-      _activeLyric = active;
-      if (active >= 0) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!mounted || !_lyricsOpen) return;
-          final ctx = _lyricKeys[active]?.currentContext;
-          if (ctx != null) {
-            Scrollable.ensureVisible(
-              ctx,
-              alignment: 0.45,
-              duration: const Duration(milliseconds: 320),
-              curve: Curves.easeOutCubic,
-            );
-          }
-        });
-      }
-    }
-    return SingleChildScrollView(
-      controller: _lyricsScroll,
-      padding: const EdgeInsets.fromLTRB(24, 40, 24, 60),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          for (var i = 0; i < res.lines.length; i++)
-            _buildLyricLine(
-                context, res.lines[i], i, i == active, scheme, audio),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLyricLine(
-    BuildContext context,
-    LyricLine line,
-    int index,
-    bool isActive,
-    ColorScheme scheme,
-    AudioProvider audio,
-  ) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: () => audio.seek(line.time),
-        child: Container(
-          key: _lyricKeys.putIfAbsent(index, () => GlobalKey()),
-          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-          child: AnimatedDefaultTextStyle(
-            duration: const Duration(milliseconds: 250),
-            curve: Curves.easeOut,
-            style: Theme.of(context).textTheme.titleMedium!.copyWith(
-                  fontWeight: isActive ? FontWeight.w800 : FontWeight.w500,
-                  fontSize: isActive ? 22 : 17,
-                  color: isActive ? scheme.primary : scheme.onSurfaceVariant,
-                ),
-            child: Text(line.text),
-          ),
-        ),
-      ),
+    return _LyricsView(
+      audio: audio,
+      track: track,
+      lyrics: _lyrics,
     );
   }
 
@@ -265,8 +169,6 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
             _lyricsForId = track.id;
             _lyrics = null;
             _lyricsOpen = false;
-            _activeLyric = -1;
-            _lyricKeys.clear();
           }
 
           final mediaQuery = MediaQuery.of(context);
@@ -1557,7 +1459,10 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                 ],
               ),
             ),
-            const Divider(height: 1, thickness: 0.5),
+            if (isDesktop)
+              const Divider(height: 1, thickness: 0.5)
+            else
+              const SizedBox(height: 6),
             Expanded(
               child: count == 0
                   ? Center(
@@ -1571,31 +1476,34 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                   : ReorderableListView.builder(
                       buildDefaultDragHandles: false,
                       scrollController: scrollController,
-                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      padding: EdgeInsets.symmetric(vertical: isDesktop ? 6 : 8),
                       itemCount: count,
                       onReorder: audio.moveQueueItem,
                       itemBuilder: (context, index) {
                         final track = audio.queue[index];
                         final isCurrent = index == audio.currentIndex;
+                        final radius = isDesktop ? rSm : rMd;
+                        final artSize = isDesktop ? 44.0 : 48.0;
 
                         return Padding(
                           key: ValueKey('${track.id}_$index'),
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 2),
+                          padding: EdgeInsets.symmetric(
+                              horizontal: isDesktop ? 12 : 16, vertical: 2),
                           child: Material(
                             color: isCurrent
                                 ? scheme.primaryContainer
                                     .withValues(alpha: 0.35)
                                 : Colors.transparent,
-                            borderRadius: BorderRadius.circular(rSm),
+                            borderRadius: BorderRadius.circular(radius),
                             child: InkWell(
                               onTap: isCurrent
                                   ? null
                                   : () => audio.playAt(index),
-                              borderRadius: BorderRadius.circular(rSm),
+                              borderRadius: BorderRadius.circular(radius),
                               child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 8, vertical: 6),
+                                padding: EdgeInsets.symmetric(
+                                    horizontal: isDesktop ? 8 : 10,
+                                    vertical: isDesktop ? 6 : 8),
                                 child: Row(
                                   children: [
                                     Stack(
@@ -1604,18 +1512,19 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                         SquareArt(
                                           bytes: track.albumArt,
                                           url: _buildYoutubeThumbnailUrl(track),
-                                          size: 44,
-                                          radius: rSm,
+                                          size: artSize,
+                                          radius: isDesktop ? rSm : 14,
                                         ),
                                         if (isCurrent)
                                           Container(
-                                            width: 44,
-                                            height: 44,
+                                            width: artSize,
+                                            height: artSize,
                                             decoration: BoxDecoration(
                                               color: Colors.black
                                                   .withValues(alpha: 0.45),
                                               borderRadius:
-                                                  BorderRadius.circular(rSm),
+                                                  BorderRadius.circular(
+                                                      isDesktop ? rSm : 14),
                                             ),
                                             child: Icon(
                                               Icons.equalizer_rounded,
@@ -1668,8 +1577,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                     ReorderableDragStartListener(
                                       index: index,
                                       child: Padding(
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 8, vertical: 8),
+                                        padding: EdgeInsets.symmetric(
+                                            horizontal: isDesktop ? 8 : 12,
+                                            vertical: isDesktop ? 8 : 12),
                                         child: Icon(
                                           Icons.reorder_rounded,
                                           size: 20,
@@ -2005,32 +1915,58 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
   }
 
   Future<void> _shareTrack(BuildContext context, Track? track) async {
-    // resolve the messenger before awaiting so no context crosses the gap
-    final messenger = ScaffoldMessenger.of(context);
-    if (track == null) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Nothing playing to share.')),
-        );
+    if (track == null) return;
+
+    final url = _buildYoutubeMusicUrl(track);
+
+    if (isDesktop) {
+      if (url != null) {
+        await Clipboard.setData(ClipboardData(text: url));
+        showToast('Link copied to clipboard');
+        return;
       }
+      final file = File(track.path);
+      if (!file.existsSync()) {
+        showToast('File not found');
+        return;
+      }
+      final dir = file.parent.path;
+      if (Platform.isLinux) {
+        await Process.run('xdg-open', [dir]);
+      } else if (Platform.isWindows) {
+        await Process.run('explorer.exe', [dir]);
+      } else if (Platform.isMacOS) {
+        await Process.run('open', ['-R', file.path]);
+      }
+      showToast('Opened in file manager');
       return;
     }
 
-    final url = _buildYoutubeMusicUrl(track);
-    const repo = 'https://github.com/libreAMP/kashou';
-    final by = track.artist.isNotEmpty ? ' by ${track.artist}' : '';
-    final shareText = url != null
-        ? 'Listen to ${track.title}$by on Kashou:\n$url\n$repo'
-        : 'Listen to ${track.title}$by on Kashou.\n$repo';
-
     try {
-      await SharePlus.instance.share(
-        ShareParams(text: shareText, subject: 'Share ${track.title}'),
-      );
-    } catch (e) {
-      messenger.showSnackBar(
-        SnackBar(content: Text('Unable to share track: $e')),
-      );
+      if (url != null) {
+        final by = track.artist.isNotEmpty ? ' by ${track.artist}' : '';
+        const repo = 'https://github.com/libreAMP/kashou';
+        await SharePlus.instance.share(
+          ShareParams(
+            text: 'Listen to ${track.title}$by on Kashou:\n$url\n$repo',
+            subject: 'Share ${track.title}',
+          ),
+        );
+      } else {
+        final file = File(track.path);
+        if (file.existsSync()) {
+          await SharePlus.instance.share(
+            ShareParams(
+              files: [XFile(track.path)],
+              subject: 'Share ${track.title}',
+            ),
+          );
+        } else {
+          showToast('File not found');
+        }
+      }
+    } catch (_) {
+      showToast('Unable to share track');
     }
   }
 
@@ -2191,6 +2127,176 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _LyricsView extends StatefulWidget {
+  final AudioProvider audio;
+  final Track track;
+  final LyricsResult? lyrics;
+
+  const _LyricsView({
+    required this.audio,
+    required this.track,
+    required this.lyrics,
+  });
+
+  @override
+  State<_LyricsView> createState() => _LyricsViewState();
+}
+
+class _LyricsViewState extends State<_LyricsView> {
+  final _scroll = ScrollController();
+  final Map<int, GlobalKey> _keys = {};
+  StreamSubscription<Duration>? _sub;
+  Timer? _timer;
+  int _active = -1;
+
+  @override
+  void initState() {
+    super.initState();
+    _bind();
+    _sync(widget.audio.position);
+  }
+
+  void _bind() {
+    _sub?.cancel();
+    _timer?.cancel();
+    _sub = widget.audio.audioPlayer.positionStream.listen((pos) {
+      if (mounted) _sync(pos);
+    });
+    _timer = Timer.periodic(const Duration(milliseconds: 100), (_) {
+      if (!mounted) return;
+      if (widget.audio.isPlaying) {
+        _sync(widget.audio.position);
+      }
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant _LyricsView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.track.id != widget.track.id) {
+      _active = -1;
+      _keys.clear();
+      _bind();
+    }
+    _sync(widget.audio.position);
+  }
+
+  @override
+  void dispose() {
+    _sub?.cancel();
+    _timer?.cancel();
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  void _sync(Duration pos) {
+    final lines = widget.lyrics?.lines;
+    if (lines == null || lines.isEmpty) return;
+
+    final adjusted = pos + const Duration(milliseconds: 120);
+    var active = -1;
+    for (var i = 0; i < lines.length; i++) {
+      if (lines[i].time <= adjusted) {
+        active = i;
+      } else {
+        break;
+      }
+    }
+
+    if (active != _active) {
+      setState(() => _active = active);
+      if (active >= 0) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          final ctx = _keys[active]?.currentContext;
+          if (ctx != null) {
+            Scrollable.ensureVisible(
+              ctx,
+              alignment: 0.45,
+              duration: const Duration(milliseconds: 320),
+              curve: Curves.easeOutCubic,
+            );
+          }
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final res = widget.lyrics;
+    if (res == null) {
+      return const Center(child: KashouLoader());
+    }
+    if (res.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(
+            'No lyrics found',
+            style: Theme.of(context)
+                .textTheme
+                .titleMedium
+                ?.copyWith(color: scheme.onSurfaceVariant),
+          ),
+        ),
+      );
+    }
+    if (res.lines.isEmpty) {
+      return SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Text(
+          res.plain,
+          style: Theme.of(context).textTheme.bodyLarge?.copyWith(height: 1.6),
+        ),
+      );
+    }
+
+    return SingleChildScrollView(
+      controller: _scroll,
+      padding: const EdgeInsets.fromLTRB(24, 40, 24, 60),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (var i = 0; i < res.lines.length; i++)
+            _line(context, res.lines[i], i, i == _active, scheme),
+        ],
+      ),
+    );
+  }
+
+  Widget _line(
+    BuildContext context,
+    LyricLine line,
+    int index,
+    bool isActive,
+    ColorScheme scheme,
+  ) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => widget.audio.seek(line.time),
+        child: Container(
+          key: _keys.putIfAbsent(index, () => GlobalKey()),
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+          child: AnimatedDefaultTextStyle(
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeOut,
+            style: Theme.of(context).textTheme.titleMedium!.copyWith(
+                  fontWeight: isActive ? FontWeight.w800 : FontWeight.w500,
+                  fontSize: isActive ? 22 : 17,
+                  color: isActive ? scheme.primary : scheme.onSurfaceVariant,
+                ),
+            child: Text(line.text),
+          ),
+        ),
+      ),
     );
   }
 }

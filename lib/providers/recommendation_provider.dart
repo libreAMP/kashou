@@ -264,6 +264,9 @@ class RecommendationProvider extends ChangeNotifier {
   }
 
   String? _extractVideoId(Track track) {
+    if (track.id.length == 11 && !track.id.contains('/')) {
+      return track.id;
+    }
     final url = track.sourceUrl ?? track.path;
     if (!url.contains('youtube') && !url.contains('youtu.be')) {
       return null;
