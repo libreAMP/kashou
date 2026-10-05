@@ -32,7 +32,7 @@ import 'youtube_history_screen.dart';
 // the skeleton shares these
 const int _quickPicksRows = 4;
 const double _quickPicksRowHeight = 60;
-double get _quickPicksGap => isDesktop ? 8 : 2;
+double get _quickPicksGap => isWideLayout ? 8 : 2;
 double get _quickPicksHeight =>
     _quickPicksRows * _quickPicksRowHeight +
     (_quickPicksRows - 1) * _quickPicksGap +
@@ -45,7 +45,7 @@ const double _quickPicksColumn = 340;
 SliverGridDelegate _quickPicksGrid(double width) {
   return SliverGridDelegateWithFixedCrossAxisCount(
     crossAxisCount: _quickPicksRows,
-    mainAxisExtent: isDesktop ? width : width - 48,
+    mainAxisExtent: isWideLayout ? width : width - 48,
     mainAxisSpacing: 12,
     crossAxisSpacing: _quickPicksGap,
   );
@@ -455,7 +455,7 @@ class _StreamScreenState extends State<StreamScreen>
 
   // keeps tight constraints so scrollables inside stay bounded
   Widget _centeredContent(Widget child) {
-    if (!isDesktop) return child;
+    if (!isWideLayout) return child;
     return LayoutBuilder(
       builder: (context, constraints) {
         final extra = constraints.maxWidth - _maxContentWidth;
@@ -474,7 +474,7 @@ class _StreamScreenState extends State<StreamScreen>
 
     return _centeredContent(
       Padding(
-        padding: EdgeInsets.fromLTRB(20, isDesktop ? 16 : 8, 12, 8),
+        padding: EdgeInsets.fromLTRB(20, isWideLayout ? 16 : 8, 12, 8),
         child: Row(
           children: [
             Expanded(
@@ -781,7 +781,7 @@ class _StreamScreenState extends State<StreamScreen>
     final scheme = Theme.of(context).colorScheme;
     return LayoutBuilder(
       builder: (context, constraints) {
-        final columns = isDesktop
+        final columns = isWideLayout
             ? (constraints.maxWidth / 220).floor().clamp(3, 6).toInt()
             : 2;
         final cardWidth = (constraints.maxWidth - 12 * (columns - 1)) / columns;
@@ -888,7 +888,7 @@ class _StreamScreenState extends State<StreamScreen>
     if (shelf['kind'] == 'songs') return _buildQuickPicks(shelf);
     if (shelf['kind'] == 'artists') return _buildArtistShelf(shelf);
     final title = shelf['title'] as String? ?? '';
-    final hasMore = items.length > (isDesktop ? 6 : 10);
+    final hasMore = items.length > (isWideLayout ? 6 : 10);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -923,7 +923,7 @@ class _StreamScreenState extends State<StreamScreen>
                 : null,
           ),
         ),
-        if (isDesktop)
+        if (isWideLayout)
           LayoutBuilder(
             builder: (context, constraints) {
               final availableWidth = constraints.maxWidth - 40;
@@ -1065,7 +1065,7 @@ class _StreamScreenState extends State<StreamScreen>
             ],
           ),
         ),
-        if (isDesktop)
+        if (isWideLayout)
           LayoutBuilder(
             builder: (context, constraints) {
               final availableWidth = constraints.maxWidth - 40;
@@ -1335,7 +1335,7 @@ class _StreamScreenState extends State<StreamScreen>
                 : null,
           ),
         ),
-        if (isDesktop)
+        if (isWideLayout)
           LayoutBuilder(
             builder: (context, constraints) {
               final availableWidth = constraints.maxWidth - 40;

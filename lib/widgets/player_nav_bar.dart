@@ -464,6 +464,7 @@ class _RailTile extends StatefulWidget {
 
 class _RailTileState extends State<_RailTile> {
   bool _hovered = false;
+  bool _focused = false;
 
   @override
   Widget build(BuildContext context) {
@@ -474,9 +475,11 @@ class _RailTileState extends State<_RailTile> {
         : scheme.onSurfaceVariant;
     final bg = widget.selected
         ? scheme.primaryContainer
-        : (_hovered
-            ? scheme.onSurface.withValues(alpha: 0.08)
-            : Colors.transparent);
+        : (_focused
+            ? scheme.primary.withValues(alpha: 0.16)
+            : (_hovered
+                ? scheme.onSurface.withValues(alpha: 0.08)
+                : Colors.transparent));
 
     final content = AnimatedContainer(
       duration: EMotion.fast,
@@ -485,6 +488,10 @@ class _RailTileState extends State<_RailTile> {
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: _focused ? scheme.primary : Colors.transparent,
+          width: 2,
+        ),
       ),
       child: Row(
         children: [
@@ -527,14 +534,23 @@ class _RailTileState extends State<_RailTile> {
       ),
     );
 
-    final clickable = MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: widget.onTap,
-        child: content,
+    final clickable = FocusableActionDetector(
+      onShowFocusHighlight: (f) => setState(() => _focused = f),
+      mouseCursor: SystemMouseCursors.click,
+      actions: {
+        ActivateIntent: CallbackAction<ActivateIntent>(
+          onInvoke: (_) => widget.onTap(),
+        ),
+      },
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() => _hovered = false),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: widget.onTap,
+          child: content,
+        ),
       ),
     );
 

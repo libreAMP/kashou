@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/audio_provider.dart';
 import '../services/custom_equalizer.dart';
+import '../theme/app_theme.dart';
 import '../theme/radii.dart';
 
 class EqualizerWidget extends StatelessWidget {
@@ -169,27 +170,18 @@ class EqualizerWidget extends StatelessWidget {
                           return Expanded(
                             child: Column(
                               children: [
-                                Container(
+                                SizedBox(
                                   height: sliderHeight,
-                                  margin: const EdgeInsets.symmetric(
-                                      horizontal: 2),
-                                  decoration: BoxDecoration(
-                                    color: scheme.surfaceContainerHigh,
-                                    borderRadius: BorderRadius.circular(rMd),
-                                  ),
                                   child: RotatedBox(
                                     quarterTurns: 3,
                                     child: SliderTheme(
-                                      data: SliderTheme.of(context).copyWith(
-                                        trackHeight: 4,
-                                        thumbShape:
-                                            const RoundSliderThumbShape(
-                                                enabledThumbRadius: 7),
-                                        overlayShape:
-                                            const RoundSliderOverlayShape(
-                                                overlayRadius: 14),
-                                        inactiveTrackColor:
-                                            scheme.surfaceContainerHighest,
+                                      data: m3eSliderTheme(
+                                        context,
+                                        centered: true,
+                                        trackHeight: 14,
+                                        thumbHeight: 22,
+                                        gap: 4,
+                                        stepCount: 9,
                                       ),
                                       child: Slider(
                                         value: value,
@@ -370,6 +362,7 @@ class EqualizerWidget extends StatelessWidget {
                     icon: Icons.graphic_eq_rounded,
                     label: 'Bass boost',
                     value: audio.bassBoost,
+                    divisions: 10,
                     onChanged: audio.setBassBoost,
                     resetAction: () => audio.setBassBoost(0.0),
                   ),
@@ -378,6 +371,7 @@ class EqualizerWidget extends StatelessWidget {
                     icon: Icons.music_note_rounded,
                     label: 'Treble boost',
                     value: audio.trebleBoost,
+                    divisions: 10,
                     onChanged: audio.setTrebleBoost,
                     resetAction: () => audio.setTrebleBoost(0.0),
                   ),
@@ -386,6 +380,7 @@ class EqualizerWidget extends StatelessWidget {
                     icon: Icons.waves_rounded,
                     label: 'Reverb',
                     value: audio.reverbLevel,
+                    divisions: 10,
                     onChanged: audio.setReverbLevel,
                     resetAction: () => audio.setReverbLevel(0.0),
                   ),
@@ -396,6 +391,7 @@ class EqualizerWidget extends StatelessWidget {
                     value: audio.tempoControl,
                     min: 0.5,
                     max: 2.0,
+                    divisions: 15,
                     onChanged: audio.setTempoControl,
                     resetAction: () => audio.setTempoControl(1.0),
                     valueLabel: '${(audio.tempoControl * 100).toInt()}%',
@@ -468,13 +464,13 @@ class EqualizerWidget extends StatelessWidget {
             ],
           ),
           SliderTheme(
-            data: SliderTheme.of(context).copyWith(
-              trackHeight: 6,
-              thumbShape:
-                  const RoundSliderThumbShape(enabledThumbRadius: 8),
-              overlayShape:
-                  const RoundSliderOverlayShape(overlayRadius: 16),
-              inactiveTrackColor: scheme.surfaceContainerHighest,
+            data: m3eSliderTheme(
+              context,
+              centered: false,
+              trackHeight: 16,
+              thumbHeight: 32,
+              gap: 4.5,
+              stepCount: divisions ?? 10,
             ),
             child: Slider(
               value: clampedValue,

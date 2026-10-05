@@ -7,7 +7,7 @@ import 'platform.dart';
 
 // full-height sheet on mobile, centered dialog on desktop
 Future<void> openNowPlaying(BuildContext context) {
-  if (isDesktop) {
+  if (isWideLayout) {
     return showDialog<void>(
       context: context,
       barrierColor: Colors.black.withValues(alpha: 0.65),

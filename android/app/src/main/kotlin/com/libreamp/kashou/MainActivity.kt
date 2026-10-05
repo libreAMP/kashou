@@ -38,6 +38,10 @@ class MainActivity : AudioServiceActivity() {
             if (call.method == "consumeLink") {
                 result.success(pendingLink)
                 pendingLink = null
+            } else if (call.method == "isTv") {
+                val uiMode = (getSystemService(android.content.Context.UI_MODE_SERVICE) as? android.app.UiModeManager)?.currentModeType
+                val hasLeanback = packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_LEANBACK)
+                result.success(uiMode == android.content.res.Configuration.UI_MODE_TYPE_TELEVISION || hasLeanback)
             } else {
                 result.notImplemented()
             }

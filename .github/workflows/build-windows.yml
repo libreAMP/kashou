@@ -23,6 +23,11 @@ jobs:
       - name: Enable Windows desktop
         run: flutter config --enable-windows-desktop
 
+      - name: Enable Developer Mode
+        shell: pwsh
+        run: |
+          New-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock' -Name AllowDevelopmentWithoutDevLicense -PropertyType DWORD -Value 1 -Force
+
       - name: Get dependencies
         run: flutter pub get
 

@@ -18,7 +18,7 @@ class HomeScreen extends StatelessWidget {
   static const double _maxContentWidth = 1200;
 
   Widget _centeredContent(Widget child) {
-    if (!isDesktop) return child;
+    if (!isWideLayout) return child;
     return LayoutBuilder(
       builder: (context, constraints) {
         final extra = constraints.maxWidth - _maxContentWidth;
@@ -86,7 +86,7 @@ class HomeScreen extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     return _centeredContent(
       Padding(
-        padding: EdgeInsets.fromLTRB(20, isDesktop ? 16 : 8, 12, 8),
+        padding: EdgeInsets.fromLTRB(20, isWideLayout ? 16 : 8, 12, 8),
         child: Row(
           children: [
             Expanded(

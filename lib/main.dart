@@ -100,8 +100,14 @@ void main() async {
 
   if (Platform.isAndroid) {
     try {
-      await FlutterDisplayMode.setHighRefreshRate();
+      const channel = MethodChannel('com.libreamp.kashou/intent');
+      isTv = await channel.invokeMethod<bool>('isTv') ?? false;
     } catch (_) {}
+    if (!isTv) {
+      try {
+        await FlutterDisplayMode.setHighRefreshRate();
+      } catch (_) {}
+    }
   }
 
   await YoutubeService.instance.initialize();
@@ -493,7 +499,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
   }
 
   void _openNowPlaying() {
-    if (isDesktop) {
+    if (isWideLayout) {
       setState(() {
         _showMiniPlayer = false;
       });
@@ -593,7 +599,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
       ),
     );
 
-    if (isDesktop) {
+    if (isWideLayout) {
       return Scaffold(
         resizeToAvoidBottomInset: false,
         body: Column(

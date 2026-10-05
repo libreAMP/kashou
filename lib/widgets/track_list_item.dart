@@ -8,7 +8,7 @@ import '../theme/radii.dart';
 import '../utils/platform.dart';
 import 'track_options_sheet.dart';
 
-class TrackListItem extends StatelessWidget {
+class TrackListItem extends StatefulWidget {
   final Track track;
   final int? index;
   final List<Track>? playlist;
@@ -28,63 +28,83 @@ class TrackListItem extends StatelessWidget {
   });
 
   @override
+  State<TrackListItem> createState() => _TrackListItemState();
+}
+
+class _TrackListItemState extends State<TrackListItem> {
+  bool _focused = false;
+
+  @override
   Widget build(BuildContext context) {
     return Consumer<AudioProvider>(
       builder: (context, audio, child) {
-        final isPlaying = audio.currentTrack?.id == track.id && audio.isPlaying;
-        final isCurrent = audio.currentTrack?.id == track.id;
+        final isPlaying = audio.currentTrack?.id == widget.track.id && audio.isPlaying;
+        final isCurrent = audio.currentTrack?.id == widget.track.id;
         final colorScheme = Theme.of(context).colorScheme;
 
         const outer = Radius.circular(rMd);
         const inner = Radius.circular(rSm);
-        final radius = slot < 0
+        final radius = widget.slot < 0
             ? BorderRadius.circular(rMd)
-            : slot == 0
+            : widget.slot == 0
                 ? const BorderRadius.vertical(top: outer, bottom: inner)
-                : slot == count - 1
+                : widget.slot == widget.count - 1
                     ? const BorderRadius.vertical(top: inner, bottom: outer)
                     : BorderRadius.all(inner);
 
         return Padding(
           padding: const EdgeInsets.symmetric(vertical: 1),
           child: Material(
-            color:
-                slot < 0 ? Colors.transparent : colorScheme.surfaceContainerLow,
+            color: widget.slot < 0
+                ? Colors.transparent
+                : colorScheme.surfaceContainerLow,
             borderRadius: radius,
             clipBehavior: Clip.antiAlias,
             child: InkWell(
+              onFocusChange: (f) => setState(() => _focused = f),
               onTap: () {
                 final library = Provider.of<LibraryProvider>(
                   context,
                   listen: false,
                 );
-                audio.playTrack(track, playlist: playlist ?? library.allTracks);
+                audio.playTrack(widget.track,
+                    playlist: widget.playlist ?? library.allTracks);
               },
-              onLongPress: () =>
-                  showTrackOptionsSheet(context, track, playlistId: playlistId),
+              onLongPress: () => showTrackOptionsSheet(context, widget.track,
+                  playlistId: widget.playlistId),
               borderRadius: BorderRadius.circular(rMd),
               splashColor: colorScheme.primary.withValues(alpha: 0.05),
               highlightColor: colorScheme.primary.withValues(alpha: 0.03),
-              child: Container(
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
                 padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
                 decoration: BoxDecoration(
                   color: isCurrent
-                      ? colorScheme.primary.withValues(alpha: 0.12)
-                      : Colors.transparent,
+                      ? colorScheme.primary.withValues(alpha: 0.14)
+                      : (_focused
+                          ? colorScheme.primary.withValues(alpha: 0.12)
+                          : Colors.transparent),
                   borderRadius: BorderRadius.circular(rMd),
+                  border: Border.all(
+                    color: _focused ? colorScheme.primary : Colors.transparent,
+                    width: 2,
+                  ),
                 ),
                 child: Row(
                   children: [
-                    if (index != null) ...[
+                    if (widget.index != null) ...[
                       SizedBox(
-                        width: 24,
+                        width: isTv ? 32 : 24,
                         child: Text(
-                          '$index',
+                          '${widget.index}',
                           textAlign: TextAlign.center,
                           style: Theme.of(context)
                               .textTheme
                               .bodyMedium
-                              ?.copyWith(color: colorScheme.onSurfaceVariant),
+                              ?.copyWith(
+                                color: colorScheme.onSurfaceVariant,
+                                fontSize: isTv ? 16 : null,
+                              ),
                         ),
                       ),
                       const SizedBox(width: 4),
@@ -92,20 +112,20 @@ class TrackListItem extends StatelessWidget {
                     ClipRRect(
                       borderRadius: BorderRadius.circular(rSm),
                       child: Container(
-                        width: 48,
-                        height: 48,
+                        width: isTv ? 56 : 48,
+                        height: isTv ? 56 : 48,
                         color: colorScheme.surfaceContainerHighest,
                         child: Stack(
                           fit: StackFit.expand,
                           children: [
-                            _artFor(track, colorScheme),
+                            _artFor(widget.track, colorScheme),
                             if (isPlaying)
                               Container(
                                 color: Colors.black.withValues(alpha: 0.4),
                                 child: Icon(
                                   Icons.graphic_eq,
                                   color: Colors.white,
-                                  size: 20,
+                                  size: isTv ? 24 : 20,
                                 ),
                               ),
                           ],
@@ -119,7 +139,7 @@ class TrackListItem extends StatelessWidget {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Text(
-                            track.title,
+                            widget.track.title,
                             style: Theme.of(context)
                                 .textTheme
                                 .titleSmall
@@ -132,6 +152,7 @@ class TrackListItem extends StatelessWidget {
                                       : (isDesktop
                                           ? FontWeight.w600
                                           : FontWeight.w500),
+                                  fontSize: isTv ? 16 : null,
                                   height: isDesktop ? null : 1.2,
                                 ),
                             maxLines: 1,
@@ -139,11 +160,11 @@ class TrackListItem extends StatelessWidget {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            _subtitle(track),
+                            _subtitle(widget.track),
                             style:
                                 Theme.of(context).textTheme.bodySmall?.copyWith(
                                       color: colorScheme.onSurfaceVariant,
-                                      fontSize: isDesktop ? 13 : 12,
+                                      fontSize: isTv ? 14 : (isDesktop ? 13 : 12),
                                       height: isDesktop ? null : 1.3,
                                     ),
                             maxLines: 1,
@@ -156,8 +177,8 @@ class TrackListItem extends StatelessWidget {
                       builder: (buttonContext) => Tooltip(
                         message: 'More options',
                         child: Container(
-                          width: 36,
-                          height: 36,
+                          width: isTv ? 44 : 36,
+                          height: isTv ? 44 : 36,
                           decoration: BoxDecoration(
                             color: colorScheme.surfaceContainerHighest
                                 .withValues(alpha: 0.5),
@@ -167,14 +188,14 @@ class TrackListItem extends StatelessWidget {
                             onPressed: () {
                               final box = buttonContext.findRenderObject()
                                   as RenderBox?;
-                              showTrackOptionsSheet(context, track,
-                                  playlistId: playlistId,
+                              showTrackOptionsSheet(context, widget.track,
+                                  playlistId: widget.playlistId,
                                   anchor: box?.localToGlobal(
                                       box.size.bottomLeft(Offset.zero)));
                             },
                             icon: Icon(
                               Icons.more_vert,
-                              size: 18,
+                              size: isTv ? 22 : 18,
                               color: colorScheme.onSurfaceVariant,
                             ),
                             padding: EdgeInsets.zero,
