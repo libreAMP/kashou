@@ -150,7 +150,6 @@ class SettingsScreen extends StatelessWidget {
                     value: settings.crossfadeDuration,
                     min: 1,
                     max: 10,
-                    divisions: 9,
                     label: '${settings.crossfadeDuration.toInt()}s',
                     onChanged: settings.setCrossfadeDuration,
                   ),

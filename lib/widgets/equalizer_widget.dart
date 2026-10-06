@@ -177,11 +177,8 @@ class EqualizerWidget extends StatelessWidget {
                                     child: SliderTheme(
                                       data: m3eSliderTheme(
                                         context,
-                                        centered: true,
                                         trackHeight: 14,
-                                        thumbHeight: 22,
-                                        gap: 4,
-                                        stepCount: 9,
+                                        thumbSize: const Size(4, 26),
                                       ),
                                       child: Slider(
                                         value: value,
@@ -464,14 +461,7 @@ class EqualizerWidget extends StatelessWidget {
             ],
           ),
           SliderTheme(
-            data: m3eSliderTheme(
-              context,
-              centered: false,
-              trackHeight: 16,
-              thumbHeight: 32,
-              gap: 4.5,
-              stepCount: divisions ?? 10,
-            ),
+            data: m3eSliderTheme(context),
             child: Slider(
               value: clampedValue,
               min: min,
