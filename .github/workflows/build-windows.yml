@@ -20,6 +20,12 @@ jobs:
           channel: stable
           cache: true
 
+      - name: Install NuGet
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri 'https://dist.nuget.org/win-x86-commandline/latest/nuget.exe' -OutFile "$env:GITHUB_WORKSPACE\nuget.exe"
+          Add-Content $env:GITHUB_PATH "$env:GITHUB_WORKSPACE"
+
       - name: Enable Windows desktop
         run: flutter config --enable-windows-desktop
 
