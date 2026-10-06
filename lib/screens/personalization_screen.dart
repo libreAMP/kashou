@@ -220,6 +220,23 @@ class PersonalizationScreen extends StatelessWidget {
             ),
           ],
         ),
+        SettingsSection(
+          title: 'Layout',
+          children: [
+            Consumer<SettingsProvider>(
+              builder: (context, settings, child) => ListTile(
+                leading: const Icon(Icons.tv_outlined),
+                title: const Text('Screen Layout'),
+                trailing: M3ESelect<String>(
+                  value: settings.layoutMode,
+                  labelOf: (value) => value,
+                  items: _layoutModes,
+                  onChanged: settings.setLayoutMode,
+                ),
+              ),
+            ),
+          ],
+        ),
         const SizedBox(height: 32),
       ]),
     );
@@ -237,6 +254,8 @@ class PersonalizationScreen extends StatelessWidget {
     ('Green', Colors.green),
     ('Orange', Colors.orange),
   ];
+
+  static const _layoutModes = ['Auto', 'Mobile', 'TV'];
 
   static const _popularFonts = [
     'System',

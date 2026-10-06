@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class SettingsProvider extends ChangeNotifier {
   String _fontFamily = 'Google Sans Flex';
+  String _layoutMode = 'Auto';
   bool _enableGapless = true;
   bool _enableCrossfade = false;
   double _crossfadeDuration = 3.0;
@@ -21,6 +22,7 @@ class SettingsProvider extends ChangeNotifier {
 
   // Getters
   String get fontFamily => _fontFamily;
+  String get layoutMode => _layoutMode;
   bool get enableGapless => _enableGapless;
   bool get enableCrossfade => _enableCrossfade;
   double get crossfadeDuration => _crossfadeDuration;
@@ -45,6 +47,7 @@ class SettingsProvider extends ChangeNotifier {
     try {
       final prefs = await SharedPreferences.getInstance();
       _fontFamily = prefs.getString('font_family') ?? 'Google Sans Flex';
+      _layoutMode = prefs.getString('layout_mode') ?? 'Auto';
       _enableGapless = prefs.getBool('enable_gapless') ?? true;
       _enableCrossfade = prefs.getBool('enable_crossfade') ?? false;
       _crossfadeDuration = prefs.getDouble('crossfade_duration') ?? 3.0;
@@ -72,6 +75,13 @@ class SettingsProvider extends ChangeNotifier {
     _fontFamily = font;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('font_family', font);
+    notifyListeners();
+  }
+
+  Future<void> setLayoutMode(String value) async {
+    _layoutMode = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('layout_mode', value);
     notifyListeners();
   }
 

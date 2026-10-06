@@ -101,9 +101,9 @@ void main() async {
   if (Platform.isAndroid) {
     try {
       const channel = MethodChannel('com.libreamp.kashou/intent');
-      isTv = await channel.invokeMethod<bool>('isTv') ?? false;
+      tvDetected = await channel.invokeMethod<bool>('isTv') ?? false;
     } catch (_) {}
-    if (!isTv) {
+    if (!tvDetected) {
       try {
         await FlutterDisplayMode.setHighRefreshRate();
       } catch (_) {}
@@ -175,6 +175,7 @@ class KashouApp extends StatelessWidget {
       child: _ArtSeedWatcher(
         child: Consumer2<ThemeProvider, SettingsProvider>(
           builder: (context, themeProvider, settingsProvider, child) {
+            applyLayout(settingsProvider.layoutMode);
             return DynamicColorBuilder(
               builder: (dynamic lightDynamic, dynamic darkDynamic) {
                 final lightPrimary = lightDynamic?.primary as Color?;

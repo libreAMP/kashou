@@ -11,3 +11,9 @@ final bool isDesktop =
 final bool isMobile = !kIsWeb && (Platform.isAndroid || Platform.isIOS);
 
 bool get isWideLayout => isDesktop || isTv;
+
+bool tvDetected = false;
+
+void applyLayout(String mode) {
+  isTv = mode == 'Mobile' ? false : mode == 'TV' || tvDetected;
+}
