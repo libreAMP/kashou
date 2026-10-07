@@ -49,6 +49,16 @@ static void my_application_activate(GApplication* application) {
     gtk_header_bar_set_title(header_bar, "kashou");
     gtk_header_bar_set_show_close_button(header_bar, TRUE);
     gtk_window_set_titlebar(window, GTK_WIDGET(header_bar));
+
+    // pull the stock padded header height back down to a slim strip
+    GtkCssProvider* slim_header = gtk_css_provider_new();
+    gtk_css_provider_load_from_data(
+        slim_header, "headerbar { min-height: 36px; padding: 0 8px; }", -1,
+        nullptr);
+    gtk_style_context_add_provider_for_screen(
+        gdk_screen_get_default(), GTK_STYLE_PROVIDER(slim_header),
+        GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
+    g_object_unref(slim_header);
   } else {
     gtk_window_set_title(window, "kashou");
   }

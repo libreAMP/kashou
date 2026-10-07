@@ -161,7 +161,7 @@ class _SquigglyPainter extends CustomPainter {
     final wavePaint = Paint()
       ..color = waveColor
       ..strokeWidth = _stroke
-      ..strokeCap = StrokeCap.round
+      ..strokeCap = StrokeCap.butt
       ..style = PaintingStyle.stroke;
 
     final playedEnd = splitX - _handleGap;
@@ -190,16 +190,13 @@ class _SquigglyPainter extends CustomPainter {
     if (remainStart < size.width - 4) {
       canvas.drawLine(
         Offset(remainStart, midY),
-        Offset(size.width - 4, midY),
+        Offset(size.width, midY),
         Paint()
           ..color = trackColor
           ..strokeWidth = _stroke
-          ..strokeCap = StrokeCap.round,
+          ..strokeCap = StrokeCap.butt,
       );
     }
-
-    canvas.drawCircle(
-        Offset(size.width - 2, midY), 2.4, Paint()..color = trackColor);
 
     final handle = RRect.fromRectAndRadius(
       Rect.fromCenter(

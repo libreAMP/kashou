@@ -21,7 +21,7 @@ SliderThemeData m3eSliderTheme(
   final pressedThumb = Size(2, thumbSize.height);
   return SliderThemeData(
     trackHeight: trackHeight,
-    tickMarkShape: SliderTickMarkShape.noTickMark,
+    tickMarkShape: const StepDotTickMark(),
     trackShape: const GappedSliderTrackShape(),
     trackGap: 6,
     thumbShape: const HandleThumbShape(),
@@ -37,6 +37,43 @@ SliderThemeData m3eSliderTheme(
     valueIndicatorShape: const RoundedRectSliderValueIndicatorShape(),
     showValueIndicator: ShowValueIndicator.onDrag,
   );
+}
+
+// flutter skips tick marks it thinks are too dense
+class StepDotTickMark extends SliderTickMarkShape {
+  const StepDotTickMark({this.radius = 1.5});
+
+  final double radius;
+
+  @override
+  Size getPreferredSize({
+    required SliderThemeData sliderTheme,
+    required bool isEnabled,
+  }) =>
+      const Size(1, 1);
+
+  @override
+  void paint(
+    PaintingContext context,
+    Offset center, {
+    required RenderBox parentBox,
+    required SliderThemeData sliderTheme,
+    required Animation<double> enableAnimation,
+    required TextDirection textDirection,
+    required Offset thumbCenter,
+    required bool isEnabled,
+  }) {
+    RoundSliderTickMarkShape(tickMarkRadius: radius).paint(
+      context,
+      center,
+      parentBox: parentBox,
+      sliderTheme: sliderTheme,
+      enableAnimation: enableAnimation,
+      textDirection: textDirection,
+      thumbCenter: thumbCenter,
+      isEnabled: isEnabled,
+    );
+  }
 }
 
 ThemeData buildKashouTheme(ColorScheme scheme, TextTheme text) {
