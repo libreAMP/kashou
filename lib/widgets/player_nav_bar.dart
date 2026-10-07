@@ -302,6 +302,9 @@ class PlayerNavRail extends StatefulWidget {
 
 class _PlayerNavRailState extends State<PlayerNavRail> {
   bool _extended = false;
+  bool _focusInside = false;
+
+  bool get _showExtended => _extended || _focusInside;
 
   @override
   Widget build(BuildContext context) {
@@ -315,101 +318,111 @@ class _PlayerNavRailState extends State<PlayerNavRail> {
     return AnimatedContainer(
       duration: EMotion.medium,
       curve: EMotion.standard,
-      width: _extended ? 220.0 : 76.0,
+      width: _showExtended ? 220.0 : 76.0,
       decoration: BoxDecoration(
         color: surfaceColor,
       ),
-      child: SafeArea(
-        right: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 16, 12, 12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox(
-                height: 48,
-                child: Row(
-                  children: [
-                    SizedBox(
-                      width: 52,
-                      child: Center(
-                        child: IconButton(
-                          icon: Icon(
-                            _extended
-                                ? Icons.menu_open_rounded
-                                : Icons.menu_rounded,
+      child: Focus(
+        canRequestFocus: false,
+        includeSemantics: false,
+        onFocusChange: (focused) {
+          if (focused == _focusInside) return;
+          setState(() => _focusInside = focused);
+        },
+        child: SafeArea(
+          right: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 16, 12, 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  height: 48,
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 52,
+                        child: Center(
+                          child: IconButton(
+                            icon: Icon(
+                              _showExtended
+                                  ? Icons.menu_open_rounded
+                                  : Icons.menu_rounded,
+                            ),
+                            tooltip: _showExtended
+                                ? 'Collapse sidebar'
+                                : 'Expand sidebar',
+                            onPressed: () =>
+                                setState(() => _extended = !_extended),
                           ),
-                          tooltip:
-                              _extended ? 'Collapse sidebar' : 'Expand sidebar',
-                          onPressed: () =>
-                              setState(() => _extended = !_extended),
                         ),
                       ),
-                    ),
-                    Expanded(
-                      child: ClipRect(
-                        child: AnimatedOpacity(
-                          duration: EMotion.fast,
-                          opacity: _extended ? 1.0 : 0.0,
-                          child: Padding(
-                            padding: const EdgeInsets.only(left: 4, right: 12),
-                            child: Text(
-                              'Kashou',
-                              maxLines: 1,
-                              softWrap: false,
-                              overflow: TextOverflow.clip,
-                              style: theme.textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: -0.5,
-                                color: scheme.onSurface,
+                      Expanded(
+                        child: ClipRect(
+                          child: AnimatedOpacity(
+                            duration: EMotion.fast,
+                            opacity: _showExtended ? 1.0 : 0.0,
+                            child: Padding(
+                              padding:
+                                  const EdgeInsets.only(left: 4, right: 12),
+                              child: Text(
+                                'Kashou',
+                                maxLines: 1,
+                                softWrap: false,
+                                overflow: TextOverflow.clip,
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: -0.5,
+                                  color: scheme.onSurface,
+                                ),
                               ),
                             ),
                           ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(height: 8),
-              _buildSectionHeader(context, 'DISCOVER'),
-              for (var i = 0; i < widget.items.length; i++) ...[
-                if (i > 0) const SizedBox(height: 4),
+                const SizedBox(height: 8),
+                _buildSectionHeader(context, 'DISCOVER'),
+                for (var i = 0; i < widget.items.length; i++) ...[
+                  if (i > 0) const SizedBox(height: 4),
+                  _RailTile(
+                    icon: widget.items[i].icon,
+                    selectedIcon: widget.items[i].selectedIcon,
+                    label: widget.items[i].label,
+                    selected: i == widget.selectedIndex,
+                    extended: _showExtended,
+                    onTap: () => widget.onDestinationSelected(i),
+                  ),
+                ],
+                const Spacer(),
+                _buildSectionHeader(context, 'SYSTEM'),
                 _RailTile(
-                  icon: widget.items[i].icon,
-                  selectedIcon: widget.items[i].selectedIcon,
-                  label: widget.items[i].label,
-                  selected: i == widget.selectedIndex,
-                  extended: _extended,
-                  onTap: () => widget.onDestinationSelected(i),
+                  icon: Icons.download_outlined,
+                  selectedIcon: Icons.download_rounded,
+                  label: 'Downloads',
+                  selected: false,
+                  extended: _showExtended,
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const DownloadsScreen(),
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 4),
+                _RailTile(
+                  icon: Icons.settings_outlined,
+                  selectedIcon: Icons.settings_rounded,
+                  label: 'Settings',
+                  selected: false,
+                  extended: _showExtended,
+                  onTap: () => Navigator.pushNamed(context, '/settings'),
                 ),
               ],
-              const Spacer(),
-              _buildSectionHeader(context, 'SYSTEM'),
-              _RailTile(
-                icon: Icons.download_outlined,
-                selectedIcon: Icons.download_rounded,
-                label: 'Downloads',
-                selected: false,
-                extended: _extended,
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const DownloadsScreen(),
-                    ),
-                  );
-                },
-              ),
-              const SizedBox(height: 4),
-              _RailTile(
-                icon: Icons.settings_outlined,
-                selectedIcon: Icons.settings_rounded,
-                label: 'Settings',
-                selected: false,
-                extended: _extended,
-                onTap: () => Navigator.pushNamed(context, '/settings'),
-              ),
-            ],
+            ),
           ),
         ),
       ),
@@ -425,7 +438,7 @@ class _PlayerNavRailState extends State<PlayerNavRail> {
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: AnimatedOpacity(
         duration: EMotion.fast,
-        opacity: _extended ? 1.0 : 0.0,
+        opacity: _showExtended ? 1.0 : 0.0,
         child: Text(
           title,
           maxLines: 1,
@@ -496,7 +509,7 @@ class _RailTileState extends State<_RailTile> {
       child: Row(
         children: [
           SizedBox(
-            width: 52,
+            width: 48,
             child: Center(
               child: Icon(
                 widget.selected ? widget.selectedIcon : widget.icon,
@@ -534,6 +547,21 @@ class _RailTileState extends State<_RailTile> {
       ),
     );
 
+    Widget row = GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: widget.onTap,
+      child: content,
+    );
+
+    // the tooltip rides inside so the focus node survives the rail widening
+    if (!widget.extended) {
+      row = Tooltip(
+        message: widget.label,
+        waitDuration: const Duration(milliseconds: 300),
+        child: row,
+      );
+    }
+
     final clickable = FocusableActionDetector(
       onShowFocusHighlight: (f) => setState(() => _focused = f),
       mouseCursor: SystemMouseCursors.click,
@@ -546,21 +574,9 @@ class _RailTileState extends State<_RailTile> {
         cursor: SystemMouseCursors.click,
         onEnter: (_) => setState(() => _hovered = true),
         onExit: (_) => setState(() => _hovered = false),
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: widget.onTap,
-          child: content,
-        ),
+        child: row,
       ),
     );
-
-    if (!widget.extended) {
-      return Tooltip(
-        message: widget.label,
-        waitDuration: const Duration(milliseconds: 300),
-        child: clickable,
-      );
-    }
     return clickable;
   }
 }

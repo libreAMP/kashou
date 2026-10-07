@@ -68,6 +68,7 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
   late Animation<Offset> _slideAnimation;
   late Animation<double> _fadeAnimation;
   double _dragDistance = 0;
+  bool _focused = false;
   bool _isSwipingHorizontal = false;
   bool _reporting = true;
   bool _castingEnabled = false;
@@ -441,20 +442,44 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
           );
         }
 
-        final gestureArea = GestureDetector(
-          onTap: widget.onTap,
-          onVerticalDragUpdate: _handleVerticalDragUpdate,
-          onVerticalDragEnd: _handleVerticalDragEnd,
-          onHorizontalDragStart: _handleHorizontalDragStart,
-          onHorizontalDragEnd: (details) =>
-              _handleHorizontalDragEnd(details, context.read<AudioProvider>()),
-          child: RepaintBoundary(
-            // full width on desktop everywhere; the mobile pill floats centered
-            child: Padding(
-              padding: widget.embedded
-                  ? EdgeInsets.zero
-                  : const EdgeInsets.fromLTRB(10, 0, 10, 8),
-              child: barCard,
+        if (_focused) {
+          barCard = DecoratedBox(
+            decoration: BoxDecoration(
+              border: Border.all(color: colorScheme.primary, width: 2),
+              borderRadius:
+                  widget.embedded ? null : BorderRadius.circular(rMd),
+            ),
+            child: barCard,
+          );
+        }
+
+        final gestureArea = FocusableActionDetector(
+          mouseCursor: SystemMouseCursors.click,
+          onShowFocusHighlight: (focused) =>
+              setState(() => _focused = focused),
+          actions: {
+            ActivateIntent: CallbackAction<ActivateIntent>(
+              onInvoke: (_) {
+                widget.onTap();
+                return null;
+              },
+            ),
+          },
+          child: GestureDetector(
+            onTap: widget.onTap,
+            onVerticalDragUpdate: _handleVerticalDragUpdate,
+            onVerticalDragEnd: _handleVerticalDragEnd,
+            onHorizontalDragStart: _handleHorizontalDragStart,
+            onHorizontalDragEnd: (details) =>
+                _handleHorizontalDragEnd(details, context.read<AudioProvider>()),
+            child: RepaintBoundary(
+              // full width on desktop everywhere; the mobile pill floats centered
+              child: Padding(
+                padding: widget.embedded
+                    ? EdgeInsets.zero
+                    : const EdgeInsets.fromLTRB(10, 0, 10, 8),
+                child: barCard,
+              ),
             ),
           ),
         );
