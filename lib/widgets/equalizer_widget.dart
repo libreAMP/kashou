@@ -184,7 +184,7 @@ class EqualizerWidget extends StatelessWidget {
                                         value: value,
                                         min: -12,
                                         max: 12,
-                                        divisions: 24,
+                                        divisions: 12,
                                         label:
                                             '${value.toStringAsFixed(1)} dB',
                                         onChanged: audio.equalizerEnabled

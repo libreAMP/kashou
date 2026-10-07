@@ -68,7 +68,7 @@ class AudioProvider extends ChangeNotifier {
   List<Map<String, dynamic>> _streamHistory = [];
   static const String _streamHistoryKey = 'stream_history_v1';
 
-  List<double> _equalizerBands = [];
+  List<double> _equalizerBands = List.filled(10, 0.0);
   bool _equalizerEnabled = false;
   String? _activePreset;
 
@@ -1155,7 +1155,7 @@ class AudioProvider extends ChangeNotifier {
     if (index < 0 || index >= _equalizerBands.length) return;
     _activePreset = null;
     _equalizerBands[index] = value;
-    if (_equalizerEnabled) {
+    if (_equalizerEnabled && Platform.isAndroid) {
       final millibels = (value * 125).toInt();
       CustomEqualizer.setBandLevel(index, millibels).catchError((e) {
         debugPrint('Error setting equalizer band $index: $e');
