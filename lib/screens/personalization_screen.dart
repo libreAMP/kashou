@@ -6,8 +6,21 @@ import '../providers/settings_provider.dart';
 import '../theme/radii.dart';
 import '../utils/platform.dart';
 import '../widgets/back_chip.dart';
+import '../widgets/dpad_focus.dart';
 import '../widgets/m3e_select.dart';
 import '../widgets/settings_tiles.dart';
+
+// the screen content without its own app bar so a tv pane can host it
+class PersonalizationContent extends StatelessWidget {
+  const PersonalizationContent({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomScrollView(
+      slivers: [const PersonalizationScreen()._contentSliver(context)],
+    );
+  }
+}
 
 class PersonalizationScreen extends StatelessWidget {
   const PersonalizationScreen({super.key});
@@ -83,90 +96,92 @@ class PersonalizationScreen extends StatelessWidget {
           ],
         ),
         Consumer<ThemeProvider>(
-          builder: (context, theme, child) => SettingsSection(
-            title: 'Colors',
-            children: [
-              for (final m in const [
-                ['system', 'System', 'Colors from your system theme'],
-                ['accent', 'Accent', 'Pick your own seed color'],
-                ['art', 'Now playing', 'Dominant color of the album art'],
-              ])
-                RadioGroup<String>(
-                  groupValue: theme.themeSource,
-                  onChanged: (v) {
-                    if (v != null) theme.setThemeSource(v);
-                  },
-                  child: RadioListTile<String>(
-                    secondary: Icon(m[0] == 'system'
-                        ? Icons.brightness_auto
-                        : m[0] == 'accent'
-                            ? Icons.palette_outlined
-                            : Icons.disc_full_rounded),
-                    title: Text(m[1]),
-                    subtitle: Text(m[2]),
-                    value: m[0],
-                  ),
-                ),
-              if (theme.themeSource == 'accent')
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Accent Color',
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                        const SizedBox(height: 12),
-                        Wrap(
-                          spacing: 12,
-                          runSpacing: 12,
-                          children: _accentSwatches.map((swatch) {
-                            final (name, color) = swatch;
-                            final dot = InkWell(
-                              onTap: () => theme.setAccentColor(color),
-                              borderRadius: BorderRadius.circular(24),
-                              child: Container(
-                                width: 48,
-                                height: 48,
-                                decoration: BoxDecoration(
-                                  color: color,
-                                  shape: BoxShape.circle,
-                                  border: theme.accentColor == color
-                                      ? Border.all(
-                                          color: Theme.of(
-                                            context,
-                                          ).colorScheme.outline,
-                                          width: 3,
-                                        )
-                                      : null,
-                                ),
-                                child: theme.accentColor == color
-                                    ? const Icon(
-                                        Icons.check,
-                                        color: Colors.white,
-                                      )
-                                    : null,
-                              ),
-                            );
-                            return isDesktop
-                                ? Tooltip(message: name, child: dot)
-                                : dot;
-                          }).toList(),
-                        ),
-                        const SizedBox(height: 12),
-                        OutlinedButton.icon(
-                          onPressed: () => _showColorPicker(context, theme),
-                          icon: const Icon(Icons.colorize),
-                          label: const Text('Custom Color'),
-                        ),
-                      ],
+          builder: (context, theme, child) => RadioGroup<String>(
+            groupValue: theme.themeSource,
+            onChanged: (v) {
+              if (v != null) theme.setThemeSource(v);
+            },
+            child: DpadFocus(
+              child: SettingsSection(
+                title: 'Colors',
+                children: [
+                  for (final m in const [
+                    ['system', 'System', 'Colors from your system theme'],
+                    ['accent', 'Accent', 'Pick your own seed color'],
+                    ['art', 'Now playing', 'Dominant color of the album art'],
+                  ])
+                    RadioListTile<String>(
+                      secondary: Icon(m[0] == 'system'
+                          ? Icons.brightness_auto
+                          : m[0] == 'accent'
+                              ? Icons.palette_outlined
+                              : Icons.disc_full_rounded),
+                      title: Text(m[1]),
+                      subtitle: Text(m[2]),
+                      value: m[0],
                     ),
-                  ),
-                ),
-            ],
+                  if (theme.themeSource == 'accent')
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Accent Color',
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                            const SizedBox(height: 12),
+                            Wrap(
+                              spacing: 12,
+                              runSpacing: 12,
+                              children: _accentSwatches.map((swatch) {
+                                final (name, color) = swatch;
+                                final dot = InkWell(
+                                  onTap: () => theme.setAccentColor(color),
+                                  borderRadius: BorderRadius.circular(24),
+                                  child: Container(
+                                    width: 48,
+                                    height: 48,
+                                    decoration: BoxDecoration(
+                                      color: color,
+                                      shape: BoxShape.circle,
+                                      border: theme.accentColor == color
+                                          ? Border.all(
+                                              color: Theme.of(
+                                                context,
+                                              ).colorScheme.outline,
+                                              width: 3,
+                                            )
+                                          : null,
+                                    ),
+                                    child: theme.accentColor == color
+                                        ? const Icon(
+                                            Icons.check,
+                                            color: Colors.white,
+                                          )
+                                        : null,
+                                  ),
+                                );
+                                return isDesktop
+                                    ? Tooltip(message: name, child: dot)
+                                    : dot;
+                              }).toList(),
+                            ),
+                            const SizedBox(height: 12),
+                            OutlinedButton.icon(
+                              onPressed: () => _showColorPicker(context, theme),
+                              icon: const Icon(Icons.colorize),
+                              label: const Text('Custom Color'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
           ),
         ),
         SettingsSection(

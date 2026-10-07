@@ -18,6 +18,7 @@ import '../utils/sheet_scope.dart';
 import '../widgets/m3e_badge.dart';
 import '../widgets/m3e_refresh.dart';
 import '../widgets/art_card.dart';
+import '../widgets/dpad_focus.dart';
 import '../widgets/square_art.dart';
 import '../widgets/loading_indicator.dart';
 import '../widgets/fade_rise.dart';
@@ -478,42 +479,44 @@ class _StreamScreenState extends State<StreamScreen>
         child: Row(
           children: [
             Expanded(
-              child: SizedBox(
-                height: 48,
-                child: TextField(
-                  controller: _searchController,
-                  focusNode: _searchFocus,
-                  onChanged: _onSearchChanged,
-                  textInputAction: TextInputAction.search,
-                  onSubmitted: (q) {
-                    context.read<SettingsProvider>().addSearchTerm(q);
-                    _search(q);
-                  },
-                  style: Theme.of(context).textTheme.bodyLarge,
-                  decoration: InputDecoration(
-                    hintText: 'Search songs, artists',
-                    prefixIcon: const Padding(
-                      padding: EdgeInsets.fromLTRB(14, 0, 12, 0),
-                      child: Icon(Icons.search_rounded),
-                    ),
-                    prefixIconConstraints: const BoxConstraints(
-                        minWidth: 50, maxWidth: 50, minHeight: 0),
-                    hintStyle: Theme.of(context)
-                        .textTheme
-                        .bodyLarge
-                        ?.copyWith(color: scheme.onSurfaceVariant),
-                    suffixIcon: searching
-                        ? IconButton(
-                            icon: const Icon(Icons.close_rounded),
-                            onPressed: _closeSearch,
-                          )
-                        : null,
-                    filled: true,
-                    fillColor: scheme.surfaceContainerHigh,
-                    contentPadding: EdgeInsets.zero,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(rFull),
-                      borderSide: BorderSide.none,
+              child: DpadFocus(
+                child: SizedBox(
+                  height: 48,
+                  child: TextField(
+                    controller: _searchController,
+                    focusNode: _searchFocus,
+                    onChanged: _onSearchChanged,
+                    textInputAction: TextInputAction.search,
+                    onSubmitted: (q) {
+                      context.read<SettingsProvider>().addSearchTerm(q);
+                      _search(q);
+                    },
+                    style: Theme.of(context).textTheme.bodyLarge,
+                    decoration: InputDecoration(
+                      hintText: 'Search songs, artists',
+                      prefixIcon: const Padding(
+                        padding: EdgeInsets.fromLTRB(14, 0, 12, 0),
+                        child: Icon(Icons.search_rounded),
+                      ),
+                      prefixIconConstraints: const BoxConstraints(
+                          minWidth: 50, maxWidth: 50, minHeight: 0),
+                      hintStyle: Theme.of(context)
+                          .textTheme
+                          .bodyLarge
+                          ?.copyWith(color: scheme.onSurfaceVariant),
+                      suffixIcon: searching
+                          ? IconButton(
+                              icon: const Icon(Icons.close_rounded),
+                              onPressed: _closeSearch,
+                            )
+                          : null,
+                      filled: true,
+                      fillColor: scheme.surfaceContainerHigh,
+                      contentPadding: EdgeInsets.zero,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(rFull),
+                        borderSide: BorderSide.none,
+                      ),
                     ),
                   ),
                 ),

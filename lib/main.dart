@@ -277,6 +277,14 @@ class KashouApp extends StatelessWidget {
                   scaffoldMessengerKey: appMessenger,
                   debugShowCheckedModeBanner: false,
                   themeMode: themeProvider.themeMode,
+                  builder: (context, child) => MediaQuery(
+                    data: MediaQuery.of(context).copyWith(
+                      navigationMode: isTv
+                          ? NavigationMode.directional
+                          : NavigationMode.traditional,
+                    ),
+                    child: child!,
+                  ),
                   theme: buildKashouTheme(
                     lightColorScheme,
                     getTextTheme(lightColorScheme),

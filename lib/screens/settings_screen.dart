@@ -11,14 +11,33 @@ import '../widgets/back_chip.dart';
 import '../widgets/m3e_select.dart';
 import '../widgets/settings_tiles.dart';
 
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
   static const double _maxContentWidth = 1100;
+
+  int _category = 0;
+
+  static const List<(String, IconData)> _categories = [
+    ('Appearance', Icons.palette_outlined),
+    ('Personalization', Icons.brush_outlined),
+    ('Library', Icons.folder_outlined),
+    ('Audio', Icons.music_note),
+    ('Online', Icons.cloud_outlined),
+    ('About', Icons.info_outline),
+  ];
 
   @override
   Widget build(BuildContext context) {
     final sections = _buildSections(context);
+
+    if (isTv) return _buildTvBody(context, sections);
+
     final scrollView = CustomScrollView(
       slivers: [
         SliverAppBar.large(
@@ -50,6 +69,86 @@ class SettingsScreen extends StatelessWidget {
           child: scrollView,
         ),
       ),
+    );
+  }
+
+  Widget _buildTvBody(BuildContext context, List<Widget> sections) {
+    final theme = Theme.of(context);
+    return Scaffold(
+      body: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 20, 4),
+              child: Row(
+                children: [
+                  const BackChip(),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Settings',
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: 300,
+                    child: ListView(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      children: [
+                        for (var i = 0; i < _categories.length; i++)
+                          _buildCategoryTile(i),
+                      ],
+                    ),
+                  ),
+                  const VerticalDivider(width: 1, thickness: 1),
+                  Expanded(child: _buildTvPane(sections)),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCategoryTile(int index) {
+    final (label, icon) = _categories[index];
+    final selected = _category == index;
+    return ListTile(
+      leading: Icon(icon),
+      title: Text(label),
+      selected: selected,
+      onTap: () => setState(() => _category = index),
+    );
+  }
+
+  Widget _buildTvPane(List<Widget> sections) {
+    if (_category == 1) return const PersonalizationContent();
+
+    // index one already returned so the rest map to a section
+    final section = switch (_category) {
+      0 => sections[0],
+      2 => sections[1],
+      3 => sections[2],
+      4 => sections[3],
+      _ => sections[4],
+    };
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+      child: section,
     );
   }
 
