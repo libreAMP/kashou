@@ -15,6 +15,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_chrome_cast/flutter_chrome_cast.dart';
 import 'dart:convert';
 import 'services/desktop_audio_platform.dart';
+import 'services/tray_service.dart';
 import 'dart:io';
 import 'dart:math';
 import 'package:http/http.dart' as http;
@@ -93,6 +94,7 @@ void main() async {
   // just_audio has no desktop backend of its own, mpv fills in
   if (Platform.isLinux || Platform.isWindows) {
     DesktopAudioPlatform.ensureInitialized();
+    await TrayService.instance.initialize();
   }
   if (Platform.isLinux) {
     _integrateLinuxDesktop();
