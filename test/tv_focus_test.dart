@@ -11,6 +11,7 @@ import 'package:kashou/screens/personalization_screen.dart';
 import 'package:kashou/screens/settings_screen.dart';
 import 'package:kashou/utils/platform.dart';
 import 'package:kashou/widgets/dpad_focus.dart';
+import 'package:kashou/widgets/m3e_list.dart';
 import 'package:kashou/widgets/player_nav_bar.dart';
 
 List<FocusNode> focusables() {
@@ -66,19 +67,21 @@ void main() {
     isTv = true;
     await pumpApp(tester, const SettingsScreen());
 
-    expect(find.widgetWithText(ListTile, 'Appearance'), findsOneWidget);
-    expect(find.widgetWithText(ListTile, 'Library'), findsOneWidget);
-    expect(find.widgetWithText(ListTile, 'Audio'), findsOneWidget);
-    expect(find.widgetWithText(ListTile, 'Online'), findsOneWidget);
-    expect(find.widgetWithText(ListTile, 'About'), findsOneWidget);
-    expect(find.widgetWithText(ListTile, 'Personalization'), findsNWidgets(2));
+    expect(find.widgetWithText(M3EListRow, 'Personalization'), findsOneWidget);
+    expect(find.widgetWithText(M3EListRow, 'Appearance'), findsNothing);
+    expect(find.widgetWithText(M3EListRow, 'Library'), findsOneWidget);
+    expect(find.widgetWithText(M3EListRow, 'Audio'), findsOneWidget);
+    expect(find.widgetWithText(M3EListRow, 'Online'), findsOneWidget);
+    expect(find.widgetWithText(M3EListRow, 'About'), findsOneWidget);
+    expect(find.byType(PersonalizationContent), findsOneWidget);
     expect(find.text('Gapless Playback'), findsNothing);
 
-    await tester.tap(find.widgetWithText(ListTile, 'Audio'));
+    await tester.tap(find.widgetWithText(M3EListRow, 'Audio'));
     await tester.pumpAndSettle();
 
     expect(find.text('Gapless Playback'), findsOneWidget);
-    expect(find.widgetWithText(ListTile, 'Personalization'), findsOneWidget);
+    expect(find.byType(PersonalizationContent), findsNothing);
+    expect(find.widgetWithText(M3EListRow, 'Personalization'), findsOneWidget);
 
     final route = ModalRoute.of(tester.element(find.byType(SettingsScreen)));
     expect(route, isNotNull);
@@ -91,7 +94,12 @@ void main() {
     isTv = true;
     await pumpApp(tester, const SettingsScreen());
 
-    await tester.tap(find.widgetWithText(ListTile, 'Personalization').first);
+    await tester.tap(find.widgetWithText(M3EListRow, 'Library'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(PersonalizationContent), findsNothing);
+
+    await tester.tap(find.widgetWithText(M3EListRow, 'Personalization'));
     await tester.pumpAndSettle();
 
     expect(find.byType(PersonalizationContent), findsOneWidget);

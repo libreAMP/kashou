@@ -8,6 +8,7 @@ import '../screens/personalization_screen.dart';
 import '../theme/app_theme.dart';
 import '../utils/platform.dart';
 import '../widgets/back_chip.dart';
+import '../widgets/m3e_list.dart';
 import '../widgets/m3e_select.dart';
 import '../widgets/settings_tiles.dart';
 
@@ -20,11 +21,11 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   static const double _maxContentWidth = 1100;
+  static const EdgeInsets _tvPanePadding = EdgeInsets.fromLTRB(20, 12, 20, 32);
 
   int _category = 0;
 
   static const List<(String, IconData)> _categories = [
-    ('Appearance', Icons.palette_outlined),
     ('Personalization', Icons.brush_outlined),
     ('Library', Icons.folder_outlined),
     ('Audio', Icons.music_note),
@@ -102,13 +103,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   SizedBox(
                     width: 300,
                     child: ListView(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
                       children: [
-                        for (var i = 0; i < _categories.length; i++)
+                        for (var i = 0; i < _categories.length; i++) ...[
+                          if (i > 0) const SizedBox(height: 2),
                           _buildCategoryTile(i),
+                        ],
                       ],
                     ),
                   ),
@@ -126,28 +126,38 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _buildCategoryTile(int index) {
     final (label, icon) = _categories[index];
     final selected = _category == index;
-    return ListTile(
-      leading: Icon(icon),
-      title: Text(label),
+    final scheme = Theme.of(context).colorScheme;
+    return M3EListRow(
+      label: label,
+      leading: Icon(
+        icon,
+        color: selected ? scheme.onSecondaryContainer : scheme.onSurface,
+      ),
       selected: selected,
+      slot: index,
+      count: _categories.length,
       onTap: () => setState(() => _category = index),
     );
   }
 
   Widget _buildTvPane(List<Widget> sections) {
-    if (_category == 1) return const PersonalizationContent();
+    // personalization gets its own pane while the rest map to a section
+    if (_category == 0) {
+      return const Padding(
+        padding: _tvPanePadding,
+        child: PersonalizationContent(),
+      );
+    }
 
-    // index one already returned so the rest map to a section
     final section = switch (_category) {
-      0 => sections[0],
-      2 => sections[1],
-      3 => sections[2],
-      4 => sections[3],
+      1 => sections[1],
+      2 => sections[2],
+      3 => sections[3],
       _ => sections[4],
     };
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+      padding: _tvPanePadding,
       child: section,
     );
   }
