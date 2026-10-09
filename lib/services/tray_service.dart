@@ -65,12 +65,12 @@ class TrayService with TrayListener, WindowListener {
     return file.existsSync() ? file.path : null;
   }
 
-  Future<void> _show() async {
+  Future<void> show() async {
     await windowManager.show();
     await windowManager.focus();
   }
 
-  Future<void> _quit() async {
+  Future<void> quit() async {
     await windowManager.setPreventClose(false);
     await windowManager.destroy();
   }
@@ -89,9 +89,9 @@ class TrayService with TrayListener, WindowListener {
   void onTrayMenuItemClick(MenuItem menuItem) {
     switch (menuItem.key) {
       case 'show':
-        _show();
+        show();
       case 'quit':
-        _quit();
+        quit();
     }
   }
 

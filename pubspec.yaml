@@ -60,6 +60,8 @@ dependencies:
   media_kit_libs_windows_audio: ^1.0.9
   tray_manager: ^0.2.4
   window_manager: ^0.4.3
+  dbus: ^0.7.13
+  flutter_media_session: ^3.0.9
 
 dependency_overrides:
   just_audio:

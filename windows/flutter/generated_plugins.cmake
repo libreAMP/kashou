@@ -6,6 +6,7 @@ list(APPEND FLUTTER_PLUGIN_LIST
   audiotags
   dynamic_color
   flutter_inappwebview_windows
+  flutter_media_session
   media_kit_libs_windows_audio
   permission_handler_windows
   screen_retriever_windows

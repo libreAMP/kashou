@@ -15,6 +15,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_chrome_cast/flutter_chrome_cast.dart';
 import 'dart:convert';
 import 'services/desktop_audio_platform.dart';
+import 'services/media_controls.dart';
 import 'services/tray_service.dart';
 import 'dart:io';
 import 'dart:math';
@@ -156,10 +157,14 @@ class KashouApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
         ChangeNotifierProvider(create: (_) => SettingsProvider()),
         ChangeNotifierProxyProvider<SettingsProvider, AudioProvider>(
-          create: (context) => AudioProvider(
-            settingsProvider:
-                Provider.of<SettingsProvider>(context, listen: false),
-          ),
+          create: (context) {
+            final audio = AudioProvider(
+              settingsProvider:
+                  Provider.of<SettingsProvider>(context, listen: false),
+            );
+            MediaControls.instance.attach(audio);
+            return audio;
+          },
           update: (context, settings, audio) {
             audio?.updateSettings(settings);
             return audio ?? AudioProvider(settingsProvider: settings);
