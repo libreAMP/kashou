@@ -37,6 +37,21 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
+      - name: Unpack audiotags
+        shell: pwsh
+        run: |
+          $root = if ($env:PUB_CACHE) { $env:PUB_CACHE } else { "$env:LOCALAPPDATA\Pub\Cache" }
+          Get-ChildItem "$root\hosted\pub.dev" -Directory -Filter 'audiotags-*' | ForEach-Object {
+            $dir = Join-Path $_.FullName 'windows'
+            $ver = $_.Name.Substring('audiotags-'.Length)
+            if (-not (Test-Path "$dir\windows.tar.gz")) {
+              Invoke-WebRequest "https://github.com/erikas-taroza/audiotags/releases/download/v$ver/windows.tar.gz" -OutFile "$dir\windows.tar.gz"
+            }
+            if (-not (Test-Path "$dir\audiotags.dll")) {
+              tar -xzf "$dir\windows.tar.gz" -C $dir
+            }
+          }
+
       - name: Build Windows executable
         run: flutter build windows --release
 
