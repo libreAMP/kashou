@@ -6,6 +6,7 @@ import '../services/permission_service.dart';
 import '../services/audio_service.dart';
 import '../theme/shapes.dart';
 import '../utils/platform.dart';
+import '../widgets/loading_indicator.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -183,13 +184,9 @@ class _SplashScreenState extends State<SplashScreen>
                 const SizedBox(height: 32),
                 FadeTransition(
                   opacity: _wordFade,
-                  child: SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: scheme.onSurfaceVariant,
-                    ),
+                  child: KashouLoader(
+                    size: 28,
+                    color: scheme.onSurfaceVariant,
                   ),
                 ),
               ],

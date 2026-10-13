@@ -256,7 +256,7 @@ class KashouApp extends StatelessWidget {
                       case 'Ubuntu':
                         return GoogleFonts.ubuntuTextTheme(baseTheme);
                       case 'Source Sans Pro':
-                        return GoogleFonts.openSansTextTheme(baseTheme);
+                        return GoogleFonts.sourceSans3TextTheme(baseTheme);
                       case 'Playfair Display':
                         return GoogleFonts.playfairDisplayTextTheme(baseTheme);
                       case 'Merriweather':

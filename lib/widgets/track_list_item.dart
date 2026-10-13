@@ -185,6 +185,7 @@ class _TrackListItemState extends State<TrackListItem> {
                             shape: BoxShape.circle,
                           ),
                           child: IconButton(
+                            tooltip: 'More options',
                             onPressed: () {
                               final box = buttonContext.findRenderObject()
                                   as RenderBox?;

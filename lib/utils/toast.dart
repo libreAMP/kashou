@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 
 final toastNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -6,8 +7,15 @@ final toastNavigatorKey = GlobalKey<NavigatorState>();
 void showToast(String message) {
   final overlay = toastNavigatorKey.currentState?.overlay;
   if (overlay == null) return;
+  // overlay entries are invisible to screen readers
+  SemanticsService.sendAnnouncement(
+    View.of(overlay.context),
+    message,
+    Directionality.of(overlay.context),
+  );
   final entry = OverlayEntry(
     builder: (context) {
+      final scheme = Theme.of(context).colorScheme;
       return Positioned.fill(
         child: IgnorePointer(
           child: Align(
@@ -19,13 +27,16 @@ void showToast(String message) {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
                 decoration: BoxDecoration(
-                  color: const Color(0xE6616161),
+                  color: scheme.inverseSurface,
                   borderRadius: BorderRadius.circular(28),
                 ),
                 child: Text(
                   message,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.white, fontSize: 15),
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodyLarge
+                      ?.copyWith(color: scheme.onInverseSurface),
                 ),
               ),
             ),

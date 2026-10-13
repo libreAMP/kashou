@@ -7,6 +7,7 @@ import '../providers/audio_provider.dart';
 import '../models/track.dart';
 import '../services/ytmusic_service.dart';
 import '../theme/shapes.dart';
+import 'track_options_sheet.dart';
 
 class ArtistCard extends StatefulWidget {
   final Artist artist;
@@ -297,6 +298,7 @@ class _ArtistCardState extends State<ArtistCard> {
           subtitle: Text('${album.trackCount} songs'),
           trailing: IconButton(
             icon: const Icon(Icons.play_arrow),
+            tooltip: 'Play album',
             onPressed: () {
               final audio = Provider.of<AudioProvider>(context, listen: false);
               if (album.tracks.isNotEmpty) {
@@ -331,7 +333,8 @@ class _ArtistCardState extends State<ArtistCard> {
           subtitle: Text(track.album),
           trailing: IconButton(
             icon: const Icon(Icons.more_vert),
-            onPressed: () {},
+            tooltip: 'More options',
+            onPressed: () => showTrackOptionsSheet(context, track),
           ),
           onTap: () {
             final audio = Provider.of<AudioProvider>(context, listen: false);

@@ -12,7 +12,9 @@ import '../providers/library_provider.dart';
 import '../services/download_store.dart';
 import '../services/ytmusic_service.dart';
 import '../theme/radii.dart';
+import '../widgets/loading_indicator.dart';
 import '../widgets/m3e_list.dart';
+import '../widgets/m3e_progress.dart';
 import '../widgets/settings_tiles.dart';
 import '../utils/app_messenger.dart';
 import '../utils/platform.dart';
@@ -276,6 +278,7 @@ class _LibraryScreenState extends State<LibraryScreen>
                     suffixIcon: _searchController.text.isNotEmpty
                         ? IconButton(
                             icon: const Icon(Icons.close_rounded),
+                            tooltip: 'Clear search',
                             onPressed: () {
                               _searchController.clear();
                               setState(() {});
@@ -379,8 +382,13 @@ class _LibraryScreenState extends State<LibraryScreen>
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            CircularProgressIndicator(
-                                value: library.scanProgress),
+                            SizedBox(
+                              width: 220,
+                              child: M3EProgressBar(
+                                value: library.scanProgress,
+                                animate: true,
+                              ),
+                            ),
                             const SizedBox(height: 16),
                             Text(
                               'Scanning library... ${(library.scanProgress * 100).toInt()}%',
@@ -817,7 +825,7 @@ class _LibraryScreenState extends State<LibraryScreen>
       future: DownloadStore.tracks(),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
-          return const Center(child: CircularProgressIndicator());
+          return const Center(child: KashouLoader());
         }
         final tracks = _sorted(_filtered(snapshot.data!));
         if (tracks.isEmpty) {

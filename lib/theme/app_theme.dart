@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart' show CupertinoPageTransitionsBuilder;
 import 'package:flutter/material.dart';
 import '../utils/platform.dart';
 import 'radii.dart';
@@ -157,11 +158,30 @@ ThemeData buildKashouTheme(ColorScheme scheme, TextTheme text) {
         ),
       ),
     ),
+    snackBarTheme: SnackBarThemeData(
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(rMd)),
+    ),
+    switchTheme: SwitchThemeData(
+      thumbIcon: WidgetStateProperty.resolveWith<Icon?>((states) {
+        if (states.contains(WidgetState.selected)) {
+          return Icon(Icons.check_rounded, size: 16, color: scheme.primary);
+        }
+        return Icon(
+          Icons.close_rounded,
+          size: 14,
+          color: scheme.surfaceContainerHighest,
+        );
+      }),
+    ),
     pageTransitionsTheme: const PageTransitionsTheme(
       builders: {
         TargetPlatform.android: FadeForwardsPageTransitionsBuilder(),
-        TargetPlatform.iOS: FadeForwardsPageTransitionsBuilder(),
+        // cupertino keeps the ios swipe back
+        TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
         TargetPlatform.linux: FadeForwardsPageTransitionsBuilder(),
+        TargetPlatform.windows: FadeForwardsPageTransitionsBuilder(),
+        TargetPlatform.macOS: FadeForwardsPageTransitionsBuilder(),
       },
     ),
   );

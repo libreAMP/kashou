@@ -507,6 +507,7 @@ class _StreamScreenState extends State<StreamScreen>
                       suffixIcon: searching
                           ? IconButton(
                               icon: const Icon(Icons.close_rounded),
+                              tooltip: 'Close search',
                               onPressed: _closeSearch,
                             )
                           : null,

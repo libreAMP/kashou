@@ -307,6 +307,7 @@ class _MiniPlayerState extends State<MiniPlayer> with TickerProviderStateMixin {
                                   ListenableBuilder(
                                     listenable: CastService.instance,
                                     builder: (context, _) => IconButton(
+                                      tooltip: 'Cast',
                                       icon: Icon(
                                         CastService.instance.isCasting
                                             ? Icons.cast_connected
