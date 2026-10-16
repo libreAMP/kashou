@@ -1,0 +1,10 @@
+ios/Frameworks/
+macos/Libs/
+android/android.tar.gz
+android/src/main/jniLibs/
+linux/linux.tar.gz
+linux/*.so
+windows/windows.tar.gz
+windows/*.dll
+windows/*.lib
+android/.cxx/

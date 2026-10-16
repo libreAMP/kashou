@@ -64,6 +64,9 @@ dependencies:
   flutter_media_session: ^3.0.9
 
 dependency_overrides:
+  # pub release is broken on ios and macos
+  audiotags:
+    path: packages/audiotags
   just_audio:
     git:
       url: https://github.com/primalkz/just_audio.git
