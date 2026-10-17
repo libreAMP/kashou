@@ -4,8 +4,7 @@ import 'dart:io';
 
 class PermissionService {
   // permission_handler only implements android/ios; desktop grants implicitly
-  static bool get _needsRuntimePermissions =>
-      Platform.isAndroid || Platform.isIOS;
+  static bool get _needsRuntimePermissions => Platform.isAndroid;
 
   static Future<void> initialize() async {}
 

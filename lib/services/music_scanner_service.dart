@@ -3,6 +3,7 @@ import 'dart:isolate';
 
 import 'package:flutter/foundation.dart';
 import 'package:audiotags/audiotags.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image/image.dart' as img;
 import '../models/track.dart';
@@ -255,6 +256,9 @@ class MusicScannerService {
         uniquePaths.add('/storage/emulated/0/Download');
         uniquePaths.add('/storage/emulated/0/Podcasts');
         uniquePaths.add('/storage/emulated/0/Audiobooks');
+      } else if (Platform.isIOS) {
+        // files app drops songs here
+        uniquePaths.add((await getApplicationDocumentsDirectory()).path);
       } else if (Platform.isLinux) {
         final home = Platform.environment['HOME'];
         if (home != null) {

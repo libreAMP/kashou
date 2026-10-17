@@ -387,7 +387,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
       audioProvider.addListener(_onAudioProviderChange);
     });
     // deep-link intent channel only exists on the android host
-    if (!isDesktop) {
+    if (Platform.isAndroid) {
       const channel = MethodChannel('com.libreamp.kashou/intent');
       channel.setMethodCallHandler((call) async {
         if (call.method == 'link' && call.arguments is String) {

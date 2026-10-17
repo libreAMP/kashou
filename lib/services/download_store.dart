@@ -11,6 +11,11 @@ const _audioExts = {'.m4a', '.webm', '.opus', '.mp3', '.flac', '.ogg', '.aac'};
 
 class DownloadStore {
   static Future<Directory> dir() async {
+    // ios wipes tmp so keep them in documents
+    if (Platform.isIOS) {
+      final docs = await getApplicationDocumentsDirectory();
+      return Directory('${docs.path}/Downloads').create(recursive: true);
+    }
     try {
       final downloadsDir = await getDownloadsDirectory();
       if (downloadsDir != null) return downloadsDir;
