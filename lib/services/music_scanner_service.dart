@@ -259,7 +259,7 @@ class MusicScannerService {
       } else if (Platform.isIOS) {
         // files app drops songs here
         uniquePaths.add((await getApplicationDocumentsDirectory()).path);
-      } else if (Platform.isLinux) {
+      } else if (Platform.isLinux || Platform.isMacOS) {
         final home = Platform.environment['HOME'];
         if (home != null) {
           uniquePaths.add('$home/Music');
