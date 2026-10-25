@@ -11,6 +11,18 @@ Kashou is an open source music player built with Flutter. I wanted a Poweramp-st
 - Background playback and media controls
 - Chromecast support
 
+## Platforms
+
+| Platform | Build | Notes |
+|---|---|---|
+| Android | APK per ABI | Equalizer and Chromecast |
+| Windows | zip | Tray icon and system media controls |
+| Linux | tar.gz and AppImage | Tray icon and MPRIS |
+| iOS | unsigned IPA | Sideload with AltStore or similar; drop songs into Kashou in the Files app |
+| macOS | DMG | Ad-hoc signed, right click > Open on first launch |
+
+Every push to `feature-equalizer` builds all five in GitHub Actions.
+
 ## Gallery
 
 <p align="center">
@@ -26,9 +38,12 @@ Kashou is an open source music player built with Flutter. I wanted a Poweramp-st
 ## Build
 
 ```bash
+git submodule update --init --recursive
 flutter pub get
 flutter run
 ```
+
+iOS and macOS builds need Xcode 26 and CocoaPods.
 
 ## License
 

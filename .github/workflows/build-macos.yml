@@ -1,0 +1,46 @@
+name: Flutter macOS Release Build
+
+on:
+  push:
+    branches:
+      - feature-equalizer
+  workflow_dispatch:
+
+jobs:
+  build-macos:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.8
+          cache: true
+
+      - name: Configure Flutter
+        run: |
+          flutter config --enable-macos-desktop
+          flutter config --no-enable-swift-package-manager
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Build macOS app
+        run: flutter build macos --release
+
+      - name: Package DMG
+        run: |
+          mkdir dmg
+          cp -R build/macos/Build/Products/Release/Kashou.app dmg/
+          ln -s /Applications dmg/Applications
+          hdiutil create -volname Kashou -srcfolder dmg -ov -format UDZO Kashou-macOS.dmg
+
+      - name: Upload DMG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Kashou-macOS
+          path: Kashou-macOS.dmg
