@@ -14,8 +14,10 @@ import '../services/ytmusic_service.dart';
 import '../theme/radii.dart';
 import '../widgets/loading_indicator.dart';
 import '../widgets/m3e_list.dart';
+import '../widgets/m3e_menu.dart';
 import '../widgets/m3e_progress.dart';
 import '../widgets/settings_tiles.dart';
+import '../widgets/sheet_handle.dart';
 import '../utils/app_messenger.dart';
 import '../utils/platform.dart';
 import '../providers/audio_provider.dart';
@@ -306,10 +308,20 @@ class _LibraryScreenState extends State<LibraryScreen>
                 listen: false,
               ).scanLibrary(force: true),
             ),
-            IconButton(
-              icon: const Icon(Icons.more_vert_rounded),
-              tooltip: isDesktop ? 'Library options' : null,
-              onPressed: () => _showLibraryOptions(context),
+            Builder(
+              builder: (buttonContext) => IconButton(
+                icon: const Icon(Icons.more_vert_rounded),
+                tooltip: isDesktop ? 'Library options' : null,
+                onPressed: () {
+                  final box = buttonContext.findRenderObject() as RenderBox?;
+                  _showLibraryOptions(
+                    context,
+                    anchor: box == null
+                        ? null
+                        : box.localToGlobal(Offset.zero) & box.size,
+                  );
+                },
+              ),
             ),
           ],
         ),
@@ -322,8 +334,7 @@ class _LibraryScreenState extends State<LibraryScreen>
     if (idx != -1) _tabController.animateTo(idx);
   }
 
-  Widget _statChip(
-      BuildContext context, IconData icon, int count, String label,
+  Widget _statChip(BuildContext context, IconData icon, int count, String label,
       {VoidCallback? onTap}) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
@@ -401,9 +412,8 @@ class _LibraryScreenState extends State<LibraryScreen>
 
                     final keyboardHeight =
                         MediaQuery.of(context).viewInsets.bottom;
-                    final showMiniPlayer =
-                        audioProvider.currentTrack != null &&
-                            keyboardHeight == 0;
+                    final showMiniPlayer = audioProvider.currentTrack != null &&
+                        keyboardHeight == 0;
                     final bottomPadding =
                         MediaQuery.of(context).padding.bottom +
                             (showMiniPlayer ? 96.0 : 16.0);
@@ -556,12 +566,10 @@ class _LibraryScreenState extends State<LibraryScreen>
       );
     }
 
-    // resolved stream urls live in path while sourceUrl keeps the origin
-    bool isOnline(Track track) =>
-        (track.sourceUrl ?? track.path).startsWith('http');
     final localTracks =
-        favoriteTracks.where((track) => !isOnline(track)).toList();
-    final onlineTracks = favoriteTracks.where(isOnline).toList();
+        favoriteTracks.where((track) => !track.isOnline).toList();
+    final onlineTracks =
+        favoriteTracks.where((track) => track.isOnline).toList();
 
     return _wrapTabScrollable(
       controller,
@@ -726,7 +734,7 @@ class _LibraryScreenState extends State<LibraryScreen>
         )
       : const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 3,
-          childAspectRatio: 0.72,
+          childAspectRatio: 0.7,
           crossAxisSpacing: 12,
           mainAxisSpacing: 16,
         );
@@ -928,7 +936,7 @@ class _LibraryScreenState extends State<LibraryScreen>
             label: playlist.name,
             supportingText: 'Playlist',
             leading: _playlistArt(playlist, Theme.of(context).colorScheme),
-            trailingText: '${playlist.tracks.length}',
+            trailingText: '${playlist.tracks.length} songs',
             slot: i,
             count: playlists.length,
             onTap: () => Navigator.of(context).push(MaterialPageRoute(
@@ -1078,130 +1086,153 @@ class _LibraryScreenState extends State<LibraryScreen>
         SnackBar(content: Text('Imported ${songs.length} songs into $name')));
   }
 
-  void _showLibraryOptions(BuildContext context) {
-    // desktop convention: centered dialog; mobile keeps the bottom sheet
-    if (isDesktop) {
-      showDialog(
-        context: context,
-        builder: (dialogContext) => Dialog(
-          backgroundColor: Colors.transparent,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
-            child: _libraryOptionsCard(dialogContext),
-          ),
-        ),
+  void _showLibraryOptions(BuildContext context, {Rect? anchor}) {
+    if (isDesktop && anchor != null) {
+      showM3EMenu(
+        context,
+        targetRect: anchor,
+        alignEnd: true,
+        dense: false,
+        minWidth: 280,
+        maxWidth: 300,
+        children: [
+          for (final item in _libraryActions(context))
+            M3EMenuRow(item: item, dense: false),
+        ],
       );
       return;
     }
     showModalBottomSheet(
       context: context,
-      builder: (sheetContext) {
-        final scheme = Theme.of(sheetContext).colorScheme;
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                margin: const EdgeInsets.symmetric(vertical: 12),
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: scheme.onSurfaceVariant.withValues(alpha: 0.4),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                child: _libraryOptionsCard(sheetContext),
-              ),
-            ],
-          ),
-        );
-      },
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            sheetHandle(sheetContext),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+              child: _libraryOptionsCard(sheetContext),
+            ),
+          ],
+        ),
+      ),
     );
+  }
+
+  List<M3EMenuItem> _libraryActions(BuildContext context) {
+    void close() => Navigator.of(context, rootNavigator: true).pop();
+    final library = Provider.of<LibraryProvider>(context, listen: false);
+    return [
+      M3EMenuItem(
+        label: 'YouTube History',
+        icon: Icons.history_rounded,
+        onTap: () {
+          close();
+          Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const YoutubeHistoryScreen()),
+          );
+        },
+      ),
+      M3EMenuItem(
+        label: 'Import from YouTube',
+        icon: Icons.link_rounded,
+        onTap: () {
+          close();
+          _importFromYouTube();
+        },
+      ),
+      M3EMenuItem(
+        label: 'Rescan Library',
+        icon: Icons.refresh_rounded,
+        onTap: () {
+          close();
+          library.scanLibrary(force: true);
+        },
+      ),
+      M3EMenuItem(
+        label: 'Sort Options',
+        icon: Icons.sort_rounded,
+        onTap: () {
+          close();
+          _showSortDialog(context);
+        },
+      ),
+      M3EMenuItem(
+        label: 'Reorder Tabs',
+        icon: Icons.reorder_rounded,
+        onTap: () {
+          close();
+          _showTabOrderDialog(context);
+        },
+      ),
+    ];
   }
 
   Widget _libraryOptionsCard(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
     return Material(
       color: scheme.surfaceContainerHigh,
-      borderRadius: BorderRadius.circular(rXl),
+      borderRadius: BorderRadius.circular(rLg),
       clipBehavior: Clip.antiAlias,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          ListTile(
-            leading: const Icon(Icons.history),
-            title: const Text('YouTube History'),
-            onTap: () {
-              Navigator.pop(context);
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const YoutubeHistoryScreen()),
-              );
-            },
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 18, 24, 6),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Library',
+                style: theme.textTheme.titleLarge
+                    ?.copyWith(fontWeight: FontWeight.w700),
+              ),
+            ),
           ),
-          Divider(
-              height: 1,
-              indent: 56,
-              color: scheme.outlineVariant.withValues(alpha: 0.4)),
-          ListTile(
-            leading: const Icon(Icons.link_rounded),
-            title: const Text('Import from YouTube'),
-            onTap: () {
-              Navigator.pop(context);
-              _importFromYouTube();
-            },
-          ),
-          Divider(
-              height: 1,
-              indent: 56,
-              color: scheme.outlineVariant.withValues(alpha: 0.4)),
-          ListTile(
-            leading: const Icon(Icons.refresh),
-            title: const Text('Rescan Library'),
-            onTap: () {
-              Navigator.pop(context);
-              final provider = Provider.of<LibraryProvider>(
-                context,
-                listen: false,
-              );
-              provider.scanLibrary(force: true);
-            },
-          ),
-          Divider(
-              height: 1,
-              indent: 56,
-              color: scheme.outlineVariant.withValues(alpha: 0.4)),
-          ListTile(
-            leading: const Icon(Icons.sort),
-            title: const Text('Sort Options'),
-            onTap: () {
-              Navigator.pop(context);
-              _showSortDialog(context);
-            },
-          ),
-          Divider(
-              height: 1,
-              indent: 56,
-              color: scheme.outlineVariant.withValues(alpha: 0.4)),
-          ListTile(
-            leading: const Icon(Icons.reorder_rounded),
-            title: const Text('Reorder Tabs'),
-            onTap: () {
-              Navigator.pop(context);
-              _showTabOrderDialog(context);
-            },
-          ),
+          for (final item in _libraryActions(context))
+            ListTile(
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
+              minTileHeight: 60,
+              leading: Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: scheme.surfaceContainerHighest,
+                  shape: BoxShape.circle,
+                ),
+                child:
+                    Icon(item.icon, size: 21, color: scheme.onSurfaceVariant),
+              ),
+              title: Text(
+                item.label,
+                style: theme.textTheme.bodyLarge
+                    ?.copyWith(fontWeight: FontWeight.w500),
+              ),
+              onTap: item.onTap,
+            ),
+          const SizedBox(height: 10),
         ],
       ),
     );
   }
 
   Widget _playlistArt(Playlist playlist, ColorScheme scheme) {
-    final fallback = CircleAvatar(
-      backgroundColor: scheme.surfaceContainerHighest,
-      child:
-          Text(playlist.name.isNotEmpty ? playlist.name[0].toUpperCase() : '?'),
+    final fallback = Container(
+      width: 52,
+      height: 52,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: scheme.secondaryContainer,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Text(
+        playlist.name.isNotEmpty ? playlist.name[0].toUpperCase() : '?',
+        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              color: scheme.onSecondaryContainer,
+              fontWeight: FontWeight.w800,
+            ),
+      ),
     );
     final cover = playlist.coverImage;
     if (cover == null || cover.isEmpty) return fallback;
@@ -1217,8 +1248,8 @@ class _LibraryScreenState extends State<LibraryScreen>
             errorBuilder: (_, __, ___) => fallback,
           );
     return ClipRRect(
-      borderRadius: BorderRadius.circular(rSm),
-      child: SizedBox(width: 56, height: 56, child: img),
+      borderRadius: BorderRadius.circular(16),
+      child: SizedBox(width: 52, height: 52, child: img),
     );
   }
 

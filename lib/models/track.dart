@@ -19,6 +19,9 @@ class Track {
   final double? loudnessDb;
   final String? views;
 
+  // streams keep a cdn url in path while downloads stay local files
+  bool get isOnline => path.startsWith('http');
+
   Track({
     required this.id,
     required this.title,
@@ -87,7 +90,9 @@ class Track {
       album: map['album'] as String,
       path: map['path'] as String,
       duration: Duration(milliseconds: map['duration'] as int),
-      albumArt: map['albumArt'] != null ? Uint8List.fromList((map['albumArt'] as List).cast<int>()) : null,
+      albumArt: map['albumArt'] != null
+          ? Uint8List.fromList((map['albumArt'] as List).cast<int>())
+          : null,
       trackNumber: map['trackNumber'] as int?,
       year: map['year'] as int?,
       genre: map['genre'] as String?,

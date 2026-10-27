@@ -78,10 +78,10 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     }
   }
 
-
   Widget _miniArt(Track track) {
     final scheme = Theme.of(context).colorScheme;
-    final fallback = Icon(Icons.music_note, size: 16, color: scheme.onSurfaceVariant);
+    final fallback =
+        Icon(Icons.music_note, size: 16, color: scheme.onSurfaceVariant);
     if (track.albumArt != null) {
       return Image.memory(
         track.albumArt!,
@@ -133,7 +133,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
   }
 
   Future<void> _downloadTrack(BuildContext context, Track track) async {
-    final isOnlineTrack = (track.sourceUrl ?? track.path).startsWith('http');
+    final isOnlineTrack = track.isOnline;
 
     if (!isOnlineTrack) {
       showToast('Only online tracks can be downloaded');
@@ -201,12 +201,12 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                       behavior: HitTestBehavior.opaque,
                       onVerticalDragUpdate: widget.onCollapseDragUpdate == null
                           ? null
-                          : (details) =>
-                              widget.onCollapseDragUpdate!(details.primaryDelta ?? 0),
+                          : (details) => widget
+                              .onCollapseDragUpdate!(details.primaryDelta ?? 0),
                       onVerticalDragEnd: widget.onCollapseDragEnd == null
                           ? null
-                          : (details) =>
-                              widget.onCollapseDragEnd!(details.primaryVelocity ?? 0),
+                          : (details) => widget
+                              .onCollapseDragEnd!(details.primaryVelocity ?? 0),
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -259,9 +259,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                           FadeTransition(
                                         opacity: anim,
                                         child: ScaleTransition(
-                                          scale: Tween<double>(
-                                                  begin: 0.9, end: 1)
-                                              .animate(anim),
+                                          scale:
+                                              Tween<double>(begin: 0.9, end: 1)
+                                                  .animate(anim),
                                           child: child,
                                         ),
                                       ),
@@ -297,25 +297,22 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                                   return GestureDetector(
                                                     behavior: HitTestBehavior
                                                         .translucent,
-                                                    onVerticalDragUpdate:
-                                                        widget.onCollapseDragUpdate ==
+                                                    onVerticalDragUpdate: widget
+                                                                .onCollapseDragUpdate ==
                                                             null
                                                         ? null
                                                         : (details) => widget
-                                                            .onCollapseDragUpdate!(
-                                                            details
-                                                                    .primaryDelta ??
+                                                                .onCollapseDragUpdate!(
+                                                            details.primaryDelta ??
                                                                 0),
-                                                    onVerticalDragEnd:
-                                                        widget
-                                                                    .onCollapseDragEnd ==
-                                                                null
-                                                            ? null
-                                                            : (details) => widget
+                                                    onVerticalDragEnd: widget
+                                                                .onCollapseDragEnd ==
+                                                            null
+                                                        ? null
+                                                        : (details) => widget
                                                                 .onCollapseDragEnd!(
-                                                                details
-                                                                        .primaryVelocity ??
-                                                                    0),
+                                                            details.primaryVelocity ??
+                                                                0),
                                                     child: Center(
                                                       child: Padding(
                                                         padding:
@@ -341,51 +338,54 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                             ),
                             if (!wideLayout)
                               SafeArea(
-                              top: false,
-                              minimum: const EdgeInsets.only(bottom: 12),
-                              child: Padding(
-                                padding:
-                                    const EdgeInsets.fromLTRB(20, 8, 20, 12),
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    AnimatedSize(
-                                      duration: EMotion.medium,
-                                      curve: Curves.easeInOutCubic,
-                                      alignment: Alignment.topCenter,
-                                      child: _lyricsOpen
-                                          ? const SizedBox.shrink()
-                                          : Column(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                MouseRegion(
-                                                  cursor: isDesktop
-                                                      ? SystemMouseCursors
-                                                          .click
-                                                      : MouseCursor.defer,
-                                                  child: GestureDetector(
-                                                    onTap: () =>
-                                                        _toggleLyrics(track),
-                                                    child: _buildTrackMeta(
-                                                        context, track, audio),
+                                top: false,
+                                minimum: const EdgeInsets.only(bottom: 12),
+                                child: Padding(
+                                  padding:
+                                      const EdgeInsets.fromLTRB(20, 8, 20, 12),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      AnimatedSize(
+                                        duration: EMotion.medium,
+                                        curve: Curves.easeInOutCubic,
+                                        alignment: Alignment.topCenter,
+                                        child: _lyricsOpen
+                                            ? const SizedBox.shrink()
+                                            : Column(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  const SizedBox(height: 14),
+                                                  MouseRegion(
+                                                    cursor: isDesktop
+                                                        ? SystemMouseCursors
+                                                            .click
+                                                        : MouseCursor.defer,
+                                                    child: GestureDetector(
+                                                      onTap: () =>
+                                                          _toggleLyrics(track),
+                                                      child: _buildTrackMeta(
+                                                          context,
+                                                          track,
+                                                          audio),
+                                                    ),
                                                   ),
-                                                ),
-                                                const SizedBox(height: 16),
-                                              ],
-                                            ),
-                                    ),
-                                    RepaintBoundary(
-                                        child:
-                                            _buildProgressStrip(context, audio)),
-                                    const SizedBox(height: 18),
-                                    _buildPrimaryControls(context, audio),
-                                    const SizedBox(height: 20),
-                                    _buildSecondaryControlRow(
-                                        context, audio, library),
-                                  ],
+                                                  const SizedBox(height: 16),
+                                                ],
+                                              ),
+                                      ),
+                                      RepaintBoundary(
+                                          child: _buildProgressStrip(
+                                              context, audio)),
+                                      const SizedBox(height: 18),
+                                      _buildPrimaryControls(context, audio),
+                                      const SizedBox(height: 20),
+                                      _buildSecondaryControlRow(
+                                          context, audio, library),
+                                    ],
+                                  ),
                                 ),
                               ),
-                            ),
                           ],
                         ),
                       ),
@@ -500,8 +500,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                               key: const ValueKey('art'),
                               child: Center(
                                 child: RepaintBoundary(
-                                  child: _buildArtworkCard(
-                                      context, track, size,
+                                  child: _buildArtworkCard(context, track, size,
                                       artSize: artSize),
                                 ),
                               ),
@@ -518,6 +517,26 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
+                              AnimatedSize(
+                                duration: EMotion.medium,
+                                curve: EMotion.standard,
+                                child: AnimatedSwitcher(
+                                  duration: EMotion.medium,
+                                  child: _lyricsOpen
+                                      ? Padding(
+                                          padding:
+                                              const EdgeInsets.only(bottom: 28),
+                                          child: SquareArt(
+                                            bytes: track.albumArt,
+                                            url: _buildYoutubeThumbnailUrl(
+                                                track),
+                                            size: math.min(artSize * 0.6, 240),
+                                            radius: rLg,
+                                          ),
+                                        )
+                                      : const SizedBox(width: double.infinity),
+                                ),
+                              ),
                               MouseRegion(
                                 cursor: SystemMouseCursors.click,
                                 child: GestureDetector(
@@ -531,7 +550,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                               const SizedBox(height: 24),
                               _buildPrimaryControls(context, audio),
                               const SizedBox(height: 28),
-                              _buildSecondaryControlRow(context, audio, library),
+                              _buildSecondaryControlRow(
+                                  context, audio, library),
                             ],
                           ),
                         ),
@@ -734,17 +754,28 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       child: Stack(
         children: [
           Hero(
-        tag: 'album_art_${track.id}',
-        createRectTween: albumArtRectTween,
-        flightShuttleBuilder: albumArtFlightShuttleBuilder,
-        child: SizedBox(
-          width: dimension,
-          height: dimension,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(24),
-              child: image,
+            tag: 'album_art_${track.id}',
+            createRectTween: albumArtRectTween,
+            flightShuttleBuilder: albumArtFlightShuttleBuilder,
+            child: Container(
+              width: dimension,
+              height: dimension,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(rLg),
+                boxShadow: [
+                  BoxShadow(
+                    color: colorScheme.primary.withValues(alpha: 0.22),
+                    blurRadius: 48,
+                    spreadRadius: 4,
+                    offset: const Offset(0, 18),
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(rLg),
+                child: image,
+              ),
             ),
-          ),
           ),
           _buildSeekFlash(context),
         ],
@@ -773,9 +804,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           duration: const Duration(milliseconds: 220),
           opacity: _seekFlashOn ? 1 : 0,
           child: Align(
-            alignment: _seekFlash == 1
-                ? Alignment.centerLeft
-                : Alignment.centerRight,
+            alignment:
+                _seekFlash == 1 ? Alignment.centerLeft : Alignment.centerRight,
             child: Padding(
               padding: const EdgeInsets.all(20),
               child: Container(
@@ -847,8 +877,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            colorScheme.surface.withValues(alpha: 0.88),
-            colorScheme.surface.withValues(alpha: 0.94),
+            colorScheme.surface.withValues(alpha: 0.72),
+            colorScheme.surface.withValues(alpha: 0.9),
             colorScheme.surface,
           ],
         ),
@@ -898,9 +928,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
         ScrollingText(
           text: track.title,
           style: theme.textTheme.headlineSmall?.copyWith(
-            fontWeight: FontWeight.w700,
-            letterSpacing: -0.3,
-            fontSize: 22,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -0.4,
+            fontSize: 24,
             height: 1.2,
           ),
         ),
@@ -926,17 +956,25 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
             ),
           ),
         ),
+        if (track.album.isNotEmpty && track.album != 'Unknown Album') ...[
+          const SizedBox(height: 4),
+          Text(
+            track.year == null ? track.album : '${track.album} · ${track.year}',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.bodySmall
+                ?.copyWith(color: colorScheme.onSurfaceVariant),
+          ),
+        ],
         const SizedBox(height: 6),
         Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // _buildMetaAssistChip(context, icon: Icons.album_rounded, label: track.album),
             const SizedBox(height: 6),
             if (track.genre != null && track.genre!.isNotEmpty)
               _buildMetaAssistChip(context,
                   icon: Icons.style_outlined, label: track.genre!),
-            if (track.path.contains('youtube.com') ||
-                track.path.contains('youtu.be'))
+            if (track.isOnline)
               _buildMetaAssistChip(context,
                   icon: Icons.play_circle_outline, label: 'YouTube'),
           ],
@@ -996,8 +1034,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           animate: audio.isPlaying && !isLoading,
           onChanged: isLoading
               ? null
-              : (value) =>
-                  audio.seek(Duration(milliseconds: value.toInt())),
+              : (value) => audio.seek(Duration(milliseconds: value.toInt())),
         ),
         const SizedBox(height: 4),
         Row(
@@ -1033,19 +1070,17 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
             icon: Icons.skip_previous_outlined,
             tooltip: 'Previous',
             onTap: audio.skipPrevious,
-            left: true,
           ),
         ),
-        const SizedBox(width: 10),
+        const SizedBox(width: 16),
         PressableScale(child: _buildPlayButton(context, audio)),
-        const SizedBox(width: 10),
+        const SizedBox(width: 16),
         PressableScale(
           child: _buildSeekButton(
             context,
             icon: Icons.skip_next_outlined,
             tooltip: 'Next',
             onTap: audio.skipNext,
-            left: false,
           ),
         ),
       ],
@@ -1055,24 +1090,20 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
   Widget _buildSeekButton(BuildContext context,
       {required IconData icon,
       required String tooltip,
-      required VoidCallback onTap,
-      required bool left}) {
+      required VoidCallback onTap}) {
     final colorScheme = Theme.of(context).colorScheme;
-    final radius = BorderRadius.horizontal(
-      left: Radius.circular(left ? 26 : 14),
-      right: Radius.circular(left ? 14 : 26),
-    );
+    const radius = BorderRadius.all(Radius.circular(rFull));
 
     final button = Material(
-      color: colorScheme.surfaceContainerHigh,
+      color: colorScheme.surfaceContainerHighest,
       borderRadius: radius,
       child: InkWell(
         borderRadius: radius,
         onTap: onTap,
         child: SizedBox(
-          width: 72,
-          height: 72,
-          child: Icon(icon, size: 30, color: colorScheme.onSurface),
+          width: 64,
+          height: 64,
+          child: Icon(icon, size: 28, color: colorScheme.onSurfaceVariant),
         ),
       ),
     );
@@ -1085,20 +1116,29 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     final isLoading = audio.isLoadingTrack;
     final isPlaying = audio.isPlaying;
 
+    final radius = BorderRadius.circular(_playDown ? 30 : 46);
     final button = AnimatedContainer(
       duration: EMotion.fast,
       curve: EMotion.standard,
       decoration: BoxDecoration(
         color: colorScheme.primary,
-        borderRadius: BorderRadius.circular(_playDown ? 36 : 26),
+        borderRadius: radius,
+        boxShadow: [
+          BoxShadow(
+            color: colorScheme.primary.withValues(alpha: 0.22),
+            blurRadius: 38,
+            spreadRadius: 2,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
       child: InkWell(
         onHighlightChanged: (v) => setState(() => _playDown = v),
-        borderRadius: BorderRadius.circular(_playDown ? 36 : 26),
+        borderRadius: radius,
         onTap: isLoading ? null : audio.togglePlayPause,
         child: SizedBox(
-          width: 116,
-          height: 84,
+          width: 92,
+          height: 92,
           child: Center(
             child: AnimatedSwitcher(
               duration: const Duration(milliseconds: 240),
@@ -1111,13 +1151,13 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                   ? KashouLoader(
                       key: const ValueKey('pl_load'),
                       size: 26,
-                      color: colorScheme.onPrimaryContainer)
+                      color: colorScheme.onPrimary)
                   : Icon(
                       isPlaying
-                          ? Icons.pause_outlined
-                          : Icons.play_arrow_outlined,
+                          ? Icons.pause_rounded
+                          : Icons.play_arrow_rounded,
                       key: ValueKey(isPlaying),
-                      size: 48,
+                      size: 46,
                       color: colorScheme.onPrimary,
                     ),
             ),
@@ -1137,105 +1177,83 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     final isShuffle = audio.shuffleMode != ShuffleMode.off;
     final isRepeatActive = audio.repeatMode != RepeatMode.off;
     final isFavorite = library.isTrackFavorite(audio.currentTrack?.id ?? '');
-    final isOnlineTrack = audio.currentTrack != null &&
-        (audio.currentTrack!.sourceUrl ?? audio.currentTrack!.path)
-            .startsWith('http');
+    final isOnlineTrack = audio.currentTrack?.isOnline ?? false;
 
     final colorScheme = Theme.of(context).colorScheme;
     return Center(
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(rXl),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
-            decoration: BoxDecoration(
-              color: colorScheme.surfaceContainerHigh.withValues(alpha: 0.7),
-              borderRadius: BorderRadius.circular(rXl),
+      child: Container(
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: colorScheme.surfaceContainerHigh.withValues(alpha: 0.85),
+          borderRadius: BorderRadius.circular(rFull),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildSecondaryIconButton(
+              context,
+              icon: _getShuffleIcon(audio.shuffleMode),
+              tooltip: 'Shuffle',
+              active: isShuffle,
+              onTap: () {
+                final newMode = audio.shuffleMode == ShuffleMode.off
+                    ? ShuffleMode.songs
+                    : ShuffleMode.off;
+                audio.setShuffleMode(newMode);
+              },
             ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _buildSecondaryIconButton(
-                  context,
-                  icon: _getShuffleIcon(audio.shuffleMode),
-                  tooltip: 'Shuffle',
-                  active: isShuffle,
-                  tileShape: const BorderRadius.horizontal(
-                    left: Radius.circular(30),
-                    right: Radius.circular(16),
-                  ),
-                  onTap: () {
-                    final newMode = audio.shuffleMode == ShuffleMode.off
-                        ? ShuffleMode.songs
-                        : ShuffleMode.off;
-                    audio.setShuffleMode(newMode);
-                  },
-                ),
-                _buildSecondaryIconButton(
-                  context,
-                  icon: _getRepeatIcon(audio.repeatMode),
-                  tooltip: _repeatLabel(audio.repeatMode),
-                  active: isRepeatActive,
-                  onTap: () {
-                    final modes = RepeatMode.values;
-                    final currentIndex = modes.indexOf(audio.repeatMode);
-                    final nextIndex = (currentIndex + 1) % modes.length;
-                    audio.setRepeatMode(modes[nextIndex]);
-                  },
-                ),
-                _buildSecondaryIconButton(
-                  context,
-                  icon: isFavorite ? Icons.favorite : Icons.favorite_border,
-                  tooltip: isFavorite ? 'Remove from likes' : 'Add to likes',
-                  active: isFavorite,
-                  onTap: () {
-                    if (audio.currentTrack != null) {
-                      library.toggleFavorite(audio.currentTrack!);
-                    }
-                  },
-                ),
-                _buildSecondaryIconButton(
-                  context,
-                  icon: _lyricsOpen ? Icons.lyrics_rounded : Icons.lyrics_outlined,
-                  tooltip: _lyricsOpen ? 'Hide lyrics' : 'Lyrics',
-                  active: _lyricsOpen,
-                  onTap: () {
-                    final track = audio.currentTrack;
-                    if (track != null) _toggleLyrics(track);
-                  },
-                ),
-                _buildSecondaryIconButton(
-                  context,
-                  icon: Icons.queue_music_rounded,
-                  tooltip: 'View queue',
-                  active: false,
-                  tileShape: isOnlineTrack
-                      ? null
-                      : const BorderRadius.horizontal(
-                          left: Radius.circular(16),
-                          right: Radius.circular(30),
-                        ),
-                  onTap: () => _showQueueSheet(context),
-                ),
-                if (isOnlineTrack)
-                  _buildSecondaryIconButton(
-                    context,
-                    icon: Icons.download,
-                    tooltip: 'Download track',
-                    tileShape: const BorderRadius.horizontal(
-                      left: Radius.circular(16),
-                      right: Radius.circular(30),
-                    ),
-                    onTap: () {
-                      if (audio.currentTrack != null) {
-                        _downloadTrack(context, audio.currentTrack!);
-                      }
-                    },
-                  ),
-              ],
+            _buildSecondaryIconButton(
+              context,
+              icon: _getRepeatIcon(audio.repeatMode),
+              tooltip: _repeatLabel(audio.repeatMode),
+              active: isRepeatActive,
+              onTap: () {
+                final modes = RepeatMode.values;
+                final currentIndex = modes.indexOf(audio.repeatMode);
+                final nextIndex = (currentIndex + 1) % modes.length;
+                audio.setRepeatMode(modes[nextIndex]);
+              },
             ),
-          ),
+            _buildSecondaryIconButton(
+              context,
+              icon: isFavorite ? Icons.favorite : Icons.favorite_border,
+              tooltip: isFavorite ? 'Remove from likes' : 'Add to likes',
+              active: isFavorite,
+              onTap: () {
+                if (audio.currentTrack != null) {
+                  library.toggleFavorite(audio.currentTrack!);
+                }
+              },
+            ),
+            _buildSecondaryIconButton(
+              context,
+              icon: _lyricsOpen ? Icons.lyrics_rounded : Icons.lyrics_outlined,
+              tooltip: _lyricsOpen ? 'Hide lyrics' : 'Lyrics',
+              active: _lyricsOpen,
+              onTap: () {
+                final track = audio.currentTrack;
+                if (track != null) _toggleLyrics(track);
+              },
+            ),
+            _buildSecondaryIconButton(
+              context,
+              icon: Icons.queue_music_rounded,
+              tooltip: 'View queue',
+              active: false,
+              onTap: () => _showQueueSheet(context),
+            ),
+            if (isOnlineTrack)
+              _buildSecondaryIconButton(
+                context,
+                icon: Icons.download,
+                tooltip: 'Download track',
+                onTap: () {
+                  if (audio.currentTrack != null) {
+                    _downloadTrack(context, audio.currentTrack!);
+                  }
+                },
+              ),
+          ],
         ),
       ),
     );
@@ -1247,10 +1265,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     required String tooltip,
     required VoidCallback onTap,
     bool active = false,
-    BorderRadius? tileShape,
   }) {
     final colorScheme = Theme.of(context).colorScheme;
-    final shape = tileShape ?? BorderRadius.circular(16);
+    const shape = BorderRadius.all(Radius.circular(rFull));
     return PressableScale(
       child: Tooltip(
         message: tooltip,
@@ -1261,12 +1278,11 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
             onTap: onTap,
             child: AnimatedContainer(
               duration: EMotion.fast,
-              margin: const EdgeInsets.symmetric(horizontal: 2.5),
+              margin: const EdgeInsets.symmetric(horizontal: 2),
               padding: const EdgeInsets.all(11),
               decoration: BoxDecoration(
-                color: active
-                    ? colorScheme.primaryContainer
-                    : colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                color:
+                    active ? colorScheme.primaryContainer : Colors.transparent,
                 borderRadius: shape,
               ),
               child: Icon(
@@ -1476,7 +1492,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                   : ReorderableListView.builder(
                       buildDefaultDragHandles: false,
                       scrollController: scrollController,
-                      padding: EdgeInsets.symmetric(vertical: isDesktop ? 6 : 8),
+                      padding:
+                          EdgeInsets.symmetric(vertical: isDesktop ? 6 : 8),
                       itemCount: count,
                       onReorder: audio.moveQueueItem,
                       itemBuilder: (context, index) {
@@ -1496,9 +1513,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                 : Colors.transparent,
                             borderRadius: BorderRadius.circular(radius),
                             child: InkWell(
-                              onTap: isCurrent
-                                  ? null
-                                  : () => audio.playAt(index),
+                              onTap:
+                                  isCurrent ? null : () => audio.playAt(index),
                               borderRadius: BorderRadius.circular(radius),
                               child: Padding(
                                 padding: EdgeInsets.symmetric(
@@ -1609,12 +1625,12 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: Text(
-              'New playlist',
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.5,
-                  ),
-            ),
+          'New playlist',
+          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.5,
+              ),
+        ),
         content: TextField(
           controller: controller,
           autofocus: true,
@@ -1657,12 +1673,12 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
             final playlist =
                 library.playlists.firstWhere((p) => p.id == playlistId);
             if (playlist.tracks.any((t) => t.id == track.id)) {
-              appMessenger.currentState?.showSnackBar(
-                  SnackBar(content: Text('Already in $name')));
+              appMessenger.currentState
+                  ?.showSnackBar(SnackBar(content: Text('Already in $name')));
             } else {
               await library.addToPlaylist(playlistId, track);
-              appMessenger.currentState?.showSnackBar(
-                  SnackBar(content: Text('Added to $name')));
+              appMessenger.currentState
+                  ?.showSnackBar(SnackBar(content: Text('Added to $name')));
             }
             if (sheetContext.mounted) Navigator.pop(sheetContext);
           }
@@ -1763,9 +1779,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                 builder: (context, audio, _) {
                   final current = audio.currentTrack;
                   if (current == null) return const SizedBox.shrink();
-                  final isOnline = current.path.contains('youtube.com') ||
-                      current.path.contains('youtu.be') ||
-                      current.album == 'YouTube';
+                  final isOnline = current.isOnline;
                   return Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -1902,7 +1916,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     for (var i = 0; i < children.length; i++) {
       if (i > 0) {
         rows.add(Divider(
-            height: 1, indent: 56, color: scheme.outlineVariant.withValues(alpha: 0.4)));
+            height: 1,
+            indent: 56,
+            color: scheme.outlineVariant.withValues(alpha: 0.4)));
       }
       rows.add(children[i]);
     }
@@ -2028,7 +2044,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
 
   void _showTrackInfo(BuildContext context, Track track) {
     final isStream = (track.sourceUrl ?? track.path).startsWith('http');
-    final ytId = isStream ? _extractYouTubeId(track.sourceUrl ?? track.path) : null;
+    final ytId =
+        isStream ? _extractYouTubeId(track.sourceUrl ?? track.path) : null;
     final rows = <MapEntry<String, String>>[
       MapEntry('Title', track.title),
       MapEntry('Artist', track.artist),

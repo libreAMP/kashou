@@ -20,10 +20,10 @@ import '../widgets/m3e_refresh.dart';
 import '../widgets/art_card.dart';
 import '../widgets/dpad_focus.dart';
 import '../widgets/square_art.dart';
+import '../widgets/stream_song_row.dart';
 import '../widgets/loading_indicator.dart';
 import '../widgets/fade_rise.dart';
 import '../widgets/sheet_handle.dart';
-import '../widgets/scrolling_text.dart';
 import 'artist_screen.dart';
 import 'downloads_screen.dart';
 import 'mood_category_screen.dart';
@@ -32,7 +32,7 @@ import 'youtube_history_screen.dart';
 
 // the skeleton shares these
 const int _quickPicksRows = 4;
-const double _quickPicksRowHeight = 60;
+const double _quickPicksRowHeight = 64;
 double get _quickPicksGap => isWideLayout ? 8 : 2;
 double get _quickPicksHeight =>
     _quickPicksRows * _quickPicksRowHeight +
@@ -542,28 +542,28 @@ class _StreamScreenState extends State<StreamScreen>
                             ),
                           if (!isDesktop)
                             ListenableBuilder(
-                            listenable: DownloadManager.instance,
-                            builder: (context, _) {
-                              final active = DownloadManager.instance.jobs
-                                  .where((j) =>
-                                      j.status != 'done' &&
-                                      j.status != 'failed')
-                                  .length;
-                              return M3EBadge(
-                                count: active,
-                                child: IconButton(
-                                  icon: const Icon(Icons.download_rounded),
-                                  tooltip: 'Downloads',
-                                  onPressed: () => Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                        builder: (_) =>
-                                            const DownloadsScreen()),
+                              listenable: DownloadManager.instance,
+                              builder: (context, _) {
+                                final active = DownloadManager.instance.jobs
+                                    .where((j) =>
+                                        j.status != 'done' &&
+                                        j.status != 'failed')
+                                    .length;
+                                return M3EBadge(
+                                  count: active,
+                                  child: IconButton(
+                                    icon: const Icon(Icons.download_rounded),
+                                    tooltip: 'Downloads',
+                                    onPressed: () => Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                          builder: (_) =>
+                                              const DownloadsScreen()),
+                                    ),
                                   ),
-                                ),
-                              );
-                            },
-                          ),
+                                );
+                              },
+                            ),
                           Consumer<SettingsProvider>(
                             builder: (context, settings, _) {
                               if (!settings.enableYouTubeIntegration) {
@@ -583,11 +583,11 @@ class _StreamScreenState extends State<StreamScreen>
                           ),
                           if (!isDesktop)
                             IconButton(
-                            icon: const Icon(Icons.settings_outlined),
-                            tooltip: 'Settings',
-                            onPressed: () =>
-                                Navigator.pushNamed(context, '/settings'),
-                          ),
+                              icon: const Icon(Icons.settings_outlined),
+                              tooltip: 'Settings',
+                              onPressed: () =>
+                                  Navigator.pushNamed(context, '/settings'),
+                            ),
                         ],
                       ),
               ),
@@ -1056,8 +1056,8 @@ class _StreamScreenState extends State<StreamScreen>
                   ),
                   style: TextButton.styleFrom(
                     visualDensity: VisualDensity.compact,
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 4),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
                     backgroundColor: scheme.surfaceContainerHigh,
                     foregroundColor: scheme.onSurface,
                     shape: RoundedRectangleBorder(
@@ -1238,8 +1238,7 @@ class _StreamScreenState extends State<StreamScreen>
                           horizontal: 14, vertical: 4),
                       backgroundColor:
                           Theme.of(context).colorScheme.surfaceContainerHigh,
-                      foregroundColor:
-                          Theme.of(context).colorScheme.onSurface,
+                      foregroundColor: Theme.of(context).colorScheme.onSurface,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(rFull),
                       ),
@@ -1293,8 +1292,8 @@ class _StreamScreenState extends State<StreamScreen>
               padding: _quickPicksPadding,
               gridDelegate: _quickPicksGrid(width),
               itemCount: items.length,
-              itemBuilder: (_, i) => _buildSongRow(
-                  items[i], i % _quickPicksRows, _quickPicksRows),
+              itemBuilder: (_, i) =>
+                  _buildSongRow(items[i], i % _quickPicksRows, _quickPicksRows),
             ),
           );
         }),
@@ -1305,6 +1304,10 @@ class _StreamScreenState extends State<StreamScreen>
 
   Widget _buildRecCarousel(String title, List<Map<String, dynamic>> items) {
     final hasMore = items.length > 10;
+    final playback =
+        context.select<AudioProvider, ({String? id, bool playing})>(
+      (audio) => (id: audio.currentTrack?.id, playing: audio.isPlaying),
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1367,6 +1370,9 @@ class _StreamScreenState extends State<StreamScreen>
                     title: displayItems[i]['title'] as String? ?? '',
                     subtitle: displayItems[i]['channel'] as String?,
                     onTap: () => _playVideo(displayItems[i]),
+                    onPlay: () => _playVideo(displayItems[i]),
+                    playing: playback.playing &&
+                        playback.id == displayItems[i]['id'],
                     width: cardWidth,
                     emphasized: false,
                   ),
@@ -1392,6 +1398,8 @@ class _StreamScreenState extends State<StreamScreen>
                     title: items[i]['title'] as String? ?? '',
                     subtitle: items[i]['channel'] as String?,
                     onTap: () => _playVideo(items[i]),
+                    onPlay: () => _playVideo(items[i]),
+                    playing: playback.playing && playback.id == items[i]['id'],
                   );
                 },
               ),
@@ -1419,102 +1427,24 @@ class _StreamScreenState extends State<StreamScreen>
     if (slot >= 0 && (count <= 1 || slot >= count)) {
       throw ArgumentError('slot $slot out of range for count $count');
     }
-    final scheme = Theme.of(context).colorScheme;
-    final thumb = _videoThumb(video);
-    const outer = Radius.circular(rMd);
-    const inner = Radius.circular(rSm);
-    final radius = isDesktop
-        ? BorderRadius.circular(10)
-        : (slot < 0
-            ? const BorderRadius.all(inner)
-            : slot == 0
-                ? const BorderRadius.vertical(top: outer, bottom: inner)
-                : slot == count - 1
-                    ? const BorderRadius.vertical(top: inner, bottom: outer)
-                    : const BorderRadius.all(inner));
     return Consumer<AudioProvider>(
       builder: (context, audio, _) {
         final isCurrent = audio.currentTrack?.id == video['id'];
-        final playing = isCurrent && audio.isPlaying;
-        return Material(
-          color: isCurrent
-              ? scheme.primary.withValues(alpha: 0.12)
-              : (isDesktop ? Colors.transparent : scheme.surfaceContainerLow),
-          borderRadius: radius,
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            borderRadius: radius,
-            onTap: () =>
-                isCurrent ? audio.togglePlayPause() : _playVideo(video),
-            onLongPress: () => _showSongSheet(video),
-            // right-click mirrors the long-press options on desktop
-            onSecondaryTap: isDesktop ? () => _showSongSheet(video) : null,
-            child: Padding(
-              padding: _quickPicksRowPadding,
-              child: Row(
-                children: [
-                  Stack(
-                    children: [
-                      SquareArt(url: thumb, size: 48, radius: rSm),
-                      if (playing)
-                        SizedBox(
-                          width: 48,
-                          height: 48,
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(rSm),
-                            child: ColoredBox(
-                              color: Colors.black.withValues(alpha: 0.4),
-                              child: Icon(Icons.graphic_eq_rounded,
-                                  color: scheme.primary, size: 22),
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        ScrollingText(
-                          text: video['title'] as String? ?? 'Unknown',
-                          style:
-                              Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                    fontWeight: FontWeight.w600,
-                                    height: 1.25,
-                                    color: isCurrent ? scheme.primary : null,
-                                  ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          _songSubtitle(video),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodySmall
-                              ?.copyWith(color: scheme.onSurfaceVariant),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  IconButton(
-                    icon: Icon(
-                      playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                      color:
-                          isCurrent ? scheme.primary : scheme.onSurfaceVariant,
-                    ),
-                    iconSize: 22,
-                    tooltip: isDesktop ? (playing ? 'Pause' : 'Play') : null,
-                    onPressed: () =>
-                        isCurrent ? audio.togglePlayPause() : _playVideo(video),
-                  ),
-                ],
-              ),
-            ),
+        return StreamSongRow(
+          artwork: SquareArt(
+            url: _videoThumb(video),
+            size: 52,
+            radius: 16,
           ),
+          title: video['title'] as String? ?? 'Unknown',
+          subtitle: _songSubtitle(video),
+          isCurrent: isCurrent,
+          playing: isCurrent && audio.isPlaying,
+          slot: slot,
+          count: count,
+          onTap: () => isCurrent ? audio.togglePlayPause() : _playVideo(video),
+          onLongPress: () => _showSongSheet(video),
+          onSecondaryTap: isDesktop ? () => _showSongSheet(video) : null,
         );
       },
     );
@@ -1707,10 +1637,9 @@ class _QuickPicksSkeletonState extends State<_QuickPicksSkeleton>
               final width =
                   constraints.maxWidth - _quickPicksPadding.horizontal;
               if (width >= _quickPicksColumn * 2 + _quickPicksGap) {
-                final columns =
-                    (width / (_quickPicksColumn + _quickPicksGap))
-                        .floor()
-                        .clamp(2, 3);
+                final columns = (width / (_quickPicksColumn + _quickPicksGap))
+                    .floor()
+                    .clamp(2, 3);
                 return Padding(
                   padding: _quickPicksPadding,
                   child: Row(
@@ -1785,11 +1714,11 @@ class _QuickPicksSkeletonState extends State<_QuickPicksSkeleton>
         child: Row(
           children: [
             Container(
-              width: 48,
-              height: 48,
+              width: 52,
+              height: 52,
               decoration: BoxDecoration(
                 color: scheme.surfaceContainerHighest.withValues(alpha: alpha),
-                borderRadius: BorderRadius.circular(rSm),
+                borderRadius: BorderRadius.circular(16),
               ),
             ),
             const SizedBox(width: 12),

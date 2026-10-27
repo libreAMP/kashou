@@ -50,8 +50,7 @@ class _MetadataEditorScreenState extends State<MetadataEditorScreen> {
     );
     _commentController = TextEditingController();
 
-    final source = widget.track.sourceUrl ?? widget.track.path;
-    _isEditable = !source.startsWith('http');
+    _isEditable = !widget.track.isOnline;
 
     // Add listeners to detect changes
     _titleController.addListener(_onFieldChanged);

@@ -5,6 +5,7 @@ import '../providers/audio_provider.dart';
 import '../widgets/m3e_refresh.dart';
 import '../widgets/track_list_item.dart';
 import '../widgets/album_card.dart';
+import '../widgets/m3e_cover_card.dart';
 import '../widgets/track_options_sheet.dart';
 import 'track_list_page.dart';
 import '../models/track.dart';
@@ -84,62 +85,61 @@ class HomeScreen extends StatelessWidget {
 
   Widget _buildSearchBar(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return _centeredContent(
-      Padding(
-        padding: EdgeInsets.fromLTRB(20, isWideLayout ? 16 : 8, 12, 8),
-        child: Row(
-          children: [
-            Expanded(
-              child: SizedBox(
-                height: 48,
-                child: TextField(
-                  readOnly: true,
-                  onTap: () => Navigator.push(
-                    context,
-                    PageRouteBuilder(
-                      transitionDuration: const Duration(milliseconds: 280),
-                      reverseTransitionDuration:
-                          const Duration(milliseconds: 220),
-                      pageBuilder: (_, animation, __) => const SearchScreen(),
-                      transitionsBuilder: (_, animation, __, child) {
-                        final move = Tween(
-                          begin: const Offset(0, 0.03),
-                          end: Offset.zero,
-                        ).animate(CurvedAnimation(
-                          parent: animation,
-                          curve: Curves.easeOutCubic,
-                        ));
-                        return FadeTransition(
-                          opacity: animation,
-                          child: SlideTransition(position: move, child: child),
-                        );
-                      },
-                    ),
+    return _centeredContent(Padding(
+      padding: EdgeInsets.fromLTRB(20, isWideLayout ? 16 : 8, 12, 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: SizedBox(
+              height: 48,
+              child: TextField(
+                readOnly: true,
+                onTap: () => Navigator.push(
+                  context,
+                  PageRouteBuilder(
+                    transitionDuration: const Duration(milliseconds: 280),
+                    reverseTransitionDuration:
+                        const Duration(milliseconds: 220),
+                    pageBuilder: (_, animation, __) => const SearchScreen(),
+                    transitionsBuilder: (_, animation, __, child) {
+                      final move = Tween(
+                        begin: const Offset(0, 0.03),
+                        end: Offset.zero,
+                      ).animate(CurvedAnimation(
+                        parent: animation,
+                        curve: Curves.easeOutCubic,
+                      ));
+                      return FadeTransition(
+                        opacity: animation,
+                        child: SlideTransition(position: move, child: child),
+                      );
+                    },
                   ),
-                  style: Theme.of(context).textTheme.bodyLarge,
-                  decoration: InputDecoration(
-                    hintText: 'Search your music',
-                    prefixIcon: const Padding(
-                      padding: EdgeInsets.fromLTRB(14, 0, 12, 0),
-                      child: Icon(Icons.search_rounded),
-                    ),
-                    prefixIconConstraints: const BoxConstraints(
-                        minWidth: 50, maxWidth: 50, minHeight: 0),
-                    hintStyle: Theme.of(context)
-                        .textTheme
-                        .bodyLarge
-                        ?.copyWith(color: scheme.onSurfaceVariant),
-                    filled: true,
-                    fillColor: scheme.surfaceContainerHigh,
-                    contentPadding: EdgeInsets.zero,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(rFull),
-                      borderSide: BorderSide.none,
-                    ),
+                ),
+                style: Theme.of(context).textTheme.bodyLarge,
+                decoration: InputDecoration(
+                  hintText: 'Search your music',
+                  prefixIcon: const Padding(
+                    padding: EdgeInsets.fromLTRB(14, 0, 12, 0),
+                    child: Icon(Icons.search_rounded),
+                  ),
+                  prefixIconConstraints: const BoxConstraints(
+                      minWidth: 50, maxWidth: 50, minHeight: 0),
+                  hintStyle: Theme.of(context)
+                      .textTheme
+                      .bodyLarge
+                      ?.copyWith(color: scheme.onSurfaceVariant),
+                  filled: true,
+                  fillColor: scheme.surfaceContainerHigh,
+                  contentPadding: EdgeInsets.zero,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(rFull),
+                    borderSide: BorderSide.none,
                   ),
                 ),
               ),
             ),
+          ),
           const SizedBox(width: 4),
           if (isDesktop)
             IconButton(
@@ -410,11 +410,10 @@ class HomeScreen extends StatelessWidget {
     return Consumer<LibraryProvider>(
       builder: (context, library, child) {
         // Filter to show only local favorite songs (exclude YouTube/online tracks)
-        final localFavoriteTracks = library.favoriteTracks.where((track) {
-          return !track.path.contains('youtube.com') &&
-              !track.path.contains('youtu.be') &&
-              track.album != 'YouTube';
-        }).take(10).toList();
+        final localFavoriteTracks = library.favoriteTracks
+            .where((track) => !track.isOnline)
+            .take(10)
+            .toList();
 
         // Don't show section at all if no local favorites
         if (localFavoriteTracks.isEmpty) {
@@ -439,7 +438,8 @@ class HomeScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 12),
-            _padded(context, _buildFavoriteTracksList(context, localFavoriteTracks)),
+            _padded(context,
+                _buildFavoriteTracksList(context, localFavoriteTracks)),
           ],
         );
       },
@@ -527,12 +527,15 @@ class HomeScreen extends StatelessWidget {
   Widget _buildTrackCard(BuildContext context, Track track) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final state = context.select<AudioProvider, ({bool current, bool playing})>(
+      (audio) {
+        final current = audio.currentTrack?.id == track.id;
+        return (current: current, playing: current && audio.isPlaying);
+      },
+    );
 
     Widget fallback() => DecoratedBox(
-          decoration: BoxDecoration(
-            color: scheme.surfaceContainerHigh,
-            borderRadius: BorderRadius.circular(rLg),
-          ),
+          decoration: BoxDecoration(color: scheme.surfaceContainerHigh),
           child: Center(
             child: Container(
               padding: const EdgeInsets.all(12),
@@ -546,59 +549,37 @@ class HomeScreen extends StatelessWidget {
           ),
         );
 
-    return InkWell(
+    return M3ECoverCard(
+      width: isDesktop ? null : 118,
+      art: track.albumArt != null
+          ? Image.memory(
+              track.albumArt!,
+              fit: BoxFit.cover,
+              gaplessPlayback: true,
+              errorBuilder: (_, __, ___) => fallback(),
+            )
+          : fallback(),
+      title: track.title,
+      subtitle: track.artist,
+      playing: state.playing,
       onTap: () {
         final audio = Provider.of<AudioProvider>(context, listen: false);
-        audio.playTrack(track);
+        if (state.current) {
+          audio.togglePlayPause();
+        } else {
+          audio.playTrack(track);
+        }
       },
-      // desktop pointer alternative to the long-press options menu
-      onSecondaryTapUp:
-          isDesktop ? (_) => showTrackOptionsSheet(context, track) : null,
-      borderRadius: BorderRadius.circular(rMd),
-      child: SizedBox(
-        // desktop grids give each card a cell width; mobile carousels fix it
-        width: isDesktop ? null : 118,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(rMd),
-              child: AspectRatio(
-                aspectRatio: 1,
-                child: track.albumArt != null
-                    ? Image.memory(
-                        track.albumArt!,
-                        fit: BoxFit.cover,
-                        gaplessPlayback: true,
-                        errorBuilder: (_, __, ___) => fallback(),
-                      )
-                    : fallback(),
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              track.title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: (isDesktop
-                      ? theme.textTheme.bodyMedium
-                          ?.copyWith(fontWeight: FontWeight.w600)
-                      : theme.textTheme.bodySmall
-                          ?.copyWith(fontWeight: FontWeight.w600)),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              track.artist,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: scheme.onSurfaceVariant,
-                fontSize: isDesktop ? 12.5 : null,
-              ),
-            ),
-          ],
-        ),
-      ),
+      onPlay: () {
+        final audio = Provider.of<AudioProvider>(context, listen: false);
+        if (state.current) {
+          audio.togglePlayPause();
+        } else {
+          audio.playTrack(track);
+        }
+      },
+      onSecondaryTap:
+          isDesktop ? () => showTrackOptionsSheet(context, track) : null,
     );
   }
 

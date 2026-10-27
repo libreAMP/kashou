@@ -4,6 +4,25 @@ import '../providers/audio_provider.dart';
 import '../services/custom_equalizer.dart';
 import '../theme/app_theme.dart';
 import '../theme/radii.dart';
+import 'eq_band.dart';
+import 'settings_tiles.dart';
+
+const _presetIcons = {
+  'normal': Icons.tune_rounded,
+  'classical': Icons.piano_rounded,
+  'dance': Icons.nightlife_rounded,
+  'flat': Icons.horizontal_rule_rounded,
+  'folk': Icons.park_rounded,
+  'heavy metal': Icons.bolt_rounded,
+  'hip hop': Icons.mic_rounded,
+  'jazz': Icons.music_note_rounded,
+  'pop': Icons.star_rounded,
+  'rock': Icons.album_rounded,
+};
+
+// native preset names drag junk bytes along
+String _cleanPreset(String s) =>
+    s.replaceAll(RegExp(r'[^\x20-\x7E]'), '').trim();
 
 class EqualizerWidget extends StatelessWidget {
   const EqualizerWidget({super.key});
@@ -13,7 +32,7 @@ class EqualizerWidget extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     return Container(
       decoration: BoxDecoration(
-        color: scheme.surfaceContainerLow,
+        color: scheme.surface,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(rLg)),
       ),
       child: Column(
@@ -27,90 +46,95 @@ class EqualizerWidget extends StatelessWidget {
               borderRadius: BorderRadius.circular(2),
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
-            child: Consumer<AudioProvider>(
-              builder: (context, audio, child) {
-                final on = audio.equalizerEnabled;
-                return Material(
-                  color: on
-                      ? scheme.primaryContainer
-                      : scheme.surfaceContainerHigh,
-                  borderRadius: BorderRadius.circular(rLg),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(rLg),
-                    onTap: () => audio.setEqualizerEnabled(!on),
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 18, 12, 18),
-                      child: Row(
-                        children: [
-                          Icon(Icons.graphic_eq_rounded,
-                              size: 28,
-                              color: on
-                                  ? scheme.onPrimaryContainer
-                                  : scheme.onSurfaceVariant),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Equalizer',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .titleLarge
-                                      ?.copyWith(
-                                        fontWeight: FontWeight.w700,
-                                        color: on
-                                            ? scheme.onPrimaryContainer
-                                            : scheme.onSurface,
-                                      ),
-                                ),
-                                Text(
-                                  on ? 'On' : 'Off',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .bodySmall
-                                      ?.copyWith(
-                                        color: on
-                                            ? scheme.onPrimaryContainer
-                                            : scheme.onSurfaceVariant,
-                                      ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Switch(
-                            value: on,
-                            onChanged: audio.setEqualizerEnabled,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
+          _buildHeader(context),
           const SizedBox(height: 12),
           Expanded(
             child: SingleChildScrollView(
               child: Column(
                 children: [
-                  _buildEqualizer(context),
-                  const SizedBox(height: 28),
-                  _buildVolumeControl(context),
-                  const SizedBox(height: 28),
                   _buildPresets(context),
-                  const SizedBox(height: 28),
+                  const SizedBox(height: 24),
+                  _buildEqualizer(context),
+                  _buildVolumeControl(context),
                   _buildAudioEffects(context),
-                  const SizedBox(height: 28),
+                  SizedBox(height: MediaQuery.paddingOf(context).bottom + 24),
                 ],
               ),
             ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildHeader(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
+    return Consumer<AudioProvider>(
+      builder: (context, audio, child) {
+        final on = audio.equalizerEnabled;
+        final fg = on ? scheme.onPrimaryContainer : scheme.onSurfaceVariant;
+        final preset = audio.activePreset;
+        return AnimatedContainer(
+          duration: EMotion.medium,
+          curve: EMotion.standard,
+          margin: const EdgeInsets.fromLTRB(20, 0, 20, 4),
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            color: on ? scheme.primaryContainer : scheme.surfaceContainerHigh,
+            borderRadius: BorderRadius.circular(rLg),
+          ),
+          child: Column(
+            children: [
+              InkWell(
+                onTap: () => audio.setEqualizerEnabled(!on),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 12, 0),
+                  child: Row(
+                    children: [
+                      Icon(Icons.graphic_eq_rounded, size: 28, color: fg),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Equalizer',
+                              style: text.titleLarge?.copyWith(
+                                fontWeight: FontWeight.w800,
+                                color: on
+                                    ? scheme.onPrimaryContainer
+                                    : scheme.onSurface,
+                              ),
+                            ),
+                            Text(
+                              !on
+                                  ? 'Off'
+                                  : preset == null
+                                      ? 'On'
+                                      : 'On · ${_cleanPreset(preset)}',
+                              style: text.bodySmall?.copyWith(color: fg),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Switch(value: on, onChanged: audio.setEqualizerEnabled),
+                    ],
+                  ),
+                ),
+              ),
+              SizedBox(
+                height: 88,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 14),
+                  child: EqCurve(
+                      bands: audio.equalizerBands, color: fg, enabled: on),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -134,109 +158,84 @@ class EqualizerWidget extends StatelessWidget {
         final deviceFreqs = snapshot.data ?? [];
         final frequencies = deviceFreqs.length >= 10
             ? deviceFreqs.take(10).toList()
-            : [31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000]
-                .take(10)
-                .toList();
-        final freqLabels = frequencies.map((freq) {
-          if (freq >= 1000) {
-            return '${(freq / 1000).toStringAsFixed(0)}k';
-          }
-          return freq.toString();
-        }).toList();
+            : [31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
+        final labels = frequencies
+            .map((f) => f >= 1000 ? '${(f / 1000).toStringAsFixed(0)}k' : '$f')
+            .toList();
 
         return Consumer<AudioProvider>(
           builder: (context, audio, child) {
             final scheme = Theme.of(context).colorScheme;
+            final small = Theme.of(context)
+                .textTheme
+                .labelSmall
+                ?.copyWith(color: scheme.onSurfaceVariant);
             return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
+              padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _sectionTitle(context, 'Bands'),
-                  const SizedBox(height: 12),
-                  LayoutBuilder(
-                    builder: (context, constraints) {
-                      final isCompact = constraints.maxWidth < 360;
-                      final sliderHeight = isCompact ? 140.0 : 180.0;
-
-                      return Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: List.generate(10, (index) {
-                          final value = index < audio.equalizerBands.length
-                              ? audio.equalizerBands[index]
-                              : 0.0;
-
-                          return Expanded(
-                            child: Column(
-                              children: [
-                                SizedBox(
-                                  height: sliderHeight,
-                                  child: RotatedBox(
-                                    quarterTurns: 3,
-                                    child: SliderTheme(
-                                      data: m3eSliderTheme(
-                                        context,
-                                        trackHeight: 14,
-                                        thumbSize: const Size(4, 26),
-                                      ),
-                                      child: Slider(
-                                        value: value,
-                                        min: -12,
-                                        max: 12,
-                                        divisions: 12,
-                                        label:
-                                            '${value.toStringAsFixed(1)} dB',
-                                        onChanged: audio.equalizerEnabled
-                                            ? (bandValue) =>
-                                                audio.setEqualizerBand(
-                                                    index, bandValue)
-                                            : null,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  freqLabels[index],
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .bodySmall
-                                      ?.copyWith(
-                                          color: scheme.onSurfaceVariant),
-                                ),
-                              ],
-                            ),
-                          );
-                        }),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 12),
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        '+12 dB',
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodySmall
-                            ?.copyWith(color: scheme.onSurfaceVariant),
+                      Padding(
+                        padding: const EdgeInsets.only(left: 8),
+                        child: _sectionTitle(context, 'Bands'),
                       ),
-                      FilledButton.tonal(
+                      const Spacer(),
+                      FilledButton.tonalIcon(
                         onPressed: audio.equalizerEnabled
                             ? audio.resetEqualizer
                             : null,
-                        child: const Text('Reset'),
-                      ),
-                      Text(
-                        '-12 dB',
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodySmall
-                            ?.copyWith(color: scheme.onSurfaceVariant),
+                        icon: const Icon(Icons.refresh_rounded, size: 18),
+                        label: const Text('Reset'),
                       ),
                     ],
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(8, 36, 8, 14),
+                    decoration: BoxDecoration(
+                      color: scheme.surfaceContainerLow,
+                      borderRadius: BorderRadius.circular(rLg),
+                    ),
+                    child: Column(
+                      children: [
+                        SizedBox(
+                          height: 200,
+                          child: Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              Divider(color: scheme.outlineVariant),
+                              Row(
+                                children: [
+                                  for (var i = 0; i < 10; i++)
+                                    Expanded(
+                                      child: EqBand(
+                                        label: labels[i],
+                                        value: i < audio.equalizerBands.length
+                                            ? audio.equalizerBands[i]
+                                            : 0.0,
+                                        onChanged: audio.equalizerEnabled
+                                            ? (v) =>
+                                                audio.setEqualizerBand(i, v)
+                                            : null,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            for (final l in labels)
+                              Expanded(
+                                  child: Center(child: Text(l, style: small))),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -248,27 +247,29 @@ class EqualizerWidget extends StatelessWidget {
   }
 
   Widget _buildVolumeControl(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      child: Consumer<AudioProvider>(
-        builder: (context, audio, child) {
-          final percent = (audio.masterVolume * 100).clamp(0, 100).round();
-
-          return _buildSliderTile(
-            context,
-            icon: Icons.volume_up_rounded,
-            label: 'Master volume',
-            value: audio.masterVolume,
-            min: 0.0,
-            max: 1.0,
-            divisions: 20,
-            valueLabel: '$percent%',
-            onChanged: audio.setMasterVolume,
-            resetAction:
-                percent == 100 ? null : () => audio.setMasterVolume(1.0),
-          );
-        },
-      ),
+    return Consumer<AudioProvider>(
+      builder: (context, audio, child) {
+        final percent = (audio.masterVolume * 100).clamp(0, 100).round();
+        return SettingsSection(
+          title: 'Output',
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
+              child: _buildSliderTile(
+                context,
+                icon: Icons.volume_up_rounded,
+                label: 'Master volume',
+                value: audio.masterVolume,
+                divisions: 20,
+                valueLabel: '$percent%',
+                onChanged: audio.setMasterVolume,
+                resetAction:
+                    percent == 100 ? null : () => audio.setMasterVolume(1.0),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -278,63 +279,97 @@ class EqualizerWidget extends StatelessWidget {
         return FutureBuilder<List<String>>(
           future: CustomEqualizer.getPresetNames(),
           builder: (context, snapshot) {
-            if (!snapshot.hasData) {
-              return const SizedBox.shrink();
-            }
+            if (!snapshot.hasData) return const SizedBox.shrink();
             final presets = snapshot.data!;
             final scheme = Theme.of(context).colorScheme;
-
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _sectionTitle(context, 'Presets'),
-                  if (!audio.equalizerEnabled) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      'Enable the equalizer to apply presets',
+            final on = audio.equalizerEnabled;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 28),
+                  child: _sectionTitle(context, 'Presets'),
+                ),
+                if (!on)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(28, 4, 28, 0),
+                    child: Text(
+                      'Turn the equalizer on to use presets',
                       style: Theme.of(context)
                           .textTheme
                           .bodySmall
                           ?.copyWith(color: scheme.onSurfaceVariant),
                     ),
-                  ],
-                  const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: presets.map((preset) {
-                      // native preset names drag junk bytes along
-                      final label = preset
-                          .replaceAll(RegExp(r'[^\x20-\x7E]'), '')
-                          .trim();
-                      final selected = audio.activePreset == preset;
-                      return ChoiceChip(
-                        label: Text(label),
-                        selected: selected,
-                        showCheckmark: false,
-                        backgroundColor: scheme.surfaceContainerHigh,
-                        selectedColor: scheme.primaryContainer,
-                        side: BorderSide.none,
-                        shape: const StadiumBorder(),
-                        labelStyle: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: selected
-                              ? scheme.onPrimaryContainer
-                              : audio.equalizerEnabled
-                                  ? scheme.onSurface
-                                  : scheme.onSurfaceVariant,
-                        ),
-                        onSelected: audio.equalizerEnabled
-                            ? (_) => audio.applyEqualizerPreset(preset)
-                            : null,
-                      );
-                    }).toList(),
                   ),
-                ],
-              ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  height: 92,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    itemCount: presets.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 8),
+                    itemBuilder: (context, i) {
+                      final label = _cleanPreset(presets[i]);
+                      final selected = audio.activePreset == presets[i];
+                      final fg = selected
+                          ? scheme.onPrimaryContainer
+                          : on
+                              ? scheme.onSurface
+                              : scheme.onSurfaceVariant;
+                      return AnimatedContainer(
+                        duration: EMotion.medium,
+                        curve: EMotion.emphasized,
+                        width: 88,
+                        decoration: BoxDecoration(
+                          color: selected
+                              ? scheme.primaryContainer
+                              : scheme.surfaceContainerHigh,
+                          borderRadius:
+                              BorderRadius.circular(selected ? 44 : rMd),
+                        ),
+                        child: Material(
+                          type: MaterialType.transparency,
+                          child: InkWell(
+                            borderRadius:
+                                BorderRadius.circular(selected ? 44 : rMd),
+                            onTap: on
+                                ? () => audio.applyEqualizerPreset(presets[i])
+                                : null,
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  _presetIcons[label.toLowerCase()] ??
+                                      Icons.graphic_eq_rounded,
+                                  color: fg,
+                                ),
+                                const SizedBox(height: 6),
+                                Padding(
+                                  padding:
+                                      const EdgeInsets.symmetric(horizontal: 6),
+                                  child: Text(
+                                    label,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .labelMedium
+                                        ?.copyWith(
+                                          color: fg,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
             );
           },
         );
@@ -343,62 +378,57 @@ class EqualizerWidget extends StatelessWidget {
   }
 
   Widget _buildAudioEffects(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _sectionTitle(context, 'Audio effects'),
-          const SizedBox(height: 12),
-          Consumer<AudioProvider>(
-            builder: (context, audio, child) {
-              return Column(
-                children: [
-                  _buildSliderTile(
-                    context,
-                    icon: Icons.graphic_eq_rounded,
-                    label: 'Bass boost',
-                    value: audio.bassBoost,
-                    divisions: 10,
-                    onChanged: audio.setBassBoost,
-                    resetAction: () => audio.setBassBoost(0.0),
-                  ),
-                  _buildSliderTile(
-                    context,
-                    icon: Icons.music_note_rounded,
-                    label: 'Treble boost',
-                    value: audio.trebleBoost,
-                    divisions: 10,
-                    onChanged: audio.setTrebleBoost,
-                    resetAction: () => audio.setTrebleBoost(0.0),
-                  ),
-                  _buildSliderTile(
-                    context,
-                    icon: Icons.waves_rounded,
-                    label: 'Reverb',
-                    value: audio.reverbLevel,
-                    divisions: 10,
-                    onChanged: audio.setReverbLevel,
-                    resetAction: () => audio.setReverbLevel(0.0),
-                  ),
-                  _buildSliderTile(
-                    context,
-                    icon: Icons.speed_rounded,
-                    label: 'Tempo',
-                    value: audio.tempoControl,
-                    min: 0.5,
-                    max: 2.0,
-                    divisions: 15,
-                    onChanged: audio.setTempoControl,
-                    resetAction: () => audio.setTempoControl(1.0),
-                    valueLabel: '${(audio.tempoControl * 100).toInt()}%',
-                  ),
-                ],
-              );
-            },
-          ),
-        ],
-      ),
+    return Consumer<AudioProvider>(
+      builder: (context, audio, child) {
+        Widget tile(Widget t) => Padding(
+              padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
+              child: t,
+            );
+        return SettingsSection(
+          title: 'Audio effects',
+          children: [
+            tile(_buildSliderTile(
+              context,
+              icon: Icons.graphic_eq_rounded,
+              label: 'Bass boost',
+              value: audio.bassBoost,
+              divisions: 10,
+              onChanged: audio.setBassBoost,
+              resetAction: () => audio.setBassBoost(0.0),
+            )),
+            tile(_buildSliderTile(
+              context,
+              icon: Icons.music_note_rounded,
+              label: 'Treble boost',
+              value: audio.trebleBoost,
+              divisions: 10,
+              onChanged: audio.setTrebleBoost,
+              resetAction: () => audio.setTrebleBoost(0.0),
+            )),
+            tile(_buildSliderTile(
+              context,
+              icon: Icons.waves_rounded,
+              label: 'Reverb',
+              value: audio.reverbLevel,
+              divisions: 10,
+              onChanged: audio.setReverbLevel,
+              resetAction: () => audio.setReverbLevel(0.0),
+            )),
+            tile(_buildSliderTile(
+              context,
+              icon: Icons.speed_rounded,
+              label: 'Tempo',
+              value: audio.tempoControl,
+              min: 0.5,
+              max: 2.0,
+              divisions: 15,
+              onChanged: audio.setTempoControl,
+              resetAction: () => audio.setTempoControl(1.0),
+              valueLabel: '${(audio.tempoControl * 100).toInt()}%',
+            )),
+          ],
+        );
+      },
     );
   }
 
@@ -429,17 +459,14 @@ class EqualizerWidget extends StatelessWidget {
             children: [
               Icon(icon,
                   size: 20,
-                  color:
-                      enabled ? scheme.primary : scheme.onSurfaceVariant),
+                  color: enabled ? scheme.primary : scheme.onSurfaceVariant),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   label,
                   style: theme.textTheme.bodyLarge?.copyWith(
                     fontWeight: FontWeight.w600,
-                    color: enabled
-                        ? scheme.onSurface
-                        : scheme.onSurfaceVariant,
+                    color: enabled ? scheme.onSurface : scheme.onSurfaceVariant,
                   ),
                 ),
               ),

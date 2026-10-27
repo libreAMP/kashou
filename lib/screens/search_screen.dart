@@ -2,10 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/library_provider.dart';
-import '../utils/platform.dart';
 import '../widgets/m3e_search.dart';
 import '../widgets/track_list_item.dart';
-import '../widgets/track_options_sheet.dart';
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -87,19 +85,17 @@ class _SearchScreenState extends State<SearchScreen> {
         }
 
         return ListView.builder(
-          padding: const EdgeInsets.symmetric(vertical: 8),
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
           itemCount: results.length,
           itemBuilder: (context, index) {
-            Widget item = TrackListItem(track: results[index]);
-            if (isDesktop) {
-              item = GestureDetector(
-                behavior: HitTestBehavior.translucent,
-                onSecondaryTapUp: (_) =>
-                    showTrackOptionsSheet(context, results[index]),
-                child: item,
-              );
-            }
-            return M3ESearchStagger(index: index, child: item);
+            return M3ESearchStagger(
+              index: index,
+              child: TrackListItem(
+                track: results[index],
+                slot: index,
+                count: results.length,
+              ),
+            );
           },
         );
       },

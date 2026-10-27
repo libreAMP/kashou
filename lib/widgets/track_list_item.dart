@@ -4,8 +4,10 @@ import 'package:provider/provider.dart';
 import '../models/track.dart';
 import '../providers/audio_provider.dart';
 import '../providers/library_provider.dart';
+import '../theme/app_theme.dart';
 import '../theme/radii.dart';
 import '../utils/platform.dart';
+import 'now_playing_bars.dart';
 import 'track_options_sheet.dart';
 
 class TrackListItem extends StatefulWidget {
@@ -38,9 +40,11 @@ class _TrackListItemState extends State<TrackListItem> {
   Widget build(BuildContext context) {
     return Consumer<AudioProvider>(
       builder: (context, audio, child) {
-        final isPlaying = audio.currentTrack?.id == widget.track.id && audio.isPlaying;
+        final isPlaying =
+            audio.currentTrack?.id == widget.track.id && audio.isPlaying;
         final isCurrent = audio.currentTrack?.id == widget.track.id;
-        final colorScheme = Theme.of(context).colorScheme;
+        final theme = Theme.of(context);
+        final colorScheme = theme.colorScheme;
 
         const outer = Radius.circular(rMd);
         const inner = Radius.circular(rSm);
@@ -72,19 +76,24 @@ class _TrackListItemState extends State<TrackListItem> {
               },
               onLongPress: () => showTrackOptionsSheet(context, widget.track,
                   playlistId: widget.playlistId),
-              borderRadius: BorderRadius.circular(rMd),
+              onSecondaryTapUp: isDesktop
+                  ? (_) => showTrackOptionsSheet(context, widget.track,
+                      playlistId: widget.playlistId)
+                  : null,
+              borderRadius: radius,
+              hoverColor:
+                  colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
               splashColor: colorScheme.primary.withValues(alpha: 0.05),
-              highlightColor: colorScheme.primary.withValues(alpha: 0.03),
+              highlightColor: colorScheme.primary.withValues(alpha: 0.04),
               child: AnimatedContainer(
-                duration: const Duration(milliseconds: 150),
+                duration: EMotion.fast,
+                curve: EMotion.standard,
                 padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
                 decoration: BoxDecoration(
                   color: isCurrent
-                      ? colorScheme.primary.withValues(alpha: 0.14)
-                      : (_focused
-                          ? colorScheme.primary.withValues(alpha: 0.12)
-                          : Colors.transparent),
-                  borderRadius: BorderRadius.circular(rMd),
+                      ? colorScheme.primary.withValues(alpha: 0.12)
+                      : Colors.transparent,
+                  borderRadius: radius,
                   border: Border.all(
                     color: _focused ? colorScheme.primary : Colors.transparent,
                     width: 2,
@@ -92,46 +101,36 @@ class _TrackListItemState extends State<TrackListItem> {
                 ),
                 child: Row(
                   children: [
+                    AnimatedContainer(
+                      duration: EMotion.fast,
+                      width: 3,
+                      height: isCurrent ? 24 : 0,
+                      decoration: BoxDecoration(
+                        color: isCurrent
+                            ? colorScheme.primary
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(rFull),
+                      ),
+                    ),
+                    const SizedBox(width: 7),
                     if (widget.index != null) ...[
                       SizedBox(
                         width: isTv ? 32 : 24,
                         child: Text(
                           '${widget.index}',
                           textAlign: TextAlign.center,
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodyMedium
-                              ?.copyWith(
-                                color: colorScheme.onSurfaceVariant,
-                                fontSize: isTv ? 16 : null,
-                              ),
+                          style: theme.textTheme.labelMedium?.copyWith(
+                            color: isCurrent
+                                ? colorScheme.primary
+                                : colorScheme.onSurfaceVariant,
+                            fontWeight: FontWeight.w600,
+                            fontSize: isTv ? 16 : null,
+                          ),
                         ),
                       ),
                       const SizedBox(width: 4),
                     ],
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(rSm),
-                      child: Container(
-                        width: isTv ? 56 : 48,
-                        height: isTv ? 56 : 48,
-                        color: colorScheme.surfaceContainerHighest,
-                        child: Stack(
-                          fit: StackFit.expand,
-                          children: [
-                            _artFor(widget.track, colorScheme),
-                            if (isPlaying)
-                              Container(
-                                color: Colors.black.withValues(alpha: 0.4),
-                                child: Icon(
-                                  Icons.graphic_eq,
-                                  color: Colors.white,
-                                  size: isTv ? 24 : 20,
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                    ),
+                    _artwork(theme, isPlaying),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
@@ -140,67 +139,50 @@ class _TrackListItemState extends State<TrackListItem> {
                         children: [
                           Text(
                             widget.track.title,
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleSmall
-                                ?.copyWith(
-                                  color: isCurrent
-                                      ? colorScheme.primary
-                                      : colorScheme.onSurface,
-                                  fontWeight: isCurrent
-                                      ? FontWeight.w600
-                                      : (isDesktop
-                                          ? FontWeight.w600
-                                          : FontWeight.w500),
-                                  fontSize: isTv ? 16 : null,
-                                  height: isDesktop ? null : 1.2,
-                                ),
+                            style: theme.textTheme.bodyLarge?.copyWith(
+                              color: isCurrent
+                                  ? colorScheme.primary
+                                  : colorScheme.onSurface,
+                              fontWeight: FontWeight.w600,
+                              fontSize: isTv ? 17 : null,
+                              height: 1.25,
+                            ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
                           const SizedBox(height: 2),
                           Text(
                             _subtitle(widget.track),
-                            style:
-                                Theme.of(context).textTheme.bodySmall?.copyWith(
-                                      color: colorScheme.onSurfaceVariant,
-                                      fontSize: isTv ? 14 : (isDesktop ? 13 : 12),
-                                      height: isDesktop ? null : 1.3,
-                                    ),
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                              fontSize: isTv ? 14 : (isDesktop ? 12.5 : 12),
+                              height: 1.3,
+                            ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
                         ],
                       ),
                     ),
-                    Builder(
-                      builder: (buttonContext) => Tooltip(
-                        message: 'More options',
-                        child: Container(
-                          width: isTv ? 44 : 36,
-                          height: isTv ? 44 : 36,
-                          decoration: BoxDecoration(
-                            color: colorScheme.surfaceContainerHighest
-                                .withValues(alpha: 0.5),
-                            shape: BoxShape.circle,
-                          ),
-                          child: IconButton(
-                            tooltip: 'More options',
-                            onPressed: () {
-                              final box = buttonContext.findRenderObject()
-                                  as RenderBox?;
-                              showTrackOptionsSheet(context, widget.track,
-                                  playlistId: widget.playlistId,
-                                  anchor: box?.localToGlobal(
-                                      box.size.bottomLeft(Offset.zero)));
-                            },
-                            icon: Icon(
-                              Icons.more_vert,
-                              size: isTv ? 22 : 18,
-                              color: colorScheme.onSurfaceVariant,
-                            ),
-                            padding: EdgeInsets.zero,
-                          ),
+                    const SizedBox(width: 4),
+                    AnimatedOpacity(
+                      duration: EMotion.fast,
+                      opacity: isDesktop && !isCurrent ? 0.5 : 0.85,
+                      child: IconButton(
+                        tooltip: 'More options',
+                        onPressed: () {
+                          showTrackOptionsSheet(context, widget.track,
+                              playlistId: widget.playlistId);
+                        },
+                        icon: Icon(
+                          Icons.more_vert_rounded,
+                          size: isTv ? 22 : 20,
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                        padding: EdgeInsets.zero,
+                        constraints: BoxConstraints(
+                          minWidth: isTv ? 44 : 40,
+                          minHeight: isTv ? 44 : 40,
                         ),
                       ),
                     ),
@@ -214,8 +196,55 @@ class _TrackListItemState extends State<TrackListItem> {
     );
   }
 
+  Widget _artwork(ThemeData theme, bool isPlaying) {
+    final size = isTv ? 60.0 : 52.0;
+    final radius = BorderRadius.circular(rMd - 4);
+    return SizedBox(
+      width: size,
+      height: size,
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: ClipRRect(
+              borderRadius: radius,
+              child: ColoredBox(
+                color: theme.colorScheme.surfaceContainerHighest,
+                child: _artFor(widget.track, theme.colorScheme),
+              ),
+            ),
+          ),
+          Positioned.fill(
+            child: IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  borderRadius: radius,
+                  border: Border.all(
+                    color: theme.colorScheme.outlineVariant
+                        .withValues(alpha: 0.28),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          if (isPlaying)
+            Positioned.fill(
+              child: ClipRRect(
+                borderRadius: radius,
+                child: ColoredBox(
+                  color: Colors.black.withValues(alpha: 0.38),
+                  child: const Center(
+                    child: NowPlayingBars(color: Colors.white, size: 18),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   String _subtitle(Track track) {
-    final online = (track.sourceUrl ?? track.path).startsWith('http');
+    final online = track.isOnline;
     final tail = online ? 'YouTube' : track.album;
     return tail.isEmpty ? track.artist : '${track.artist} • $tail';
   }
@@ -231,16 +260,19 @@ class _TrackListItemState extends State<TrackListItem> {
   }
 
   Widget _artFor(Track track, ColorScheme colorScheme) {
+    final fallback = Center(
+      child: Icon(
+        Icons.music_note_rounded,
+        color: colorScheme.onSurfaceVariant,
+        size: 24,
+      ),
+    );
     if (track.albumArt != null) {
       return Image.memory(
         track.albumArt!,
         fit: BoxFit.cover,
         gaplessPlayback: true,
-        errorBuilder: (_, __, ___) => Icon(
-          Icons.music_note,
-          color: colorScheme.onSurfaceVariant,
-          size: 24,
-        ),
+        errorBuilder: (_, __, ___) => fallback,
       );
     }
     final id = _ytId(track);
@@ -250,14 +282,9 @@ class _TrackListItemState extends State<TrackListItem> {
         fit: BoxFit.cover,
         placeholder: (_, __) =>
             Container(color: colorScheme.surfaceContainerHighest),
-        errorWidget: (_, __, ___) => Icon(
-          Icons.music_note,
-          color: colorScheme.onSurfaceVariant,
-          size: 24,
-        ),
+        errorWidget: (_, __, ___) => fallback,
       );
     }
-    return Icon(Icons.music_note,
-        color: colorScheme.onSurfaceVariant, size: 24);
+    return fallback;
   }
 }

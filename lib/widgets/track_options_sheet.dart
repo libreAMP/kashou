@@ -14,7 +14,7 @@ import 'square_art.dart';
 
 void showTrackOptionsSheet(BuildContext context, Track track,
     {String? playlistId, Offset? anchor}) {
-  final isOnline = (track.sourceUrl ?? track.path).startsWith('http');
+  final isOnline = track.isOnline;
   if (isDesktop && anchor != null) {
     showM3EMenu(
       context,
