@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:material_new_shapes/material_new_shapes.dart';
 import 'package:provider/provider.dart';
 import 'package:http/http.dart' as http;
 
@@ -16,6 +17,7 @@ import '../theme/radii.dart';
 import '../utils/platform.dart';
 import '../utils/sheet_scope.dart';
 import '../widgets/m3e_badge.dart';
+import '../widgets/morph_shape.dart';
 import '../widgets/m3e_refresh.dart';
 import '../widgets/art_card.dart';
 import '../widgets/dpad_focus.dart';
@@ -916,8 +918,9 @@ class _StreamScreenState extends State<StreamScreen>
                       padding: const EdgeInsets.symmetric(
                           horizontal: 14, vertical: 4),
                       backgroundColor:
-                          Theme.of(context).colorScheme.surfaceContainerHigh,
-                      foregroundColor: Theme.of(context).colorScheme.onSurface,
+                          Theme.of(context).colorScheme.secondaryContainer,
+                      foregroundColor:
+                          Theme.of(context).colorScheme.onSecondaryContainer,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(rFull),
                       ),
@@ -1058,8 +1061,8 @@ class _StreamScreenState extends State<StreamScreen>
                     visualDensity: VisualDensity.compact,
                     padding:
                         const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-                    backgroundColor: scheme.surfaceContainerHigh,
-                    foregroundColor: scheme.onSurface,
+                    backgroundColor: scheme.secondaryContainer,
+                    foregroundColor: scheme.onSecondaryContainer,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(rFull),
                     ),
@@ -1237,8 +1240,9 @@ class _StreamScreenState extends State<StreamScreen>
                       padding: const EdgeInsets.symmetric(
                           horizontal: 14, vertical: 4),
                       backgroundColor:
-                          Theme.of(context).colorScheme.surfaceContainerHigh,
-                      foregroundColor: Theme.of(context).colorScheme.onSurface,
+                          Theme.of(context).colorScheme.secondaryContainer,
+                      foregroundColor:
+                          Theme.of(context).colorScheme.onSecondaryContainer,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(rFull),
                       ),
@@ -1331,8 +1335,9 @@ class _StreamScreenState extends State<StreamScreen>
                       padding: const EdgeInsets.symmetric(
                           horizontal: 14, vertical: 4),
                       backgroundColor:
-                          Theme.of(context).colorScheme.surfaceContainerHigh,
-                      foregroundColor: Theme.of(context).colorScheme.onSurface,
+                          Theme.of(context).colorScheme.secondaryContainer,
+                      foregroundColor:
+                          Theme.of(context).colorScheme.onSecondaryContainer,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(rFull),
                       ),
@@ -1512,18 +1517,12 @@ class _StreamScreenState extends State<StreamScreen>
   }
 
   Widget _sectionTitle(String title, {Widget? trailing}) {
-    if (trailing == null) {
-      return Text(
-        title,
-        style: Theme.of(context)
-            .textTheme
-            .titleLarge
-            ?.copyWith(fontWeight: FontWeight.w800, letterSpacing: -0.3),
-      );
-    }
+    final scheme = Theme.of(context).colorScheme;
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
+        MorphShape(
+            from: MaterialShapes.sunny, size: 14, color: scheme.tertiary),
+        const SizedBox(width: 8),
         Expanded(
           child: Text(
             title,
@@ -1531,12 +1530,11 @@ class _StreamScreenState extends State<StreamScreen>
             overflow: TextOverflow.ellipsis,
             style: Theme.of(context)
                 .textTheme
-                .titleLarge
-                ?.copyWith(fontWeight: FontWeight.w800, letterSpacing: -0.3),
+                .headlineSmall
+                ?.copyWith(fontWeight: FontWeight.w800, letterSpacing: -0.6),
           ),
         ),
-        const SizedBox(width: 8),
-        trailing,
+        if (trailing != null) ...[const SizedBox(width: 8), trailing],
       ],
     );
   }

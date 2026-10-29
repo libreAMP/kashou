@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:material_new_shapes/material_new_shapes.dart';
 
 import '../theme/radii.dart';
 import '../utils/platform.dart';
+import 'morph_shape.dart';
 import 'now_playing_bars.dart';
 import 'scrolling_text.dart';
 
@@ -49,7 +51,7 @@ class StreamSongRow extends StatelessWidget {
 
     return Material(
       color: isCurrent
-          ? scheme.primary.withValues(alpha: 0.12)
+          ? scheme.secondaryContainer
           : (isDesktop ? Colors.transparent : scheme.surfaceContainerLow),
       borderRadius: radius,
       clipBehavior: Clip.antiAlias,
@@ -63,41 +65,53 @@ class StreamSongRow extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
           child: Row(
             children: [
-              SizedBox(
-                width: 52,
-                height: 52,
-                child: Stack(
-                  children: [
-                    Positioned.fill(child: artwork),
-                    Positioned.fill(
-                      child: IgnorePointer(
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(
-                              color:
-                                  scheme.outlineVariant.withValues(alpha: 0.28),
+              if (isCurrent)
+                MorphShape(
+                  from: MaterialShapes.square,
+                  to: MaterialShapes.cookie9Sided,
+                  morphed: true,
+                  size: 52,
+                  child: SizedBox.square(
+                    dimension: 52,
+                    child: Stack(
+                      children: [
+                        Positioned.fill(child: artwork),
+                        if (playing)
+                          Positioned.fill(
+                            child: ColoredBox(
+                              color: scheme.primary.withValues(alpha: 0.55),
+                              child: const Center(
+                                child: NowPlayingBars(
+                                    color: Colors.white, size: 18),
+                              ),
                             ),
                           ),
-                        ),
-                      ),
+                      ],
                     ),
-                    if (playing)
+                  ),
+                )
+              else
+                SizedBox.square(
+                  dimension: 52,
+                  child: Stack(
+                    children: [
+                      Positioned.fill(child: artwork),
                       Positioned.fill(
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(16),
-                          child: ColoredBox(
-                            color: Colors.black.withValues(alpha: 0.38),
-                            child: const Center(
-                              child:
-                                  NowPlayingBars(color: Colors.white, size: 18),
+                        child: IgnorePointer(
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: scheme.outlineVariant
+                                    .withValues(alpha: 0.28),
+                              ),
                             ),
                           ),
                         ),
                       ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -110,7 +124,7 @@ class StreamSongRow extends StatelessWidget {
                         fontWeight: FontWeight.w600,
                         fontSize: isDesktop ? 14.5 : 15,
                         height: 1.25,
-                        color: isCurrent ? scheme.primary : null,
+                        color: isCurrent ? scheme.onSecondaryContainer : null,
                       ),
                     ),
                     const SizedBox(height: 2),
@@ -127,26 +141,22 @@ class StreamSongRow extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 4),
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
+              Tooltip(
+                message: playing ? 'Pause' : 'Play',
+                child: MorphShape(
+                  from: MaterialShapes.circle,
+                  to: MaterialShapes.cookie4Sided,
+                  morphed: isCurrent,
+                  size: 40,
                   color: isCurrent ? scheme.primary : scheme.secondaryContainer,
-                  shape: BoxShape.circle,
-                ),
-                child: IconButton(
-                  icon: Icon(
+                  onTap: onTap,
+                  child: Icon(
                     playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
                     color: isCurrent
                         ? scheme.onPrimary
                         : scheme.onSecondaryContainer,
                     size: 21,
                   ),
-                  padding: EdgeInsets.zero,
-                  constraints:
-                      const BoxConstraints.tightFor(width: 36, height: 36),
-                  tooltip: isDesktop ? (playing ? 'Pause' : 'Play') : null,
-                  onPressed: onTap,
                 ),
               ),
             ],

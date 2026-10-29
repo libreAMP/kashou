@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:material_new_shapes/material_new_shapes.dart';
 import 'package:provider/provider.dart';
 import '../providers/audio_provider.dart';
 import '../services/custom_equalizer.dart';
 import '../theme/app_theme.dart';
 import '../theme/radii.dart';
 import 'eq_band.dart';
+import 'morph_shape.dart';
 import 'settings_tiles.dart';
 
 const _presetIcons = {
@@ -92,7 +94,22 @@ class EqualizerWidget extends StatelessWidget {
                   padding: const EdgeInsets.fromLTRB(20, 16, 12, 0),
                   child: Row(
                     children: [
-                      Icon(Icons.graphic_eq_rounded, size: 28, color: fg),
+                      MorphShape(
+                        from: MaterialShapes.square,
+                        to: MaterialShapes.sunny,
+                        morphed: on,
+                        spin: on,
+                        size: 48,
+                        color: on
+                            ? scheme.primary
+                            : scheme.surfaceContainerHighest,
+                        child: Icon(
+                          Icons.graphic_eq_rounded,
+                          size: 28,
+                          color:
+                              on ? scheme.onPrimary : scheme.onSurfaceVariant,
+                        ),
+                      ),
                       const SizedBox(width: 14),
                       Expanded(
                         child: Column(
@@ -100,7 +117,7 @@ class EqualizerWidget extends StatelessWidget {
                           children: [
                             Text(
                               'Equalizer',
-                              style: text.titleLarge?.copyWith(
+                              style: text.headlineSmall?.copyWith(
                                 fontWeight: FontWeight.w800,
                                 color: on
                                     ? scheme.onPrimaryContainer
@@ -313,56 +330,48 @@ class EqualizerWidget extends StatelessWidget {
                       final label = _cleanPreset(presets[i]);
                       final selected = audio.activePreset == presets[i];
                       final fg = selected
-                          ? scheme.onPrimaryContainer
+                          ? scheme.onPrimary
                           : on
                               ? scheme.onSurface
                               : scheme.onSurfaceVariant;
-                      return AnimatedContainer(
-                        duration: EMotion.medium,
-                        curve: EMotion.emphasized,
-                        width: 88,
-                        decoration: BoxDecoration(
-                          color: selected
-                              ? scheme.primaryContainer
-                              : scheme.surfaceContainerHigh,
-                          borderRadius:
-                              BorderRadius.circular(selected ? 44 : rMd),
-                        ),
-                        child: Material(
-                          type: MaterialType.transparency,
-                          child: InkWell(
-                            borderRadius:
-                                BorderRadius.circular(selected ? 44 : rMd),
-                            onTap: on
-                                ? () => audio.applyEqualizerPreset(presets[i])
-                                : null,
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
+                      return GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: on
+                            ? () => audio.applyEqualizerPreset(presets[i])
+                            : null,
+                        child: SizedBox(
+                          width: 88,
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              MorphShape(
+                                from: MaterialShapes.square,
+                                to: MaterialShapes.cookie9Sided,
+                                morphed: selected,
+                                size: 56,
+                                color: selected
+                                    ? scheme.primary
+                                    : scheme.surfaceContainerHighest,
+                                child: Icon(
                                   _presetIcons[label.toLowerCase()] ??
                                       Icons.graphic_eq_rounded,
                                   color: fg,
                                 ),
-                                const SizedBox(height: 6),
-                                Padding(
-                                  padding:
-                                      const EdgeInsets.symmetric(horizontal: 6),
-                                  child: Text(
-                                    label,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .labelMedium
-                                        ?.copyWith(
-                                          color: fg,
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                  ),
-                                ),
-                              ],
-                            ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                label,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .labelMedium
+                                    ?.copyWith(
+                                      color: scheme.onSurface,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                              ),
+                            ],
                           ),
                         ),
                       );

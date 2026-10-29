@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:material_new_shapes/material_new_shapes.dart';
 import 'package:provider/provider.dart';
 import '../models/track.dart';
 import '../providers/audio_provider.dart';
@@ -7,6 +8,7 @@ import '../providers/library_provider.dart';
 import '../theme/app_theme.dart';
 import '../theme/radii.dart';
 import '../utils/platform.dart';
+import 'morph_shape.dart';
 import 'now_playing_bars.dart';
 import 'track_options_sheet.dart';
 
@@ -91,7 +93,7 @@ class _TrackListItemState extends State<TrackListItem> {
                 padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
                 decoration: BoxDecoration(
                   color: isCurrent
-                      ? colorScheme.primary.withValues(alpha: 0.12)
+                      ? colorScheme.secondaryContainer
                       : Colors.transparent,
                   borderRadius: radius,
                   border: Border.all(
@@ -101,18 +103,6 @@ class _TrackListItemState extends State<TrackListItem> {
                 ),
                 child: Row(
                   children: [
-                    AnimatedContainer(
-                      duration: EMotion.fast,
-                      width: 3,
-                      height: isCurrent ? 24 : 0,
-                      decoration: BoxDecoration(
-                        color: isCurrent
-                            ? colorScheme.primary
-                            : Colors.transparent,
-                        borderRadius: BorderRadius.circular(rFull),
-                      ),
-                    ),
-                    const SizedBox(width: 7),
                     if (widget.index != null) ...[
                       SizedBox(
                         width: isTv ? 32 : 24,
@@ -130,7 +120,7 @@ class _TrackListItemState extends State<TrackListItem> {
                       ),
                       const SizedBox(width: 4),
                     ],
-                    _artwork(theme, isPlaying),
+                    _artwork(theme, isPlaying, isCurrent),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
@@ -141,9 +131,10 @@ class _TrackListItemState extends State<TrackListItem> {
                             widget.track.title,
                             style: theme.textTheme.bodyLarge?.copyWith(
                               color: isCurrent
-                                  ? colorScheme.primary
+                                  ? colorScheme.onSecondaryContainer
                                   : colorScheme.onSurface,
-                              fontWeight: FontWeight.w600,
+                              fontWeight:
+                                  isCurrent ? FontWeight.w800 : FontWeight.w600,
                               fontSize: isTv ? 17 : null,
                               height: 1.25,
                             ),
@@ -196,23 +187,43 @@ class _TrackListItemState extends State<TrackListItem> {
     );
   }
 
-  Widget _artwork(ThemeData theme, bool isPlaying) {
+  Widget _artwork(ThemeData theme, bool isPlaying, bool isCurrent) {
     final size = isTv ? 60.0 : 52.0;
+    final art = ColoredBox(
+      color: theme.colorScheme.surfaceContainerHighest,
+      child: _artFor(widget.track, theme.colorScheme),
+    );
+    if (isCurrent) {
+      return MorphShape(
+        from: MaterialShapes.square,
+        to: MaterialShapes.cookie9Sided,
+        morphed: true,
+        size: size,
+        child: SizedBox.square(
+          dimension: size,
+          child: Stack(
+            children: [
+              Positioned.fill(child: art),
+              if (isPlaying)
+                Positioned.fill(
+                  child: ColoredBox(
+                    color: theme.colorScheme.primary.withValues(alpha: 0.55),
+                    child: const Center(
+                      child: NowPlayingBars(color: Colors.white, size: 18),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      );
+    }
     final radius = BorderRadius.circular(rMd - 4);
-    return SizedBox(
-      width: size,
-      height: size,
+    return SizedBox.square(
+      dimension: size,
       child: Stack(
         children: [
-          Positioned.fill(
-            child: ClipRRect(
-              borderRadius: radius,
-              child: ColoredBox(
-                color: theme.colorScheme.surfaceContainerHighest,
-                child: _artFor(widget.track, theme.colorScheme),
-              ),
-            ),
-          ),
+          Positioned.fill(child: ClipRRect(borderRadius: radius, child: art)),
           Positioned.fill(
             child: IgnorePointer(
               child: DecoratedBox(
@@ -226,18 +237,6 @@ class _TrackListItemState extends State<TrackListItem> {
               ),
             ),
           ),
-          if (isPlaying)
-            Positioned.fill(
-              child: ClipRRect(
-                borderRadius: radius,
-                child: ColoredBox(
-                  color: Colors.black.withValues(alpha: 0.38),
-                  child: const Center(
-                    child: NowPlayingBars(color: Colors.white, size: 18),
-                  ),
-                ),
-              ),
-            ),
         ],
       ),
     );

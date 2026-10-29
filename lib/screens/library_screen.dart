@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:material_new_shapes/material_new_shapes.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -16,6 +17,7 @@ import '../widgets/loading_indicator.dart';
 import '../widgets/m3e_list.dart';
 import '../widgets/m3e_menu.dart';
 import '../widgets/m3e_progress.dart';
+import '../widgets/morph_shape.dart';
 import '../widgets/settings_tiles.dart';
 import '../widgets/sheet_handle.dart';
 import '../utils/app_messenger.dart';
@@ -623,12 +625,10 @@ class _LibraryScreenState extends State<LibraryScreen>
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
       child: Row(
         children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.primaryContainer.withValues(alpha: 0.5),
-              borderRadius: BorderRadius.circular(10),
-            ),
+          MorphShape(
+            from: MaterialShapes.cookie6Sided,
+            size: 36,
+            color: theme.colorScheme.primaryContainer,
             child: Icon(
               icon,
               size: 20,
@@ -639,12 +639,23 @@ class _LibraryScreenState extends State<LibraryScreen>
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                title,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: theme.colorScheme.onSurface,
-                ),
+              Row(
+                children: [
+                  MorphShape(
+                    from: MaterialShapes.sunny,
+                    size: 14,
+                    color: theme.colorScheme.tertiary,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    title,
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.6,
+                      color: theme.colorScheme.onSurface,
+                    ),
+                  ),
+                ],
               ),
               Text(
                 subtitle,

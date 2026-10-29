@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../screens/downloads_screen.dart';
 import '../theme/app_theme.dart';
 import '../theme/radii.dart';
+import 'glass_surface.dart';
 import 'mini_player.dart';
 
 class NavItem {
@@ -98,7 +99,6 @@ class _PlayerNavBarState extends State<PlayerNavBar>
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     final bottomInset = MediaQuery.of(context).padding.bottom;
     final t = (_expandAnim.value * (1 - _slide)).clamp(0.0, 1.0);
     final radius = BorderRadius.vertical(
@@ -111,52 +111,42 @@ class _PlayerNavBarState extends State<PlayerNavBar>
         ? null
         : (compact == null ? maxW : compact + (maxW - compact) * t);
 
-    final pill = Material(
-      color: scheme.surfaceContainerHigh,
+    final pill = GlassSurface(
       borderRadius: radius,
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (t > 0)
-            ClipRect(
-              child: Align(
-                alignment: Alignment.topCenter,
-                heightFactor: t,
-                child: MiniPlayer(
-                  embedded: true,
-                  onTap: widget.onPlayerTap,
-                  onDismiss: widget.onPlayerDismiss,
-                  onSlideProgress: (v) => setState(() => _slide = v),
-                  onExpandDragUpdate: widget.onPlayerExpandDragUpdate,
-                  onExpandDragEnd: widget.onPlayerExpandDragEnd,
+      shadow: true,
+      shadowBlur: 22,
+      shadowOffset: const Offset(0, 6),
+      child: Material(
+        type: MaterialType.transparency,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (t > 0)
+              ClipRect(
+                child: Align(
+                  alignment: Alignment.topCenter,
+                  heightFactor: t,
+                  child: MiniPlayer(
+                    embedded: true,
+                    onTap: widget.onPlayerTap,
+                    onDismiss: widget.onPlayerDismiss,
+                    onSlideProgress: (v) => setState(() => _slide = v),
+                    onExpandDragUpdate: widget.onPlayerExpandDragUpdate,
+                    onExpandDragEnd: widget.onPlayerExpandDragEnd,
+                  ),
                 ),
               ),
+            SizedBox(
+              key: _navKey,
+              child: _BubbleNavBar(
+                items: widget.items,
+                selectedIndex: widget.selectedIndex,
+                onSelected: widget.onDestinationSelected,
+              ),
             ),
-          SizedBox(
-            key: _navKey,
-            child: _BubbleNavBar(
-              items: widget.items,
-              selectedIndex: widget.selectedIndex,
-              onSelected: widget.onDestinationSelected,
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
-    );
-
-    final shadowed = DecoratedBox(
-      decoration: BoxDecoration(
-        borderRadius: radius,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.25),
-            blurRadius: 20,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: pill,
     );
 
     return Padding(
@@ -164,7 +154,7 @@ class _PlayerNavBarState extends State<PlayerNavBar>
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.center,
-        children: [SizedBox(width: width, child: shadowed)],
+        children: [SizedBox(width: width, child: pill)],
       ),
     );
   }
@@ -238,7 +228,8 @@ class _NavBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final tint = selected ? scheme.onPrimaryContainer : scheme.onSurfaceVariant;
+    final tint =
+        selected ? scheme.onSecondaryContainer : scheme.onSurfaceVariant;
     return AnimatedContainer(
       duration: EMotion.medium,
       curve: EMotion.emphasized,
@@ -248,7 +239,7 @@ class _NavBubble extends StatelessWidget {
       ),
       decoration: BoxDecoration(
         color: selected
-            ? scheme.primaryContainer
+            ? scheme.secondaryContainer
             : (hovered
                 ? scheme.onSurface.withValues(alpha: 0.08)
                 : Colors.transparent),
@@ -260,7 +251,7 @@ class _NavBubble extends StatelessWidget {
           Icon(
             selected ? item.selectedIcon : item.icon,
             color: tint,
-            size: 26,
+            size: selected ? 28 : 26,
           ),
           AnimatedSize(
             duration: EMotion.medium,
@@ -483,9 +474,8 @@ class _RailTileState extends State<_RailTile> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final fg = widget.selected
-        ? scheme.onPrimaryContainer
-        : scheme.onSurfaceVariant;
+    final fg =
+        widget.selected ? scheme.onPrimaryContainer : scheme.onSurfaceVariant;
     final bg = widget.selected
         ? scheme.primaryContainer
         : (_focused

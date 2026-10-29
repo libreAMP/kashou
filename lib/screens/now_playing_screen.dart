@@ -5,6 +5,7 @@ import 'dart:math' as math;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart' hide RepeatMode;
 import 'package:flutter/services.dart';
+import 'package:material_new_shapes/material_new_shapes.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../providers/audio_provider.dart';
@@ -21,6 +22,7 @@ import '../providers/library_provider.dart';
 import '../utils/hero_transitions.dart';
 import '../theme/app_theme.dart';
 import '../widgets/loading_indicator.dart';
+import '../widgets/morph_shape.dart';
 import '../widgets/pressable.dart';
 import '../widgets/scrolling_text.dart';
 import '../widgets/sheet_handle.dart';
@@ -50,10 +52,11 @@ class NowPlayingScreen extends StatefulWidget {
 
 class _NowPlayingScreenState extends State<NowPlayingScreen> {
   bool _findingArtist = false;
+  final _down = <String>{};
   double _doubleTapDx = 0;
   int _seekFlash = 1;
   bool _seekFlashOn = false;
-  bool _playDown = false;
+  int _seekDown = 0;
   Timer? _seekFlashTimer;
   bool _lyricsOpen = false;
   LyricsResult? _lyrics;
@@ -585,6 +588,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
         _buildBarIcon(
           context,
           icon: Icons.equalizer,
+          active: context
+              .select<AudioProvider, bool>((audio) => audio.equalizerEnabled),
           tooltip: 'Equalizer',
           first: false,
           onTap: () => _showEqualizerSheet(context),
@@ -655,25 +660,43 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       {required IconData icon,
       required String tooltip,
       required bool first,
-      required VoidCallback onTap}) {
+      required VoidCallback onTap,
+      bool active = false}) {
     final scheme = Theme.of(context).colorScheme;
+    final inner = Radius.circular(_down.contains(tooltip) ? 24 : 10);
+    const outer = Radius.circular(24);
     final radius = BorderRadius.horizontal(
-      left: Radius.circular(first ? 18 : 10),
-      right: Radius.circular(first ? 10 : 18),
+      left: first ? outer : inner,
+      right: first ? inner : outer,
     );
     return PressableScale(
       child: Tooltip(
         message: tooltip,
         child: Material(
-          color: scheme.surfaceContainerHigh,
-          borderRadius: radius,
+          color: Colors.transparent,
           child: InkWell(
             borderRadius: radius,
             onTap: onTap,
-            child: SizedBox(
-              width: 46,
-              height: 44,
-              child: Icon(icon, size: 22, color: scheme.onSurfaceVariant),
+            onHighlightChanged: (down) => setState(
+                () => down ? _down.add(tooltip) : _down.remove(tooltip)),
+            child: AnimatedContainer(
+              duration: EMotion.medium,
+              curve: EMotion.emphasized,
+              width: 52,
+              height: 48,
+              decoration: BoxDecoration(
+                color: active
+                    ? scheme.secondaryContainer
+                    : scheme.surfaceContainerHigh,
+                borderRadius: radius,
+              ),
+              child: Icon(
+                icon,
+                size: 24,
+                color: active
+                    ? scheme.onSecondaryContainer
+                    : scheme.onSurfaceVariant,
+              ),
             ),
           ),
         ),
@@ -752,27 +775,27 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
         velocity < 0 ? audio.skipNext() : audio.skipPrevious();
       },
       child: Stack(
+        clipBehavior: Clip.none,
         children: [
+          Positioned(
+            left: -dimension * 0.05,
+            top: -dimension * 0.05,
+            child: MorphShape(
+              from: MaterialShapes.softBurst,
+              size: dimension * 1.1,
+              spin: context.watch<AudioProvider>().isPlaying,
+              color: colorScheme.tertiaryContainer.withValues(alpha: 0.55),
+            ),
+          ),
           Hero(
             tag: 'album_art_${track.id}',
             createRectTween: albumArtRectTween,
             flightShuttleBuilder: albumArtFlightShuttleBuilder,
-            child: Container(
+            child: SizedBox(
               width: dimension,
               height: dimension,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(rLg),
-                boxShadow: [
-                  BoxShadow(
-                    color: colorScheme.primary.withValues(alpha: 0.22),
-                    blurRadius: 48,
-                    spreadRadius: 4,
-                    offset: const Offset(0, 18),
-                  ),
-                ],
-              ),
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(rLg),
+                borderRadius: BorderRadius.circular(rXl + 8),
                 child: image,
               ),
             ),
@@ -929,8 +952,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           text: track.title,
           style: theme.textTheme.headlineSmall?.copyWith(
             fontWeight: FontWeight.w800,
-            letterSpacing: -0.4,
-            fontSize: 24,
+            letterSpacing: -0.8,
+            fontSize: 30,
             height: 1.2,
           ),
         ),
@@ -946,8 +969,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                 track.artist,
                 textAlign: TextAlign.center,
                 style: theme.textTheme.titleMedium?.copyWith(
-                  color: colorScheme.onSurfaceVariant.withValues(alpha: 0.9),
-                  fontWeight: FontWeight.w500,
+                  color: colorScheme.primary,
+                  fontWeight: FontWeight.w700,
                   fontSize: 16,
                 ),
                 maxLines: 2,
@@ -991,19 +1014,19 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       constraints: const BoxConstraints(maxWidth: 280),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHigh,
+        color: colorScheme.tertiaryContainer,
         borderRadius: BorderRadius.circular(999),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 14, color: colorScheme.primary),
+          Icon(icon, size: 14, color: colorScheme.onTertiaryContainer),
           const SizedBox(width: 4),
           Flexible(
             child: Text(
               label,
               style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                    color: colorScheme.onSurface,
+                    color: colorScheme.onTertiaryContainer,
                     fontSize: 12,
                   ),
               overflow: TextOverflow.ellipsis,
@@ -1067,18 +1090,20 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
         PressableScale(
           child: _buildSeekButton(
             context,
-            icon: Icons.skip_previous_outlined,
+            icon: Icons.skip_previous_rounded,
+            prev: true,
             tooltip: 'Previous',
             onTap: audio.skipPrevious,
           ),
         ),
-        const SizedBox(width: 16),
+        const SizedBox(width: 8),
         PressableScale(child: _buildPlayButton(context, audio)),
-        const SizedBox(width: 16),
+        const SizedBox(width: 8),
         PressableScale(
           child: _buildSeekButton(
             context,
-            icon: Icons.skip_next_outlined,
+            icon: Icons.skip_next_rounded,
+            prev: false,
             tooltip: 'Next',
             onTap: audio.skipNext,
           ),
@@ -1089,21 +1114,37 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
 
   Widget _buildSeekButton(BuildContext context,
       {required IconData icon,
+      required bool prev,
       required String tooltip,
       required VoidCallback onTap}) {
     final colorScheme = Theme.of(context).colorScheme;
-    const radius = BorderRadius.all(Radius.circular(rFull));
+    const outer = Radius.circular(32);
+    final inner = Radius.circular(_seekDown == (prev ? -1 : 1) ? 32 : 12);
+    final radius = BorderRadius.horizontal(
+      left: prev ? outer : inner,
+      right: prev ? inner : outer,
+    );
 
-    final button = Material(
-      color: colorScheme.surfaceContainerHighest,
-      borderRadius: radius,
-      child: InkWell(
+    final button = AnimatedContainer(
+      duration: EMotion.fast,
+      curve: EMotion.standard,
+      decoration: BoxDecoration(
+        color: colorScheme.secondaryContainer,
         borderRadius: radius,
-        onTap: onTap,
-        child: SizedBox(
-          width: 64,
-          height: 64,
-          child: Icon(icon, size: 28, color: colorScheme.onSurfaceVariant),
+      ),
+      child: Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          borderRadius: radius,
+          onHighlightChanged: (v) =>
+              setState(() => _seekDown = v ? (prev ? -1 : 1) : 0),
+          onTap: onTap,
+          child: SizedBox(
+            width: 72,
+            height: 64,
+            child:
+                Icon(icon, size: 30, color: colorScheme.onSecondaryContainer),
+          ),
         ),
       ),
     );
@@ -1116,54 +1157,41 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     final isLoading = audio.isLoadingTrack;
     final isPlaying = audio.isPlaying;
 
-    final radius = BorderRadius.circular(_playDown ? 30 : 46);
-    final button = AnimatedContainer(
-      duration: EMotion.fast,
-      curve: EMotion.standard,
-      decoration: BoxDecoration(
-        color: colorScheme.primary,
-        borderRadius: radius,
-        boxShadow: [
-          BoxShadow(
-            color: colorScheme.primary.withValues(alpha: 0.22),
-            blurRadius: 38,
-            spreadRadius: 2,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: InkWell(
-        onHighlightChanged: (v) => setState(() => _playDown = v),
-        borderRadius: radius,
-        onTap: isLoading ? null : audio.togglePlayPause,
-        child: SizedBox(
-          width: 92,
-          height: 92,
-          child: Center(
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 240),
-              switchInCurve: Curves.easeOutCubic,
-              transitionBuilder: (child, anim) => FadeTransition(
-                opacity: anim,
-                child: ScaleTransition(scale: anim, child: child),
+    final button = Stack(
+      alignment: Alignment.center,
+      children: [
+        MorphShape(
+          from: MaterialShapes.square,
+          to: MaterialShapes.cookie9Sided,
+          morphed: isPlaying,
+          spin: isPlaying,
+          size: 96,
+          color: colorScheme.primary,
+          onTap: isLoading ? null : audio.togglePlayPause,
+          child: AnimatedSwitcher(
+            duration: EMotion.medium,
+            switchInCurve: EMotion.standard,
+            transitionBuilder: (child, anim) => FadeTransition(
+              opacity: anim,
+              child: ScaleTransition(
+                scale: Tween(begin: 0.7, end: 1.0).animate(anim),
+                child: child,
               ),
-              child: isLoading
-                  ? KashouLoader(
-                      key: const ValueKey('pl_load'),
-                      size: 26,
-                      color: colorScheme.onPrimary)
-                  : Icon(
-                      isPlaying
-                          ? Icons.pause_rounded
-                          : Icons.play_arrow_rounded,
-                      key: ValueKey(isPlaying),
-                      size: 46,
-                      color: colorScheme.onPrimary,
-                    ),
             ),
+            child: isLoading
+                ? KashouLoader(
+                    key: const ValueKey('pl_load'),
+                    size: 26,
+                    color: colorScheme.onPrimary)
+                : Icon(
+                    isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                    key: ValueKey(isPlaying),
+                    size: 44,
+                    color: colorScheme.onPrimary,
+                  ),
           ),
         ),
-      ),
+      ],
     );
     if (!isDesktop) return button;
     return Tooltip(
@@ -1177,83 +1205,107 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     final isShuffle = audio.shuffleMode != ShuffleMode.off;
     final isRepeatActive = audio.repeatMode != RepeatMode.off;
     final isFavorite = library.isTrackFavorite(audio.currentTrack?.id ?? '');
-    final isOnlineTrack = audio.currentTrack?.isOnline ?? false;
+    final isOnlineTrack = audio.currentTrack != null &&
+        (audio.currentTrack!.sourceUrl ?? audio.currentTrack!.path)
+            .startsWith('http');
 
     final colorScheme = Theme.of(context).colorScheme;
     return Center(
-      child: Container(
-        padding: const EdgeInsets.all(4),
-        decoration: BoxDecoration(
-          color: colorScheme.surfaceContainerHigh.withValues(alpha: 0.85),
-          borderRadius: BorderRadius.circular(rFull),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _buildSecondaryIconButton(
-              context,
-              icon: _getShuffleIcon(audio.shuffleMode),
-              tooltip: 'Shuffle',
-              active: isShuffle,
-              onTap: () {
-                final newMode = audio.shuffleMode == ShuffleMode.off
-                    ? ShuffleMode.songs
-                    : ShuffleMode.off;
-                audio.setShuffleMode(newMode);
-              },
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(rXl),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
+            decoration: BoxDecoration(
+              color: colorScheme.surfaceContainerHigh.withValues(alpha: 0.7),
+              borderRadius: BorderRadius.circular(rXl),
             ),
-            _buildSecondaryIconButton(
-              context,
-              icon: _getRepeatIcon(audio.repeatMode),
-              tooltip: _repeatLabel(audio.repeatMode),
-              active: isRepeatActive,
-              onTap: () {
-                final modes = RepeatMode.values;
-                final currentIndex = modes.indexOf(audio.repeatMode);
-                final nextIndex = (currentIndex + 1) % modes.length;
-                audio.setRepeatMode(modes[nextIndex]);
-              },
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildSecondaryIconButton(
+                  context,
+                  icon: _getShuffleIcon(audio.shuffleMode),
+                  tooltip: 'Shuffle',
+                  active: isShuffle,
+                  tileShape: const BorderRadius.horizontal(
+                    left: Radius.circular(30),
+                    right: Radius.circular(16),
+                  ),
+                  onTap: () {
+                    final newMode = audio.shuffleMode == ShuffleMode.off
+                        ? ShuffleMode.songs
+                        : ShuffleMode.off;
+                    audio.setShuffleMode(newMode);
+                  },
+                ),
+                _buildSecondaryIconButton(
+                  context,
+                  icon: _getRepeatIcon(audio.repeatMode),
+                  tooltip: _repeatLabel(audio.repeatMode),
+                  active: isRepeatActive,
+                  onTap: () {
+                    final modes = RepeatMode.values;
+                    final currentIndex = modes.indexOf(audio.repeatMode);
+                    final nextIndex = (currentIndex + 1) % modes.length;
+                    audio.setRepeatMode(modes[nextIndex]);
+                  },
+                ),
+                _buildSecondaryIconButton(
+                  context,
+                  icon: isFavorite ? Icons.favorite : Icons.favorite_border,
+                  tooltip: isFavorite ? 'Remove from likes' : 'Add to likes',
+                  active: isFavorite,
+                  onTap: () {
+                    if (audio.currentTrack != null) {
+                      library.toggleFavorite(audio.currentTrack!);
+                    }
+                  },
+                ),
+                _buildSecondaryIconButton(
+                  context,
+                  icon: _lyricsOpen
+                      ? Icons.lyrics_rounded
+                      : Icons.lyrics_outlined,
+                  tooltip: _lyricsOpen ? 'Hide lyrics' : 'Lyrics',
+                  active: _lyricsOpen,
+                  onTap: () {
+                    final track = audio.currentTrack;
+                    if (track != null) _toggleLyrics(track);
+                  },
+                ),
+                _buildSecondaryIconButton(
+                  context,
+                  icon: Icons.queue_music_rounded,
+                  tooltip: 'View queue',
+                  active: false,
+                  tileShape: isOnlineTrack
+                      ? null
+                      : const BorderRadius.horizontal(
+                          left: Radius.circular(16),
+                          right: Radius.circular(30),
+                        ),
+                  onTap: () => _showQueueSheet(context),
+                ),
+                if (isOnlineTrack)
+                  _buildSecondaryIconButton(
+                    context,
+                    icon: Icons.download,
+                    tooltip: 'Download track',
+                    tileShape: const BorderRadius.horizontal(
+                      left: Radius.circular(16),
+                      right: Radius.circular(30),
+                    ),
+                    onTap: () {
+                      if (audio.currentTrack != null) {
+                        _downloadTrack(context, audio.currentTrack!);
+                      }
+                    },
+                  ),
+              ],
             ),
-            _buildSecondaryIconButton(
-              context,
-              icon: isFavorite ? Icons.favorite : Icons.favorite_border,
-              tooltip: isFavorite ? 'Remove from likes' : 'Add to likes',
-              active: isFavorite,
-              onTap: () {
-                if (audio.currentTrack != null) {
-                  library.toggleFavorite(audio.currentTrack!);
-                }
-              },
-            ),
-            _buildSecondaryIconButton(
-              context,
-              icon: _lyricsOpen ? Icons.lyrics_rounded : Icons.lyrics_outlined,
-              tooltip: _lyricsOpen ? 'Hide lyrics' : 'Lyrics',
-              active: _lyricsOpen,
-              onTap: () {
-                final track = audio.currentTrack;
-                if (track != null) _toggleLyrics(track);
-              },
-            ),
-            _buildSecondaryIconButton(
-              context,
-              icon: Icons.queue_music_rounded,
-              tooltip: 'View queue',
-              active: false,
-              onTap: () => _showQueueSheet(context),
-            ),
-            if (isOnlineTrack)
-              _buildSecondaryIconButton(
-                context,
-                icon: Icons.download,
-                tooltip: 'Download track',
-                onTap: () {
-                  if (audio.currentTrack != null) {
-                    _downloadTrack(context, audio.currentTrack!);
-                  }
-                },
-              ),
-          ],
+          ),
         ),
       ),
     );
@@ -1265,9 +1317,12 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     required String tooltip,
     required VoidCallback onTap,
     bool active = false,
+    BorderRadius? tileShape,
   }) {
     final colorScheme = Theme.of(context).colorScheme;
-    const shape = BorderRadius.all(Radius.circular(rFull));
+    final shape = active || _down.contains(tooltip)
+        ? BorderRadius.circular(rFull)
+        : tileShape ?? BorderRadius.circular(16);
     return PressableScale(
       child: Tooltip(
         message: tooltip,
@@ -1276,13 +1331,19 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           child: InkWell(
             borderRadius: shape,
             onTap: onTap,
+            onHighlightChanged: (down) => setState(
+                () => down ? _down.add(tooltip) : _down.remove(tooltip)),
             child: AnimatedContainer(
-              duration: EMotion.fast,
-              margin: const EdgeInsets.symmetric(horizontal: 2),
-              padding: const EdgeInsets.all(11),
+              duration: EMotion.medium,
+              curve: EMotion.emphasized,
+              margin: const EdgeInsets.symmetric(horizontal: 2.5),
+              padding: EdgeInsets.symmetric(
+                  horizontal: active ? 17 : 11, vertical: 11),
               decoration: BoxDecoration(
-                color:
-                    active ? colorScheme.primaryContainer : Colors.transparent,
+                color: active
+                    ? colorScheme.primaryContainer
+                    : colorScheme.surfaceContainerHighest
+                        .withValues(alpha: 0.5),
                 borderRadius: shape,
               ),
               child: Icon(

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:material_new_shapes/material_new_shapes.dart';
 
 import '../theme/radii.dart';
 import '../utils/platform.dart';
+import 'morph_shape.dart';
 import 'now_playing_bars.dart';
 
 class M3ECoverCard extends StatefulWidget {
@@ -47,7 +49,9 @@ class _M3ECoverCardState extends State<M3ECoverCard> {
     // touch has no hover so the action stays out
     final showAction =
         widget.onPlay != null && (!isDesktop || lifted || widget.playing);
-    final radius = BorderRadius.circular(widget.radius);
+    final radius = BorderRadius.circular(
+      _down ? 16 : (lifted ? 40 : widget.radius),
+    );
 
     return FocusableActionDetector(
       onShowFocusHighlight: (f) => setState(() => _focused = f),
@@ -93,24 +97,6 @@ class _M3ECoverCardState extends State<M3ECoverCard> {
                             child: Stack(
                               clipBehavior: Clip.none,
                               children: [
-                                AnimatedPositioned(
-                                  duration: const Duration(milliseconds: 180),
-                                  curve: Curves.easeOutCubic,
-                                  left: lifted
-                                      ? (compact ? 8 : 10)
-                                      : (compact ? 12 : 16),
-                                  right: lifted
-                                      ? (compact ? 8 : 10)
-                                      : (compact ? 12 : 16),
-                                  bottom: -5,
-                                  height: 16,
-                                  child: DecoratedBox(
-                                    decoration: BoxDecoration(
-                                      color: scheme.secondaryContainer,
-                                      borderRadius: BorderRadius.circular(rSm),
-                                    ),
-                                  ),
-                                ),
                                 Positioned.fill(
                                   child: AnimatedSlide(
                                     offset: lifted
@@ -118,25 +104,26 @@ class _M3ECoverCardState extends State<M3ECoverCard> {
                                         : Offset.zero,
                                     duration: const Duration(milliseconds: 180),
                                     curve: Curves.easeOutCubic,
-                                    child: ClipRRect(
-                                      borderRadius: radius,
-                                      child: widget.art,
-                                    ),
-                                  ),
-                                ),
-                                Positioned.fill(
-                                  child: IgnorePointer(
-                                    child: DecoratedBox(
-                                      decoration: BoxDecoration(
+                                    child: AnimatedContainer(
+                                      duration:
+                                          const Duration(milliseconds: 180),
+                                      curve: Curves.easeOutCubic,
+                                      clipBehavior: Clip.antiAlias,
+                                      decoration:
+                                          BoxDecoration(borderRadius: radius),
+                                      foregroundDecoration: BoxDecoration(
                                         borderRadius: radius,
                                         border: Border.all(
-                                          color: _focused
+                                          color: widget.playing || _focused
                                               ? scheme.primary
                                               : scheme.outlineVariant
                                                   .withValues(alpha: 0.24),
-                                          width: _focused ? 2 : 1,
+                                          width: widget.playing
+                                              ? 3
+                                              : (_focused ? 2 : 1),
                                         ),
                                       ),
+                                      child: widget.art,
                                     ),
                                   ),
                                 ),
@@ -159,7 +146,7 @@ class _M3ECoverCardState extends State<M3ECoverCard> {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: theme.textTheme.bodyMedium?.copyWith(
-                              fontWeight: FontWeight.w600,
+                              fontWeight: FontWeight.w700,
                               fontSize: compact ? 13.5 : (isDesktop ? 15 : 14),
                               height: 1.3,
                               color: widget.playing
@@ -212,31 +199,21 @@ class _PlayAction extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     return Tooltip(
       message: playing ? 'Pause' : 'Play',
-      child: Material(
+      child: MorphShape(
+        from: MaterialShapes.cookie4Sided,
+        to: MaterialShapes.cookie9Sided,
+        morphed: playing,
+        spin: playing,
+        size: size + 6,
         color: scheme.primary,
-        elevation: 3,
-        shadowColor: scheme.shadow.withValues(alpha: 0.4),
-        shape: const CircleBorder(),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          child: SizedBox(
-            width: size,
-            height: size,
-            child: Center(
-              child: playing
-                  ? NowPlayingBars(
-                      color: scheme.onPrimary,
-                      size: size * 0.42,
-                    )
-                  : Icon(
-                      Icons.play_arrow_rounded,
-                      size: size * 0.63,
-                      color: scheme.onPrimary,
-                    ),
-            ),
-          ),
-        ),
+        onTap: onTap,
+        child: playing
+            ? NowPlayingBars(color: scheme.onPrimary, size: size * 0.42)
+            : Icon(
+                Icons.play_arrow_rounded,
+                size: size * 0.63,
+                color: scheme.onPrimary,
+              ),
       ),
     );
   }

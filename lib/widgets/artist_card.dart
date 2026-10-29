@@ -1,12 +1,13 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:material_new_shapes/material_new_shapes.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/artist.dart';
 import '../providers/audio_provider.dart';
 import '../models/track.dart';
 import '../services/ytmusic_service.dart';
-import '../theme/shapes.dart';
+import 'morph_shape.dart';
 import 'track_options_sheet.dart';
 
 class ArtistCard extends StatefulWidget {
@@ -21,6 +22,7 @@ class ArtistCard extends StatefulWidget {
 class _ArtistCardState extends State<ArtistCard> {
   static final Map<String, String> _thumbCache = {};
   String? _thumbUrl;
+  bool _hovered = false;
 
   @override
   void initState() {
@@ -77,7 +79,7 @@ class _ArtistCardState extends State<ArtistCard> {
             ? widget.artist.name[0].toUpperCase()
             : '?',
         style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-              color: scheme.onPrimaryContainer,
+              color: scheme.onTertiaryContainer,
               fontWeight: FontWeight.w800,
             ),
       ),
@@ -96,21 +98,33 @@ class _ArtistCardState extends State<ArtistCard> {
         children: [
           AspectRatio(
             aspectRatio: 1,
-            child: Material(
-              color: scheme.primaryContainer,
-              shape: const WavyCircleBorder(),
-              clipBehavior: Clip.antiAlias,
-              child: hasImage
-                  ? CachedNetworkImage(
-                      imageUrl: _thumbUrl!,
-                      fit: BoxFit.cover,
-                      fadeInDuration: const Duration(milliseconds: 200),
-                      fadeOutDuration: Duration.zero,
-                      placeholderFadeInDuration: Duration.zero,
-                      placeholder: (_, __) => _fallbackLetter(scheme),
-                      errorWidget: (_, __, ___) => _fallbackLetter(scheme),
-                    )
-                  : _fallbackLetter(scheme),
+            child: MouseRegion(
+              onEnter: (_) => setState(() => _hovered = true),
+              onExit: (_) => setState(() => _hovered = false),
+              child: LayoutBuilder(
+                builder: (_, c) => MorphShape(
+                  from: MaterialShapes.cookie12Sided,
+                  to: MaterialShapes.circle,
+                  morphed: _hovered,
+                  size: c.maxWidth,
+                  color: scheme.tertiaryContainer,
+                  child: SizedBox.square(
+                    dimension: c.maxWidth,
+                    child: hasImage
+                        ? CachedNetworkImage(
+                            imageUrl: _thumbUrl!,
+                            fit: BoxFit.cover,
+                            fadeInDuration: const Duration(milliseconds: 200),
+                            fadeOutDuration: Duration.zero,
+                            placeholderFadeInDuration: Duration.zero,
+                            placeholder: (_, __) => _fallbackLetter(scheme),
+                            errorWidget: (_, __, ___) =>
+                                _fallbackLetter(scheme),
+                          )
+                        : _fallbackLetter(scheme),
+                  ),
+                ),
+              ),
             ),
           ),
           const SizedBox(height: 6),

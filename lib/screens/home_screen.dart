@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:material_new_shapes/material_new_shapes.dart';
 import 'package:provider/provider.dart';
 import '../providers/library_provider.dart';
 import '../providers/audio_provider.dart';
@@ -6,6 +7,7 @@ import '../widgets/m3e_refresh.dart';
 import '../widgets/track_list_item.dart';
 import '../widgets/album_card.dart';
 import '../widgets/m3e_cover_card.dart';
+import '../widgets/morph_shape.dart';
 import '../widgets/track_options_sheet.dart';
 import 'track_list_page.dart';
 import '../models/track.dart';
@@ -689,13 +691,18 @@ class HomeScreen extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(
-          title,
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w800,
-                letterSpacing: -0.3,
-                color: colorScheme.onSurface,
-              ),
+        MorphShape(
+            from: MaterialShapes.sunny, size: 14, color: colorScheme.tertiary),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            title,
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.6,
+                  color: colorScheme.onSurface,
+                ),
+          ),
         ),
         if (actionLabel != null)
           TextButton(
@@ -703,8 +710,8 @@ class HomeScreen extends StatelessWidget {
             style: TextButton.styleFrom(
               visualDensity: VisualDensity.compact,
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-              backgroundColor: colorScheme.surfaceContainerHigh,
-              foregroundColor: colorScheme.onSurface,
+              backgroundColor: colorScheme.secondaryContainer,
+              foregroundColor: colorScheme.onSecondaryContainer,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(rFull),
               ),

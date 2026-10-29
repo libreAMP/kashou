@@ -165,15 +165,21 @@ class _BandPainter extends CustomPainter {
     );
     canvas.restore();
 
-    if (enabled && value.abs() > 0.5) {
-      final tip = up ? y + 9 : y - 9;
+    if (enabled) {
+      final flat = value.abs() <= 0.5;
+      final tip = flat ? mid : (up ? y + 9 : y - 9);
       canvas.drawRRect(
         RRect.fromRectAndRadius(
           Rect.fromCenter(
-              center: Offset(size.width / 2, tip), width: w * 0.5, height: 4),
-          const Radius.circular(2),
+              center: Offset(size.width / 2, tip),
+              width: flat ? w * 0.7 : w * 0.5,
+              height: flat ? 6 : 4),
+          const Radius.circular(3),
         ),
-        Paint()..color = (up ? scheme.onPrimary : scheme.onTertiary),
+        Paint()
+          ..color = flat
+              ? scheme.primary
+              : (up ? scheme.onPrimary : scheme.onSecondary),
       );
     }
   }
