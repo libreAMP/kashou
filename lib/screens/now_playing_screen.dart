@@ -639,11 +639,10 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
         ),
         _buildBarIcon(
           context,
-          icon: _lyricsOpen ? Icons.lyrics_rounded : Icons.lyrics_outlined,
-          tooltip: _lyricsOpen ? 'Hide lyrics' : 'Lyrics',
-          active: _lyricsOpen,
+          icon: Icons.share,
+          tooltip: 'Share',
           first: true,
-          onTap: () => _toggleLyrics(track),
+          onTap: () => _shareTrack(context, track),
         ),
         const SizedBox(width: 4),
         _buildBarIcon(
@@ -1206,9 +1205,6 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     final isShuffle = audio.shuffleMode != ShuffleMode.off;
     final isRepeatActive = audio.repeatMode != RepeatMode.off;
     final isFavorite = library.isTrackFavorite(audio.currentTrack?.id ?? '');
-    final isOnlineTrack = audio.currentTrack != null &&
-        (audio.currentTrack!.sourceUrl ?? audio.currentTrack!.path)
-            .startsWith('http');
 
     final colorScheme = Theme.of(context).colorScheme;
     return Center(
@@ -1266,32 +1262,26 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                 ),
                 _buildSecondaryIconButton(
                   context,
+                  icon: _lyricsOpen
+                      ? Icons.lyrics_rounded
+                      : Icons.lyrics_outlined,
+                  tooltip: _lyricsOpen ? 'Hide lyrics' : 'Lyrics',
+                  active: _lyricsOpen,
+                  onTap: () {
+                    final track = audio.currentTrack;
+                    if (track != null) _toggleLyrics(track);
+                  },
+                ),
+                _buildSecondaryIconButton(
+                  context,
                   icon: Icons.queue_music_rounded,
                   tooltip: 'View queue',
-                  active: false,
-                  tileShape: isOnlineTrack
-                      ? null
-                      : const BorderRadius.horizontal(
-                          left: Radius.circular(16),
-                          right: Radius.circular(30),
-                        ),
+                  tileShape: const BorderRadius.horizontal(
+                    left: Radius.circular(16),
+                    right: Radius.circular(30),
+                  ),
                   onTap: () => _showQueueSheet(context),
                 ),
-                if (isOnlineTrack)
-                  _buildSecondaryIconButton(
-                    context,
-                    icon: Icons.download,
-                    tooltip: 'Download track',
-                    tileShape: const BorderRadius.horizontal(
-                      left: Radius.circular(16),
-                      right: Radius.circular(30),
-                    ),
-                    onTap: () {
-                      if (audio.currentTrack != null) {
-                        _downloadTrack(context, audio.currentTrack!);
-                      }
-                    },
-                  ),
               ],
             ),
           ),
@@ -1458,10 +1448,6 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(rXl)),
-      ),
       builder: (context) {
         return DraggableScrollableSheet(
           initialChildSize: 0.7,
@@ -1753,7 +1739,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                   ),
                 ),
               ),
-              ListTile(
+              SheetTile(
                 leading: const Icon(Icons.add_rounded),
                 title: const Text('New playlist'),
                 onTap: () async {
@@ -1768,7 +1754,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                   shrinkWrap: true,
                   children: [
                     for (final p in library.playlists)
-                      ListTile(
+                      SheetTile(
                         leading: const Icon(Icons.queue_music_rounded),
                         title: Text(p.name,
                             maxLines: 1, overflow: TextOverflow.ellipsis),
@@ -1805,22 +1791,13 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
 
   Widget _buildMoreOptionsBody(
       BuildContext sheetContext, BuildContext rootContext) {
-    final scheme = Theme.of(sheetContext).colorScheme;
     return SafeArea(
       child: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             if (!isDesktop)
-              Container(
-                margin: const EdgeInsets.symmetric(vertical: 12),
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: scheme.onSurfaceVariant.withValues(alpha: 0.4),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              )
+              sheetHandle(sheetContext)
             else
               const SizedBox(height: 16),
             Padding(
@@ -1837,7 +1814,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                       const SizedBox(height: 12),
                       _sheetCard(context, [
                         if (!isOnline)
-                          ListTile(
+                          SheetTile(
                             leading: const Icon(Icons.edit_rounded),
                             title: const Text('Edit Metadata'),
                             onTap: () {
@@ -1851,7 +1828,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                               );
                             },
                           ),
-                        ListTile(
+                        SheetTile(
                           leading: const Icon(Icons.playlist_add_rounded),
                           title: const Text('Add to Playlist'),
                           onTap: () {
@@ -1859,7 +1836,16 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                             _showAddToPlaylist(rootContext, current);
                           },
                         ),
-                        ListTile(
+                        if (isOnline)
+                          SheetTile(
+                            leading: const Icon(Icons.download_rounded),
+                            title: const Text('Download'),
+                            onTap: () {
+                              Navigator.pop(sheetContext);
+                              _downloadTrack(rootContext, current);
+                            },
+                          ),
+                        SheetTile(
                           leading: const Icon(Icons.share_rounded),
                           title: const Text('Share'),
                           onTap: () async {
@@ -1867,7 +1853,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                             await _shareTrack(rootContext, current);
                           },
                         ),
-                        ListTile(
+                        SheetTile(
                           leading: const Icon(Icons.person_rounded),
                           title: const Text('View artist'),
                           onTap: () {
@@ -1875,7 +1861,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                             _openArtist(current);
                           },
                         ),
-                        ListTile(
+                        SheetTile(
                           leading: const Icon(Icons.info_outline),
                           title: const Text('Track Info'),
                           onTap: () {
@@ -1961,22 +1947,11 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
   }
 
   Widget _sheetCard(BuildContext context, List<Widget> children) {
-    final scheme = Theme.of(context).colorScheme;
-    final rows = <Widget>[];
-    for (var i = 0; i < children.length; i++) {
-      if (i > 0) {
-        rows.add(Divider(
-            height: 1,
-            indent: 56,
-            color: scheme.outlineVariant.withValues(alpha: 0.4)));
-      }
-      rows.add(children[i]);
-    }
     return Material(
-      color: scheme.surfaceContainerHigh,
+      color: Theme.of(context).colorScheme.surfaceContainerHigh,
       borderRadius: BorderRadius.circular(rXl),
       clipBehavior: Clip.antiAlias,
-      child: Column(children: rows),
+      child: Column(children: children),
     );
   }
 

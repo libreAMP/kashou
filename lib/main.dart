@@ -218,6 +218,15 @@ class KashouApp extends StatelessWidget {
                   );
                 }
 
+                if (themeProvider.pureBlack) {
+                  darkColorScheme = darkColorScheme.copyWith(
+                    surface: Colors.black,
+                    surfaceDim: Colors.black,
+                    surfaceContainerLowest: Colors.black,
+                    surfaceContainerLow: const Color(0xFF0C0C0C),
+                  );
+                }
+
                 TextTheme getTextTheme(ColorScheme colorScheme) {
                   try {
                     final fontFamily = settingsProvider.fontFamily;

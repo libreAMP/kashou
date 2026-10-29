@@ -87,6 +87,8 @@ class _MorphShapeState extends State<MorphShape>
                   child: RotationTransition(
                     turns: _spin,
                     child: Material(
+                      // material would tween the shape itself and hold the old one
+                      animationDuration: Duration.zero,
                       color: widget.color ?? Colors.transparent,
                       shape: shape,
                       clipBehavior: Clip.antiAlias,

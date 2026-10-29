@@ -1472,7 +1472,7 @@ class _StreamScreenState extends State<StreamScreen>
                     Text(channel, maxLines: 1, overflow: TextOverflow.ellipsis),
               ),
               const Divider(height: 1),
-              ListTile(
+              SheetTile(
                 leading: const Icon(Icons.play_arrow_rounded),
                 title: const Text('Play'),
                 onTap: () {
@@ -1481,7 +1481,7 @@ class _StreamScreenState extends State<StreamScreen>
                 },
               ),
               if (artistId != null)
-                ListTile(
+                SheetTile(
                   leading: const Icon(Icons.person_rounded),
                   title: Text('Go to $channel'),
                   onTap: () {

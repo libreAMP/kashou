@@ -1201,25 +1201,9 @@ class _LibraryScreenState extends State<LibraryScreen>
             ),
           ),
           for (final item in _libraryActions(context))
-            ListTile(
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
-              minTileHeight: 60,
-              leading: Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: scheme.surfaceContainerHighest,
-                  shape: BoxShape.circle,
-                ),
-                child:
-                    Icon(item.icon, size: 21, color: scheme.onSurfaceVariant),
-              ),
-              title: Text(
-                item.label,
-                style: theme.textTheme.bodyLarge
-                    ?.copyWith(fontWeight: FontWeight.w500),
-              ),
+            SheetTile(
+              leading: Icon(item.icon),
+              title: Text(item.label),
               onTap: item.onTap,
             ),
           const SizedBox(height: 10),
@@ -1513,7 +1497,7 @@ class _LibraryScreenState extends State<LibraryScreen>
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          ListTile(
+          SheetTile(
             leading: const Icon(Icons.edit_rounded),
             title: const Text('Rename Playlist'),
             onTap: () {
@@ -1529,7 +1513,7 @@ class _LibraryScreenState extends State<LibraryScreen>
               height: 1,
               indent: 56,
               color: scheme.outlineVariant.withValues(alpha: 0.4)),
-          ListTile(
+          SheetTile(
             leading: const Icon(Icons.image_outlined),
             title: const Text('Change Cover'),
             onTap: () async {
@@ -1550,7 +1534,7 @@ class _LibraryScreenState extends State<LibraryScreen>
               height: 1,
               indent: 56,
               color: scheme.outlineVariant.withValues(alpha: 0.4)),
-          ListTile(
+          SheetTile(
             leading: const Icon(Icons.delete),
             title: const Text('Delete Playlist'),
             onTap: () async {

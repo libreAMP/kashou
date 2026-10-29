@@ -10,6 +10,7 @@ import '../theme/radii.dart';
 import '../utils/platform.dart';
 import '../widgets/morph_shape.dart';
 import '../widgets/now_playing_bars.dart';
+import '../widgets/sheet_handle.dart';
 
 enum CollectionType { album, playlist }
 
@@ -648,7 +649,7 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
 
   List<Widget> _optionTiles(BuildContext context) {
     return [
-      ListTile(
+      SheetTile(
         leading: const Icon(Icons.queue_music),
         title: const Text('Add to queue'),
         onTap: () {
@@ -656,7 +657,7 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
           _addToQueue(context);
         },
       ),
-      ListTile(
+      SheetTile(
         leading: const Icon(Icons.playlist_add),
         title: const Text('Add to playlist'),
         onTap: () {
@@ -664,7 +665,7 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
           // TODO: Implement add to playlist
         },
       ),
-      ListTile(
+      SheetTile(
         leading: const Icon(Icons.share),
         title: const Text('Share'),
         onTap: () {
@@ -673,7 +674,7 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
         },
       ),
       if (widget.type == CollectionType.playlist)
-        ListTile(
+        SheetTile(
           leading: const Icon(Icons.edit),
           title: const Text('Edit playlist'),
           onTap: () {
@@ -780,7 +781,7 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
 
   List<Widget> _trackOptionTiles(BuildContext context, Track track) {
     return [
-      ListTile(
+      SheetTile(
         leading: const Icon(Icons.queue_music),
         title: const Text('Add to queue'),
         onTap: () {
@@ -796,7 +797,7 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
           );
         },
       ),
-      ListTile(
+      SheetTile(
         leading: const Icon(Icons.playlist_add),
         title: const Text('Add to playlist'),
         onTap: () {
@@ -804,7 +805,7 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
           // TODO: Implement add to playlist
         },
       ),
-      ListTile(
+      SheetTile(
         leading: const Icon(Icons.album),
         title: const Text('Go to album'),
         onTap: () {
@@ -812,7 +813,7 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
           // TODO: Implement go to album
         },
       ),
-      ListTile(
+      SheetTile(
         leading: const Icon(Icons.person),
         title: const Text('Go to artist'),
         onTap: () {
@@ -820,7 +821,7 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
           // TODO: Implement go to artist
         },
       ),
-      ListTile(
+      SheetTile(
         leading: const Icon(Icons.share),
         title: const Text('Share'),
         onTap: () {

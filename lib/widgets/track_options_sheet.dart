@@ -59,7 +59,7 @@ void showTrackOptionsSheet(BuildContext context, Track track,
         children: [
           sheetHandle(sheetContext),
           _headerTile(track, isOnline),
-          const Divider(height: 1),
+          const SizedBox(height: 4),
           ..._optionTiles(sheetContext, track, isOnline, playlistId),
           const SizedBox(height: 8),
         ],
@@ -139,7 +139,7 @@ List<Widget> _optionTiles(
   return [
     for (final action
         in _trackActions(sheetContext, track, isOnline, playlistId))
-      ListTile(
+      SheetTile(
         leading: Icon(action.icon),
         title: Text(action.label),
         onTap: () {

@@ -59,11 +59,11 @@ class PersonalizationScreen extends StatelessWidget {
   Widget _contentSliver(BuildContext context) {
     return SliverList(
       delegate: SliverChildListDelegate([
-        SettingsSection(
-          title: 'Theme',
-          children: [
-            Consumer<ThemeProvider>(
-              builder: (context, theme, child) => Padding(
+        Consumer<ThemeProvider>(
+          builder: (context, theme, child) => SettingsSection(
+            title: 'Theme',
+            children: [
+              Padding(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
                 child: SizedBox(
                   width: double.infinity,
@@ -92,8 +92,16 @@ class PersonalizationScreen extends StatelessWidget {
                   ),
                 ),
               ),
-            ),
-          ],
+              if (theme.themeMode != ThemeMode.light)
+                SettingsSwitchTile(
+                  icon: Icons.contrast_rounded,
+                  title: 'Pure black',
+                  subtitle: 'Black background in dark theme',
+                  value: theme.pureBlack,
+                  onChanged: theme.setPureBlack,
+                ),
+            ],
+          ),
         ),
         Consumer<ThemeProvider>(
           builder: (context, theme, child) => RadioGroup<String>(

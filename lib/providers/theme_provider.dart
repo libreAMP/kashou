@@ -36,12 +36,14 @@ Future<Color?> dominantColor(Uint8List bytes) async {
 class ThemeProvider extends ChangeNotifier {
   ThemeMode _themeMode = ThemeMode.system;
   bool _useMaterialYou = true;
+  bool _pureBlack = false;
   String _themeSource = 'system';
   Color _accentColor = Colors.deepPurple;
   Color? _artSeed;
   bool _isLoaded = false;
 
   ThemeMode get themeMode => _themeMode;
+  bool get pureBlack => _pureBlack;
   bool get useMaterialYou => _themeSource == 'system';
   String get themeSource => _themeSource;
   Color get accentColor => _accentColor;
@@ -60,6 +62,7 @@ class ThemeProvider extends ChangeNotifier {
           ? ThemeMode.values[themeModeIndex] 
           : ThemeMode.system;
       _useMaterialYou = prefs.getBool('use_material_you') ?? true;
+      _pureBlack = prefs.getBool('pure_black') ?? false;
       _themeSource = prefs.getString('theme_source') ?? (_useMaterialYou ? 'system' : 'accent');
       _accentColor = Color(
         prefs.getInt('accent_color') ?? Colors.deepPurple.toARGB32(),
@@ -78,6 +81,13 @@ class ThemeProvider extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt('theme_mode', mode.index);
     notifyListeners();
+  }
+
+  Future<void> setPureBlack(bool value) async {
+    _pureBlack = value;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('pure_black', value);
   }
 
   Future<void> setUseMaterialYou(bool value) async {
