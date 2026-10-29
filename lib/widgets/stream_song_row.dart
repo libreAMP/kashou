@@ -4,6 +4,7 @@ import 'package:material_new_shapes/material_new_shapes.dart';
 import '../theme/radii.dart';
 import '../utils/platform.dart';
 import 'morph_shape.dart';
+import '../theme/app_theme.dart';
 import 'now_playing_bars.dart';
 import 'scrolling_text.dart';
 
@@ -65,46 +66,25 @@ class StreamSongRow extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
           child: Row(
             children: [
-              if (isCurrent)
-                MorphShape(
-                  from: MaterialShapes.square,
-                  to: MaterialShapes.cookie9Sided,
-                  morphed: true,
-                  size: 52,
-                  child: SizedBox.square(
-                    dimension: 52,
-                    child: Stack(
-                      children: [
-                        Positioned.fill(child: artwork),
-                        if (playing)
-                          Positioned.fill(
-                            child: ColoredBox(
-                              color: scheme.primary.withValues(alpha: 0.55),
-                              child: const Center(
-                                child: NowPlayingBars(
-                                    color: Colors.white, size: 18),
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                )
-              else
-                SizedBox.square(
+              MorphShape(
+                from: MaterialShapes.square,
+                to: MaterialShapes.cookie9Sided,
+                morphed: isCurrent,
+                size: 52,
+                child: SizedBox.square(
                   dimension: 52,
                   child: Stack(
                     children: [
                       Positioned.fill(child: artwork),
                       Positioned.fill(
-                        child: IgnorePointer(
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(
-                                color: scheme.outlineVariant
-                                    .withValues(alpha: 0.28),
-                              ),
+                        child: AnimatedOpacity(
+                          opacity: playing ? 1 : 0,
+                          duration: EMotion.medium,
+                          child: ColoredBox(
+                            color: scheme.primary.withValues(alpha: 0.55),
+                            child: const Center(
+                              child:
+                                  NowPlayingBars(color: Colors.white, size: 18),
                             ),
                           ),
                         ),
@@ -112,6 +92,7 @@ class StreamSongRow extends StatelessWidget {
                     ],
                   ),
                 ),
+              ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -145,17 +126,26 @@ class StreamSongRow extends StatelessWidget {
                 message: playing ? 'Pause' : 'Play',
                 child: MorphShape(
                   from: MaterialShapes.circle,
-                  to: MaterialShapes.cookie4Sided,
-                  morphed: isCurrent,
+                  to: MaterialShapes.cookie9Sided,
+                  morphed: playing,
+                  spin: playing,
                   size: 40,
                   color: isCurrent ? scheme.primary : scheme.secondaryContainer,
                   onTap: onTap,
-                  child: Icon(
-                    playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                    color: isCurrent
-                        ? scheme.onPrimary
-                        : scheme.onSecondaryContainer,
-                    size: 21,
+                  child: AnimatedSwitcher(
+                    duration: EMotion.medium,
+                    transitionBuilder: (child, anim) => ScaleTransition(
+                      scale: Tween<double>(begin: 0.6, end: 1).animate(anim),
+                      child: FadeTransition(opacity: anim, child: child),
+                    ),
+                    child: Icon(
+                      playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                      key: ValueKey(playing),
+                      color: isCurrent
+                          ? scheme.onPrimary
+                          : scheme.onSecondaryContainer,
+                      size: 21,
+                    ),
                   ),
                 ),
               ),

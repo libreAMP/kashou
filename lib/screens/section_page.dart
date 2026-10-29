@@ -3,13 +3,18 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:http/http.dart' as http;
+import 'package:material_new_shapes/material_new_shapes.dart';
 import 'package:shimmer/shimmer.dart';
 import '../providers/audio_provider.dart';
 import '../services/ytdl_service.dart';
 import '../models/track.dart';
 import '../theme/radii.dart';
+import '../theme/shapes.dart';
 import '../utils/platform.dart';
 import '../widgets/back_chip.dart';
+import '../widgets/m3e_cover_card.dart';
+import '../widgets/morph_shape.dart';
+import '../widgets/now_playing_bars.dart';
 import '../widgets/square_art.dart';
 import '../widgets/page_mini_player.dart';
 import '../services/ytmusic_service.dart';
@@ -102,6 +107,7 @@ class _SectionPageState extends State<SectionPage> {
       _showSnackBar('Error loading audio: $e');
     }
   }
+
   void _showSnackBar(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -169,6 +175,19 @@ class _SectionPageState extends State<SectionPage> {
     if (_filteredItems.isEmpty) return;
     final shuffled = List<Map<String, dynamic>>.from(_filteredItems)..shuffle();
     await _playVideo(shuffled.first, shuffled);
+  }
+
+  (bool, bool) _stateOf(BuildContext context, Map<String, dynamic> item) =>
+      context.select<AudioProvider, (bool, bool)>((audio) {
+        final current = audio.currentTrack?.id == item['id']?.toString();
+        return (current, current && audio.isPlaying);
+      });
+
+  void _toggle(Map<String, dynamic> item) {
+    final audio = context.read<AudioProvider>();
+    audio.currentTrack?.id == item['id']?.toString()
+        ? audio.togglePlayPause()
+        : _playVideo(item);
   }
 
   // tooltips are desktop-only: on mobile long-press would newly trigger them
@@ -242,8 +261,7 @@ class _SectionPageState extends State<SectionPage> {
       body: isDesktop
           ? Center(
               child: ConstrainedBox(
-                constraints:
-                    const BoxConstraints(maxWidth: _maxContentWidth),
+                constraints: const BoxConstraints(maxWidth: _maxContentWidth),
                 child: body,
               ),
             )
@@ -353,10 +371,13 @@ class _SectionPageState extends State<SectionPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              SquareArt(url: cover, size: 116, radius: rMd),
-              const SizedBox(width: 16),
+              ClipPath(
+                clipper: ShapeBorderClipper(
+                    shape: PolygonBorder(MaterialShapes.cookie12Sided)),
+                child: SquareArt(url: cover, size: 132, radius: 0),
+              ),
+              const SizedBox(width: 18),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -365,19 +386,28 @@ class _SectionPageState extends State<SectionPage> {
                       widget.title,
                       maxLines: 3,
                       overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleLarge?.copyWith(
+                      style: theme.textTheme.headlineSmall?.copyWith(
                         fontWeight: FontWeight.w800,
-                        letterSpacing: -0.4,
-                        height: 1.12,
+                        letterSpacing: -0.6,
+                        height: 1.08,
                       ),
                     ),
-                    const SizedBox(height: 6),
-                    Text(
-                      _loadingItems
-                          ? 'loading'
-                          : '${_items.length} ${_items.isNotEmpty && _items.any((it) => it['playlistId'] != null) ? "items" : "songs"}',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: colorScheme.secondaryContainer,
+                        borderRadius: BorderRadius.circular(rFull),
+                      ),
+                      child: Text(
+                        _loadingItems
+                            ? 'loading'
+                            : '${_items.length} ${_items.isNotEmpty && _items.any((it) => it['playlistId'] != null) ? "items" : "songs"}',
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          color: colorScheme.onSecondaryContainer,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
                   ],
@@ -385,46 +415,36 @@ class _SectionPageState extends State<SectionPage> {
               ),
             ],
           ),
-          if (_items.isEmpty || _items.every((it) => it['playlistId'] == null)) ...[
-            const SizedBox(height: 16),
+          if (_items.isEmpty ||
+              _items.every((it) => it['playlistId'] == null)) ...[
+            const SizedBox(height: 20),
             Row(
               children: [
-                Material(
-                  color: colorScheme.primaryContainer,
-                  borderRadius: BorderRadius.circular(18),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(18),
-                    onTap: _filteredItems.isEmpty ? null : _playAll,
-                    child: _desktopTooltip(
-                      'Play all',
-                      SizedBox(
-                        width: 104,
-                        height: 52,
-                        child: Icon(
-                          Icons.play_arrow_rounded,
-                          size: 30,
-                          color: colorScheme.onPrimaryContainer,
-                        ),
+                Expanded(
+                  child: SizedBox(
+                    height: 56,
+                    child: FilledButton.icon(
+                      onPressed: _filteredItems.isEmpty ? null : _playAll,
+                      icon: const Icon(Icons.play_arrow_rounded, size: 28),
+                      label: const Text('Play'),
+                      style: FilledButton.styleFrom(
+                        textStyle: theme.textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w800),
+                        shape: const StadiumBorder(),
                       ),
                     ),
                   ),
                 ),
                 const SizedBox(width: 12),
-                Material(
-                  color: colorScheme.surfaceContainerHigh,
-                  shape: const CircleBorder(),
-                  child: InkWell(
-                    customBorder: const CircleBorder(),
+                _desktopTooltip(
+                  'Shuffle play',
+                  MorphShape(
+                    from: MaterialShapes.cookie4Sided,
+                    size: 56,
+                    color: colorScheme.tertiaryContainer,
                     onTap: _filteredItems.isEmpty ? null : _shufflePlay,
-                    child: _desktopTooltip(
-                      'Shuffle play',
-                      SizedBox(
-                        width: 52,
-                        height: 52,
-                        child: Icon(Icons.shuffle_rounded,
-                            size: 22, color: colorScheme.onSurface),
-                      ),
-                    ),
+                    child: Icon(Icons.shuffle_rounded,
+                        size: 24, color: colorScheme.onTertiaryContainer),
                   ),
                 ),
               ],
@@ -501,7 +521,9 @@ class _SectionPageState extends State<SectionPage> {
       ),
       itemCount: _filteredItems.length,
       itemBuilder: (context, index) {
-        return _buildEnhancedGridItem(_filteredItems[index], index);
+        return Builder(
+            builder: (context) =>
+                _buildEnhancedGridItem(context, _filteredItems[index], index));
       },
     );
   }
@@ -511,25 +533,30 @@ class _SectionPageState extends State<SectionPage> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       itemCount: _filteredItems.length,
       itemBuilder: (context, index) {
-        return _buildEnhancedListTile(_filteredItems[index], index);
+        return Builder(
+            builder: (context) =>
+                _buildEnhancedListTile(context, _filteredItems[index], index));
       },
     );
   }
 
-  Widget _buildEnhancedListTile(Map<String, dynamic> video, int index) {
+  Widget _buildEnhancedListTile(
+      BuildContext context, Map<String, dynamic> video, int index) {
     final thumbnail = video['thumbnail'] as String?;
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
+    final (current, playing) = _stateOf(context, video);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Material(
-        color: Colors.transparent,
+        color: current ? colorScheme.secondaryContainer : Colors.transparent,
+        borderRadius: BorderRadius.circular(rLg),
         child: InkWell(
           onTap: () => _playVideo(video),
-          borderRadius: BorderRadius.circular(rMd),
+          borderRadius: BorderRadius.circular(rLg),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
             child: Row(
               children: [
                 SizedBox(
@@ -582,24 +609,20 @@ class _SectionPageState extends State<SectionPage> {
                 ),
                 const SizedBox(width: 12),
 
-                // Play button
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: colorScheme.primaryContainer,
-                    shape: BoxShape.circle,
-                  ),
-                  child: IconButton(
-                    icon: Icon(
-                      Icons.play_arrow_rounded,
-                      color: colorScheme.onPrimaryContainer,
-                      size: 22,
-                    ),
-                    onPressed: () => _playVideo(video),
-                    padding: EdgeInsets.zero,
-                    tooltip: isDesktop ? 'Play' : null,
-                  ),
+                MorphShape(
+                  from: MaterialShapes.cookie4Sided,
+                  to: MaterialShapes.cookie9Sided,
+                  morphed: playing,
+                  spin: playing,
+                  size: 44,
+                  color: playing
+                      ? colorScheme.primary
+                      : colorScheme.primaryContainer,
+                  onTap: () => _toggle(video),
+                  child: playing
+                      ? NowPlayingBars(color: colorScheme.onPrimary, size: 18)
+                      : Icon(Icons.play_arrow_rounded,
+                          size: 24, color: colorScheme.onPrimaryContainer),
                 ),
               ],
             ),
@@ -609,7 +632,8 @@ class _SectionPageState extends State<SectionPage> {
     );
   }
 
-  Widget _buildEnhancedGridItem(Map<String, dynamic> item, int index) {
+  Widget _buildEnhancedGridItem(
+      BuildContext context, Map<String, dynamic> item, int index) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final isArtist = item['type'] == 'artist';
@@ -620,6 +644,19 @@ class _SectionPageState extends State<SectionPage> {
     final title = item['title'] as String? ?? 'Unknown';
     final subtitle =
         item['channel'] as String? ?? item['subtitle'] as String? ?? '';
+
+    if (!isArtist) {
+      final (_, playing) = _stateOf(context, item);
+      final song = item['playlistId'] == null;
+      return M3ECoverCard(
+        art: SquareArt(url: thumbnail, radius: 0),
+        title: title,
+        subtitle: subtitle,
+        playing: playing,
+        onTap: () => _handleItemTap(item),
+        onPlay: song ? () => _toggle(item) : null,
+      );
+    }
 
     final content = Column(
       crossAxisAlignment:
@@ -636,9 +673,8 @@ class _SectionPageState extends State<SectionPage> {
         Padding(
           padding: const EdgeInsets.fromLTRB(2, 8, 2, 0),
           child: Column(
-            crossAxisAlignment: isArtist
-                ? CrossAxisAlignment.center
-                : CrossAxisAlignment.start,
+            crossAxisAlignment:
+                isArtist ? CrossAxisAlignment.center : CrossAxisAlignment.start,
             children: [
               Text(
                 title,
@@ -725,4 +761,3 @@ class _SectionPageState extends State<SectionPage> {
     _playVideo(item);
   }
 }
-

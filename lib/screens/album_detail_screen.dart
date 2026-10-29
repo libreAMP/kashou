@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:material_new_shapes/material_new_shapes.dart';
 import 'package:provider/provider.dart';
 import 'dart:ui';
 import '../models/album.dart';
 import '../models/playlist.dart';
 import '../models/track.dart';
 import '../providers/audio_provider.dart';
+import '../theme/radii.dart';
 import '../utils/platform.dart';
+import '../widgets/morph_shape.dart';
+import '../widgets/now_playing_bars.dart';
 
 enum CollectionType { album, playlist }
 
@@ -191,15 +195,17 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
                 Text(
                   _title,
                   style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: -0.5,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.8,
+                        height: 1.1,
                       ),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   _subtitle,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: colorScheme.onSurface.withValues(alpha: 0.7),
+                        color: colorScheme.primary,
+                        fontWeight: FontWeight.w600,
                       ),
                 ),
                 const SizedBox(height: 12),
@@ -302,7 +308,7 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
                 constraints:
                     const BoxConstraints(maxWidth: 280, maxHeight: 280),
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(36),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withValues(alpha: 0.5),
@@ -312,7 +318,7 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
                   ],
                 ),
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(36),
                   child: _buildArtwork(),
                 ),
               ),
@@ -373,7 +379,7 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
     final durationStr = hours > 0 ? '$hours hr $minutes min' : '$minutes min';
 
     return Wrap(
-      spacing: 16,
+      spacing: 8,
       runSpacing: 8,
       children: [
         _buildMetadataChip(
@@ -393,20 +399,24 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
   }
 
   Widget _buildMetadataChip(BuildContext context, IconData icon, String label) {
+    final scheme = Theme.of(context).colorScheme;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(16),
+        color: scheme.secondaryContainer,
+        borderRadius: BorderRadius.circular(rFull),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 14),
+          Icon(icon, size: 16, color: scheme.onSecondaryContainer),
           const SizedBox(width: 6),
           Text(
             label,
-            style: Theme.of(context).textTheme.bodySmall,
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: scheme.onSecondaryContainer,
+                  fontWeight: FontWeight.w700,
+                ),
           ),
         ],
       ),
@@ -414,27 +424,36 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
   }
 
   Widget _buildActionButtons(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Row(
       children: [
         Expanded(
-          child: FilledButton.icon(
-            onPressed: () => _playAll(context),
-            icon: const Icon(Icons.play_arrow),
-            label: const Text('Play'),
-            style: FilledButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 14),
+          child: SizedBox(
+            height: 56,
+            child: FilledButton.icon(
+              onPressed: () => _playAll(context),
+              icon: const Icon(Icons.play_arrow_rounded, size: 28),
+              label: const Text('Play'),
+              style: FilledButton.styleFrom(
+                textStyle: Theme.of(context)
+                    .textTheme
+                    .titleMedium
+                    ?.copyWith(fontWeight: FontWeight.w800),
+                shape: const StadiumBorder(),
+              ),
             ),
           ),
         ),
         const SizedBox(width: 12),
-        Expanded(
-          child: FilledButton.tonalIcon(
-            onPressed: () => _shufflePlay(context),
-            icon: const Icon(Icons.shuffle),
-            label: const Text('Shuffle'),
-            style: FilledButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 14),
-            ),
+        Tooltip(
+          message: 'Shuffle',
+          child: MorphShape(
+            from: MaterialShapes.cookie4Sided,
+            size: 56,
+            color: scheme.tertiaryContainer,
+            onTap: () => _shufflePlay(context),
+            child: Icon(Icons.shuffle_rounded,
+                size: 24, color: scheme.onTertiaryContainer),
           ),
         ),
       ],
@@ -446,96 +465,106 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
     final isCurrentTrack = audioProvider.currentTrack?.id == track.id;
     final isPlaying = isCurrentTrack && audioProvider.isPlaying;
 
-    return InkWell(
-      onTap: () => _playTrack(context, index),
-      // desktop: right-click opens the same options as the trailing button
-      onSecondaryTap:
-          isDesktop ? () => _showTrackOptions(context, track) : null,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-        child: Row(
-          children: [
-            // Track number or playing indicator
-            SizedBox(
-              width: 40,
-              child: Center(
-                child: isPlaying
-                    ? Icon(
-                        Icons.graphic_eq,
-                        color: Theme.of(context).colorScheme.primary,
-                        size: 20,
-                      )
-                    : Text(
-                        '${index + 1}',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: isCurrentTrack
-                                  ? Theme.of(context).colorScheme.primary
-                                  : Theme.of(context)
-                                      .colorScheme
-                                      .onSurface
-                                      .withValues(alpha: 0.6),
-                              fontWeight: isCurrentTrack
-                                  ? FontWeight.bold
-                                  : FontWeight.normal,
-                            ),
-                      ),
-              ),
-            ),
-
-            // Track info
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    track.title,
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          fontWeight: isCurrentTrack
-                              ? FontWeight.w600
-                              : FontWeight.normal,
-                          color: isCurrentTrack
-                              ? Theme.of(context).colorScheme.primary
-                              : null,
+    final scheme = Theme.of(context).colorScheme;
+    return Material(
+      color: isCurrentTrack ? scheme.secondaryContainer : Colors.transparent,
+      borderRadius: BorderRadius.circular(rLg),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(rLg),
+        onTap: () => _playTrack(context, index),
+        onSecondaryTap:
+            isDesktop ? () => _showTrackOptions(context, track) : null,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 40,
+                child: Center(
+                  child: isCurrentTrack
+                      ? MorphShape(
+                          from: MaterialShapes.circle,
+                          to: MaterialShapes.cookie9Sided,
+                          morphed: isPlaying,
+                          spin: isPlaying,
+                          size: 34,
+                          color: scheme.primary,
+                          child: isPlaying
+                              ? NowPlayingBars(
+                                  color: scheme.onPrimary, size: 14)
+                              : Icon(Icons.pause_rounded,
+                                  size: 18, color: scheme.onPrimary),
+                        )
+                      : Text(
+                          '${index + 1}',
+                          style:
+                              Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    color: isCurrentTrack
+                                        ? Theme.of(context).colorScheme.primary
+                                        : Theme.of(context)
+                                            .colorScheme
+                                            .onSurface
+                                            .withValues(alpha: 0.6),
+                                    fontWeight: isCurrentTrack
+                                        ? FontWeight.bold
+                                        : FontWeight.normal,
+                                  ),
                         ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  if (widget.type == CollectionType.playlist)
+                ),
+              ),
+
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                     Text(
-                      track.artist,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: Theme.of(context)
-                                .colorScheme
-                                .onSurface
-                                .withValues(alpha: 0.6),
+                      track.title,
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                            fontWeight: isCurrentTrack
+                                ? FontWeight.w600
+                                : FontWeight.normal,
+                            color: isCurrentTrack
+                                ? Theme.of(context).colorScheme.primary
+                                : null,
                           ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                ],
+                    if (widget.type == CollectionType.playlist)
+                      Text(
+                        track.artist,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurface
+                                  .withValues(alpha: 0.6),
+                            ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                  ],
+                ),
               ),
-            ),
 
-            // Duration
-            Text(
-              _formatDuration(track.duration),
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context)
-                        .colorScheme
-                        .onSurface
-                        .withValues(alpha: 0.6),
-                  ),
-            ),
+              Text(
+                _formatDuration(track.duration),
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context)
+                          .colorScheme
+                          .onSurface
+                          .withValues(alpha: 0.6),
+                    ),
+              ),
 
-            const SizedBox(width: 8),
+              const SizedBox(width: 8),
 
-            // More options
-            IconButton(
-              icon: const Icon(Icons.more_vert, size: 20),
-              tooltip: isDesktop ? 'More options' : null,
-              onPressed: () => _showTrackOptions(context, track),
-            ),
-          ],
+              IconButton(
+                icon: const Icon(Icons.more_vert, size: 20),
+                tooltip: isDesktop ? 'More options' : null,
+                onPressed: () => _showTrackOptions(context, track),
+              ),
+            ],
+          ),
         ),
       ),
     );

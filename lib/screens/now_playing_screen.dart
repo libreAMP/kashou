@@ -639,10 +639,11 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
         ),
         _buildBarIcon(
           context,
-          icon: Icons.share,
-          tooltip: 'Share',
+          icon: _lyricsOpen ? Icons.lyrics_rounded : Icons.lyrics_outlined,
+          tooltip: _lyricsOpen ? 'Hide lyrics' : 'Lyrics',
+          active: _lyricsOpen,
           first: true,
-          onTap: () => _shareTrack(context, track),
+          onTap: () => _toggleLyrics(track),
         ),
         const SizedBox(width: 4),
         _buildBarIcon(
@@ -1261,18 +1262,6 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                     if (audio.currentTrack != null) {
                       library.toggleFavorite(audio.currentTrack!);
                     }
-                  },
-                ),
-                _buildSecondaryIconButton(
-                  context,
-                  icon: _lyricsOpen
-                      ? Icons.lyrics_rounded
-                      : Icons.lyrics_outlined,
-                  tooltip: _lyricsOpen ? 'Hide lyrics' : 'Lyrics',
-                  active: _lyricsOpen,
-                  onTap: () {
-                    final track = audio.currentTrack;
-                    if (track != null) _toggleLyrics(track);
                   },
                 ),
                 _buildSecondaryIconButton(
