@@ -301,6 +301,8 @@ class KashouApp extends StatelessWidget {
                     ),
                     child: child!,
                   ),
+                  themeAnimationDuration: const Duration(milliseconds: 900),
+                  themeAnimationCurve: Curves.easeInOutCubic,
                   theme: buildKashouTheme(
                     lightColorScheme,
                     getTextTheme(lightColorScheme),

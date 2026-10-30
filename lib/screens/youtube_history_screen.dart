@@ -7,13 +7,13 @@ import '../providers/audio_provider.dart';
 import '../providers/settings_provider.dart';
 import '../services/download_manager.dart';
 import '../services/ytdl_service.dart';
-import '../theme/radii.dart';
 import '../utils/platform.dart';
 import '../widgets/back_chip.dart';
-import '../widgets/loading_indicator.dart';
 import '../widgets/m3e_menu.dart';
 import '../widgets/m3e_swipe_actions.dart';
 import '../widgets/square_art.dart';
+import '../widgets/empty_shape.dart';
+import '../widgets/stream_song_row.dart';
 
 // max width of the history list on wide desktop windows
 const double _desktopMaxContentWidth = 900;
@@ -160,43 +160,50 @@ class _YoutubeHistoryScreenState extends State<YoutubeHistoryScreen> {
             final entries = audioProvider.youtubeStreamHistoryEntries;
 
             if (entries.isEmpty) {
-              return SliverFillRemaining(
-                child: Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.history,
-                          size: 48,
-                          color: colorScheme.onSurfaceVariant
-                              .withValues(alpha: 0.5)),
-                      const SizedBox(height: 16),
-                      Text(
-                        'No history yet',
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'What you play from Stream shows up here.',
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: colorScheme.onSurfaceVariant
-                              .withValues(alpha: 0.7),
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
-                  ),
+              return const SliverFillRemaining(
+                hasScrollBody: false,
+                child: EmptyShape(
+                  icon: Icons.history_rounded,
+                  title: 'no history yet',
+                  body: 'what you play from stream shows up here',
                 ),
               );
             }
 
+            final now = DateTime.now();
+            final today = DateTime(now.year, now.month, now.day);
+            String label(DateTime t) {
+              final days =
+                  today.difference(DateTime(t.year, t.month, t.day)).inDays;
+              return days <= 0
+                  ? 'today'
+                  : days == 1
+                      ? 'yesterday'
+                      : days < 7
+                          ? 'this week'
+                          : 'earlier';
+            }
+
+            final groups = <String, List<StreamHistoryEntry>>{};
+            for (final e in entries) {
+              groups.putIfAbsent(label(e.timestamp), () => []).add(e);
+            }
+
             return SliverList(
-              delegate: SliverChildBuilderDelegate(
-                (context, index) =>
-                    _buildHistoryTile(context, entries[index], colorScheme),
-                childCount: entries.length,
-              ),
+              delegate: SliverChildListDelegate([
+                for (final g in groups.entries) ...[
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 18, 24, 8),
+                    child: Text(g.key,
+                        style: theme.textTheme.titleSmall?.copyWith(
+                            color: colorScheme.primary,
+                            fontWeight: FontWeight.w800)),
+                  ),
+                  for (final (i, e) in g.value.indexed)
+                    _buildHistoryTile(
+                        context, e, colorScheme, i, g.value.length),
+                ],
+              ]),
             );
           },
         ),
@@ -216,129 +223,34 @@ class _YoutubeHistoryScreenState extends State<YoutubeHistoryScreen> {
     );
   }
 
-  Widget _buildHistoryTile(
-      BuildContext context, StreamHistoryEntry entry, ColorScheme colorScheme) {
+  Widget _buildHistoryTile(BuildContext context, StreamHistoryEntry entry,
+      ColorScheme colorScheme, int slot, int count) {
     final track = entry.track;
-    final theme = Theme.of(context);
-    final isLoading = _loadingEntryId == track.id;
 
     final tile = Consumer<AudioProvider>(
       builder: (context, audio, _) {
         final isCurrent = audio.currentTrack?.id == track.id;
-        final playing = isCurrent && audio.isPlaying;
-
-        Widget trailing;
-        if (isLoading) {
-          trailing = KashouLoader(size: 26, color: colorScheme.primary);
-        } else {
-          final playButton = IconButton(
-            tooltip: isDesktop ? (playing ? 'Pause' : 'Play') : null,
-            icon: Icon(
-              playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
-              color: isCurrent
-                  ? colorScheme.primary
-                  : colorScheme.onSurfaceVariant,
-            ),
-            onPressed: () =>
-                isCurrent ? audio.togglePlayPause() : _playEntry(entry),
-          );
-          trailing = isDesktop
-              ? Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    playButton,
-                    // swipe-to-dismiss is touch-only, desktop gets a
-                    // visible remove button instead
-                    IconButton(
-                      tooltip: 'Remove from history',
-                      icon: Icon(
-                        Icons.delete_outline,
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                      onPressed: () => audio.removeFromStreamHistory(
-                          track.sourceUrl ?? track.path),
-                    ),
-                  ],
-                )
-              : playButton;
-        }
-
-        return Material(
-          color: isCurrent
-              ? colorScheme.primary.withValues(alpha: 0.12)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(rMd),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(rMd),
-            onTap: isLoading
-                ? null
-                : () => isCurrent ? audio.togglePlayPause() : _playEntry(entry),
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Row(
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(rSm),
-                    child: SizedBox(
-                      width: 56,
-                      height: 56,
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          _buildAlbumArt(track, colorScheme),
-                          if (playing)
-                            Container(
-                              color: Colors.black.withValues(alpha: 0.4),
-                              child: Icon(Icons.graphic_eq,
-                                  color: Colors.white, size: 22),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          track.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.titleSmall?.copyWith(
-                            color: isCurrent
-                                ? colorScheme.primary
-                                : colorScheme.onSurface,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          '${track.artist} • ${_formatTimestamp(entry.timestamp)}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  trailing,
-                ],
-              ),
-            ),
-          ),
+        return StreamSongRow(
+          artwork: _buildAlbumArt(track, colorScheme),
+          title: track.title,
+          subtitle: '${track.artist} · ${_formatTimestamp(entry.timestamp)}',
+          isCurrent: isCurrent,
+          playing: isCurrent && audio.isPlaying,
+          slot: slot,
+          count: count,
+          onTap: () {
+            if (_loadingEntryId != null) return;
+            isCurrent ? audio.togglePlayPause() : _playEntry(entry);
+          },
         );
       },
     );
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 3, 16, 3),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 1),
       child: isDesktop
           ? GestureDetector(
+              // swipe-to-dismiss is touch-only so desktop gets a visible remove button
               // right-click mirrors the swipe actions on touch devices
               onSecondaryTapUp: (details) =>
                   _showRemoveMenu(details.globalPosition, track),
@@ -395,15 +307,15 @@ class _YoutubeHistoryScreenState extends State<YoutubeHistoryScreen> {
       final id = _videoIdOf(track);
       return SquareArt(
         url: id != null ? 'https://i.ytimg.com/vi/$id/mqdefault.jpg' : null,
-        size: 56,
-        radius: rSm,
+        size: 52,
+        radius: 16,
       );
     }
     return ClipRRect(
-      borderRadius: BorderRadius.circular(rSm),
+      borderRadius: BorderRadius.circular(16),
       child: Container(
-        width: 56,
-        height: 56,
+        width: 52,
+        height: 52,
         color: colorScheme.surfaceContainerHighest,
         child: Image.memory(
           art,

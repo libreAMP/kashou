@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../providers/library_provider.dart';
+import '../providers/theme_provider.dart';
 import '../theme/app_theme.dart';
 import '../theme/radii.dart';
 import '../theme/shapes.dart';
@@ -66,6 +67,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
   late final _steps = [
     (MaterialShapes.cookie9Sided, null),
     (MaterialShapes.clover4Leaf, Icons.auto_awesome_rounded),
+    (MaterialShapes.flower, Icons.palette_rounded),
     if (!isDesktop) (MaterialShapes.softBurst, Icons.lock_open_rounded),
     (MaterialShapes.sunny, Icons.favorite_rounded),
   ];
@@ -145,6 +147,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
               children: [
                 _scrollablePage(context, _helloPage(context)),
                 _scrollablePage(context, _featuresPage(context)),
+                _scrollablePage(context, _themePage(context)),
                 // desktops have no runtime permission prompts,
                 // so the permissions page is mobile-only
                 if (!isDesktop) const _PermissionsPage(),
@@ -216,8 +219,10 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
         final i = p.floor().clamp(0, _pageCount - 1);
         final j = math.min(i + 1, _pageCount - 1);
         final t = p - i;
-        final fill = Color.lerp(colors[i].$1, colors[j].$1, t)!;
-        final ink = Color.lerp(colors[i].$2, colors[j].$2, t)!;
+        final a = colors[i % colors.length];
+        final b = colors[j % colors.length];
+        final fill = Color.lerp(a.$1, b.$1, t)!;
+        final ink = Color.lerp(a.$2, b.$2, t)!;
         final step = _steps[p.round().clamp(0, _pageCount - 1)];
         return SizedBox.square(
           dimension: size,
@@ -443,6 +448,146 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                     ),
                   ),
                 ],
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _themePage(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
+    final theme = context.watch<ThemeProvider>();
+
+    Widget pick(bool on, VoidCallback onTap, Widget child) => Material(
+          color: on ? scheme.secondaryContainer : scheme.surfaceContainerHigh,
+          borderRadius: BorderRadius.circular(on ? rFull : rLg),
+          animationDuration: EMotion.medium,
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(onTap: onTap, child: child),
+        );
+
+    final modes = [
+      (ThemeMode.light, Icons.light_mode_rounded, 'light'),
+      (ThemeMode.dark, Icons.dark_mode_rounded, 'dark'),
+      (ThemeMode.system, Icons.brightness_auto_rounded, 'auto'),
+    ];
+    final sources = [
+      (
+        'system',
+        Icons.wallpaper_rounded,
+        'wallpaper',
+        'colors from your phone'
+      ),
+      ('accent', Icons.palette_outlined, 'pick one', 'a color you choose'),
+      ('art', Icons.album_rounded, 'now playing', 'follows the album art'),
+    ];
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _title(context, 'make it yours'),
+        const SizedBox(height: 22),
+        Row(
+          children: [
+            for (final m in modes)
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 3),
+                  child: pick(
+                    theme.themeMode == m.$1,
+                    () => theme.setThemeMode(m.$1),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      child: Column(
+                        children: [
+                          Icon(m.$2,
+                              color: theme.themeMode == m.$1
+                                  ? scheme.onSecondaryContainer
+                                  : scheme.onSurfaceVariant),
+                          const SizedBox(height: 4),
+                          Text(m.$3,
+                              style: text.labelLarge
+                                  ?.copyWith(fontWeight: FontWeight.w700)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+        AnimatedSize(
+          duration: EMotion.medium,
+          curve: EMotion.emphasized,
+          child: theme.themeMode == ThemeMode.light
+              ? const SizedBox(width: double.infinity)
+              : Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: pick(
+                    theme.pureBlack,
+                    () => theme.setPureBlack(!theme.pureBlack),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(18, 6, 10, 6),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.contrast_rounded),
+                          const SizedBox(width: 12),
+                          Expanded(
+                              child: Text('pure black',
+                                  style: text.titleSmall
+                                      ?.copyWith(fontWeight: FontWeight.w700))),
+                          Switch(
+                              value: theme.pureBlack,
+                              onChanged: theme.setPureBlack),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+        ),
+        const SizedBox(height: 18),
+        for (final c in sources)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: pick(
+              theme.themeSource == c.$1,
+              () => theme.setThemeSource(c.$1),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(10, 10, 18, 10),
+                child: Row(
+                  children: [
+                    MorphShape(
+                      from: MaterialShapes.circle,
+                      to: MaterialShapes.cookie9Sided,
+                      morphed: theme.themeSource == c.$1,
+                      size: 40,
+                      color: theme.themeSource == c.$1
+                          ? scheme.primary
+                          : scheme.surfaceContainerHighest,
+                      child: Icon(c.$2,
+                          size: 20,
+                          color: theme.themeSource == c.$1
+                              ? scheme.onPrimary
+                              : scheme.onSurfaceVariant),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(c.$3,
+                              style: text.titleSmall
+                                  ?.copyWith(fontWeight: FontWeight.w700)),
+                          Text(c.$4,
+                              style: text.bodySmall
+                                  ?.copyWith(color: scheme.onSurfaceVariant)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
