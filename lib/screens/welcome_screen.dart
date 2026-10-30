@@ -1,31 +1,56 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:material_new_shapes/material_new_shapes.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../providers/library_provider.dart';
+import '../theme/app_theme.dart';
 import '../theme/radii.dart';
 import '../theme/shapes.dart';
 import '../utils/platform.dart';
+import '../widgets/morph_shape.dart';
 
 const _repoUrl = 'https://github.com/libreAMP/kashou';
+
+// max width of the centered content column on desktop windows
+const double _kDesktopContentWidth = 600;
 
 // minHeight keeps the Spacers honest
 Widget _scrollablePage(BuildContext context, Widget child) {
   return LayoutBuilder(
     builder: (context, constraints) => SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 28),
       child: ConstrainedBox(
         constraints: BoxConstraints(minHeight: constraints.maxHeight),
-        child: IntrinsicHeight(child: child),
+        child: Center(child: child),
       ),
     ),
   );
 }
 
-// max width of the centered content column on desktop windows
-const double _kDesktopContentWidth = 600;
+Widget _title(BuildContext context, String text) => Text(
+      text,
+      textAlign: TextAlign.center,
+      style: Theme.of(context).textTheme.displaySmall?.copyWith(
+            fontWeight: FontWeight.w800,
+            letterSpacing: -1,
+            height: 1.05,
+          ),
+    );
+
+Widget _blurb(BuildContext context, String text) => Text(
+      text,
+      textAlign: TextAlign.center,
+      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+            height: 1.45,
+          ),
+    );
 
 class WelcomeScreen extends StatefulWidget {
   const WelcomeScreen({super.key});
@@ -38,7 +63,14 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
   final _pageController = PageController();
   int _page = 0;
 
-  int get _pageCount => isDesktop ? 3 : 4;
+  late final _steps = [
+    (MaterialShapes.cookie9Sided, null),
+    (MaterialShapes.clover4Leaf, Icons.auto_awesome_rounded),
+    if (!isDesktop) (MaterialShapes.softBurst, Icons.lock_open_rounded),
+    (MaterialShapes.sunny, Icons.favorite_rounded),
+  ];
+
+  int get _pageCount => _steps.length;
 
   @override
   void dispose() {
@@ -55,20 +87,13 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
     if (mounted) Navigator.pushReplacementNamed(context, '/home');
   }
 
-  void _next() {
-    if (_page < _pageCount - 1) {
-      _pageController.nextPage(
-          duration: const Duration(milliseconds: 280), curve: Curves.easeOut);
-    } else {
-      _finish();
-    }
-  }
+  void _go(int page) => _pageController.animateToPage(page,
+      duration: EMotion.medium, curve: Curves.easeInOutCubicEmphasized);
+
+  void _next() => _page < _pageCount - 1 ? _go(_page + 1) : _finish();
 
   void _previous() {
-    if (_page > 0) {
-      _pageController.previousPage(
-          duration: const Duration(milliseconds: 280), curve: Curves.easeOut);
-    }
+    if (_page > 0) _go(_page - 1);
   }
 
   // constrains and centers content on wide desktop windows; a no-op on
@@ -83,73 +108,78 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
     );
   }
 
-  Widget _centeredPage(Widget child) =>
-      _centered(_scrollablePage(context, child));
-
-  // lowercase display type is the kashou voice, not a typo
-  TextStyle? _displayStyle(BuildContext context) {
-    return Theme.of(context).textTheme.displaySmall?.copyWith(
-          fontWeight: FontWeight.w800,
-          letterSpacing: -1,
-          height: 1.02,
-        );
-  }
-
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final last = _page == _pageCount - 1;
 
     final body = SafeArea(
-      child: Column(
+      child: _centered(Column(
         children: [
-          _centered(Align(
-            alignment: Alignment.centerRight,
-            child: Padding(
-              padding: const EdgeInsets.only(right: 24, top: 4),
-              child: TextButton(
-                onPressed: _finish,
-                child: const Text('skip'),
-              ),
-            ),
-          )),
-          Expanded(
-            child: _centered(PageView(
-              controller: _pageController,
-              onPageChanged: (p) => setState(() => _page = p),
-              children: [
-                _centeredPage(_brandPage(context)),
-                _centeredPage(_featuresPage(context)),
-                // desktops have no runtime permission prompts,
-                // so the permissions page is mobile-only
-                if (!isDesktop) const _PermissionsPage(),
-                _centeredPage(_connectPage(context)),
-              ],
-            )),
-          ),
-          _dots(scheme),
-          _centered(Padding(
-            padding: const EdgeInsets.fromLTRB(24, 8, 24, 28),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(28, 8, 16, 0),
             child: Row(
               children: [
-                if (_page > 0)
-                  TextButton(
-                    onPressed: _previous,
-                    child: const Text('back'),
-                  ),
+                _progress(scheme),
                 const Spacer(),
-                FilledButton(
-                  onPressed: _next,
-                  style: FilledButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 30, vertical: 16)),
-                  child: Text(last ? 'start listening' : 'next'),
+                AnimatedOpacity(
+                  opacity: _page == _pageCount - 1 ? 0 : 1,
+                  duration: EMotion.fast,
+                  child:
+                      TextButton(onPressed: _finish, child: const Text('skip')),
                 ),
               ],
             ),
-          )),
+          ),
+          Expanded(
+            flex: 4,
+            child: LayoutBuilder(
+              builder: (context, c) =>
+                  Center(child: _hero(math.min(c.maxHeight * 0.82, 220))),
+            ),
+          ),
+          Expanded(
+            flex: 6,
+            child: PageView(
+              controller: _pageController,
+              onPageChanged: (p) => setState(() => _page = p),
+              children: [
+                _scrollablePage(context, _helloPage(context)),
+                _scrollablePage(context, _featuresPage(context)),
+                // desktops have no runtime permission prompts,
+                // so the permissions page is mobile-only
+                if (!isDesktop) const _PermissionsPage(),
+                _scrollablePage(context, _donePage(context)),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+            child: Row(
+              children: [
+                AnimatedScale(
+                  scale: _page > 0 ? 1 : 0,
+                  duration: EMotion.medium,
+                  curve: EMotion.emphasized,
+                  child: IconButton.filledTonal(
+                    onPressed: _previous,
+                    tooltip: 'back',
+                    iconSize: 26,
+                    style: IconButton.styleFrom(fixedSize: const Size(56, 56)),
+                    icon: const Icon(Icons.arrow_back_rounded),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: _nextButton(context),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
-      ),
+      )),
     );
 
     return Scaffold(
@@ -167,210 +197,319 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
     );
   }
 
-  Widget _dots(ColorScheme scheme) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: List.generate(_pageCount, (i) {
-          final active = i == _page;
-          return AnimatedContainer(
-            duration: const Duration(milliseconds: 240),
-            margin: const EdgeInsets.symmetric(horizontal: 3),
-            width: active ? 22 : 7,
-            height: 7,
-            decoration: BoxDecoration(
-              color: active
-                  ? scheme.primary
-                  : scheme.onSurfaceVariant.withValues(alpha: 0.25),
-              borderRadius: BorderRadius.circular(4),
-            ),
-          );
-        }),
-      ),
+  Widget _hero(double size) {
+    final scheme = Theme.of(context).colorScheme;
+    final colors = [
+      (scheme.primaryContainer, scheme.onPrimaryContainer),
+      (scheme.tertiaryContainer, scheme.onTertiaryContainer),
+      (scheme.secondaryContainer, scheme.onSecondaryContainer),
+      (scheme.primaryContainer, scheme.onPrimaryContainer),
+    ];
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    return ListenableBuilder(
+      listenable: _pageController,
+      builder: (context, _) {
+        final p = _pageController.hasClients &&
+                _pageController.position.hasContentDimensions
+            ? _pageController.page ?? 0
+            : _page.toDouble();
+        final i = p.floor().clamp(0, _pageCount - 1);
+        final j = math.min(i + 1, _pageCount - 1);
+        final t = p - i;
+        final fill = Color.lerp(colors[i].$1, colors[j].$1, t)!;
+        final ink = Color.lerp(colors[i].$2, colors[j].$2, t)!;
+        final step = _steps[p.round().clamp(0, _pageCount - 1)];
+        return SizedBox.square(
+          dimension: size,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Transform.rotate(
+                angle: p * math.pi / 3,
+                child: Material(
+                  animationDuration: Duration.zero,
+                  color: fill,
+                  shape: PolygonBorder(_steps[i].$1, to: _steps[j].$1, t: t),
+                  child: SizedBox.square(dimension: size),
+                ),
+              ),
+              AnimatedSwitcher(
+                duration: EMotion.medium,
+                transitionBuilder: (child, anim) => ScaleTransition(
+                  scale:
+                      CurvedAnimation(parent: anim, curve: EMotion.emphasized),
+                  child: FadeTransition(opacity: anim, child: child),
+                ),
+                child: step.$2 == null
+                    ? Image.asset(
+                        dark
+                            ? 'assets/images/ka_mark_light_ink.png'
+                            : 'assets/images/ka_mark_dark_ink.png',
+                        key: const ValueKey('mark'),
+                        width: size * 0.5,
+                      )
+                    : Icon(step.$2,
+                        key: ValueKey(step.$2), size: size * 0.38, color: ink),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
-  Widget _mark(BuildContext context, double size) {
-    final scheme = Theme.of(context).colorScheme;
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    return Material(
-      color: scheme.primaryContainer,
-      shape: const WavyCircleBorder(),
-      child: SizedBox(
-        width: size,
-        height: size,
-        child: Padding(
-          padding: EdgeInsets.all(size * 0.24),
-          child: Image.asset(
-            dark
-                ? 'assets/images/ka_mark_light_ink.png'
-                : 'assets/images/ka_mark_dark_ink.png',
+  Widget _progress(ColorScheme scheme) {
+    return Row(
+      children: [
+        for (var i = 0; i < _pageCount; i++)
+          Padding(
+            padding: const EdgeInsets.only(right: 6),
+            child: GestureDetector(
+              onTap: () => _go(i),
+              child: AnimatedScale(
+                scale: i == _page ? 1 : 0.6,
+                duration: EMotion.medium,
+                curve: EMotion.emphasized,
+                child: MorphShape(
+                  from: _steps[i].$1,
+                  size: 18,
+                  spin: i == _page,
+                  color: i <= _page
+                      ? scheme.primary
+                      : scheme.onSurfaceVariant.withValues(alpha: 0.3),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _nextButton(BuildContext context) {
+    final last = _page == _pageCount - 1;
+    return SizedBox(
+      height: 56,
+      child: FilledButton(
+        onPressed: _next,
+        style: FilledButton.styleFrom(
+          shape: const StadiumBorder(),
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          textStyle: Theme.of(context)
+              .textTheme
+              .titleMedium
+              ?.copyWith(fontWeight: FontWeight.w800),
+        ),
+        child: AnimatedSize(
+          duration: EMotion.medium,
+          curve: EMotion.emphasized,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (last)
+                const Flexible(
+                  child: Padding(
+                    padding: EdgeInsets.only(left: 8, right: 10),
+                    child: Text('start listening',
+                        maxLines: 1,
+                        overflow: TextOverflow.fade,
+                        softWrap: false),
+                  ),
+                ),
+              SizedBox(
+                width: 24,
+                child: Icon(
+                    last
+                        ? Icons.play_arrow_rounded
+                        : Icons.arrow_forward_rounded,
+                    size: 26),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 
-  Widget _brandPage(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(28, 8, 28, 0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Spacer(),
-          _mark(context, 148),
-          const SizedBox(height: 28),
-          Text('kashou',
-              style: _displayStyle(context)?.copyWith(
-                color: scheme.primary,
-                fontSize: 56,
-              )),
-          const SizedBox(height: 12),
-          Text(
-            'your files and the whole of youtube music, one player, no account',
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: scheme.onSurfaceVariant,
-                  height: 1.45,
-                ),
-          ),
-          const SizedBox(height: 20),
-          Text(
-            'free and open source, gpl 3.0',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: scheme.onSurfaceVariant.withValues(alpha: 0.7),
-                  letterSpacing: 0.2,
-                ),
-          ),
-          const Spacer(),
-        ],
+  Widget _chip(BuildContext context, String label, Color bg, Color fg) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(rFull),
       ),
+      child: Text(label,
+          style: Theme.of(context)
+              .textTheme
+              .labelLarge
+              ?.copyWith(color: fg, fontWeight: FontWeight.w700)),
+    );
+  }
+
+  Widget _helloPage(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _title(context, "hi, i'm kashou"),
+        const SizedBox(height: 14),
+        _blurb(
+            context, 'your own files and all of youtube music in one player'),
+        const SizedBox(height: 24),
+        Wrap(
+          alignment: WrapAlignment.center,
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            _chip(context, 'no account', scheme.primaryContainer,
+                scheme.onPrimaryContainer),
+            _chip(context, 'no ads', scheme.tertiaryContainer,
+                scheme.onTertiaryContainer),
+            _chip(context, 'open source', scheme.secondaryContainer,
+                scheme.onSecondaryContainer),
+          ],
+        ),
+      ],
     );
   }
 
   Widget _featuresPage(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final features = [
-      ('discover', 'real youtube music charts, playlists and moods'),
-      ('your library', 'local files with tags, albums and artists'),
-      ('studio eq', 'a 10 band equalizer and audio effects'),
+      (
+        MaterialShapes.clover4Leaf,
+        Icons.explore_rounded,
+        'discover',
+        'charts moods and mixes',
+        scheme.primaryContainer,
+        scheme.onPrimaryContainer
+      ),
+      (
+        MaterialShapes.cookie6Sided,
+        Icons.library_music_rounded,
+        'your library',
+        'local files with tags and art',
+        scheme.tertiaryContainer,
+        scheme.onTertiaryContainer
+      ),
+      (
+        MaterialShapes.softBurst,
+        Icons.graphic_eq_rounded,
+        'studio eq',
+        'ten bands to play with',
+        scheme.secondaryContainer,
+        scheme.onSecondaryContainer
+      ),
     ];
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(28, 8, 28, 0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Spacer(),
-          Text('everything in\none place', style: _displayStyle(context)),
-          const SizedBox(height: 40),
-          for (final (i, f) in features.indexed)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 26),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _title(context, 'what you get'),
+        const SizedBox(height: 24),
+        for (final (i, f) in features.indexed)
+          Transform.rotate(
+            angle: (i.isEven ? -1 : 1) * 0.03,
+            child: Container(
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.fromLTRB(12, 12, 20, 12),
+              decoration: BoxDecoration(
+                color: f.$5,
+                borderRadius: BorderRadius.circular(rXl),
+              ),
               child: Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  Material(
-                    color: scheme.primaryContainer,
-                    shape: const WavyCircleBorder(scallops: 8, depth: 0.03),
-                    child: SizedBox(
-                      width: 44,
-                      height: 44,
-                      child: Center(
-                        child: Text(
-                          '0${i + 1}',
-                          style:
-                              Theme.of(context).textTheme.titleMedium?.copyWith(
-                                    color: scheme.onPrimaryContainer,
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: 1,
-                                  ),
-                        ),
-                      ),
-                    ),
+                  MorphShape(
+                    from: f.$1,
+                    size: 48,
+                    color: f.$6,
+                    child: Icon(f.$2, color: f.$5, size: 24),
                   ),
-                  const SizedBox(width: 18),
+                  const SizedBox(width: 14),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(f.$1,
+                        Text(f.$3,
                             style: Theme.of(context)
                                 .textTheme
                                 .titleMedium
-                                ?.copyWith(fontWeight: FontWeight.w700)),
-                        const SizedBox(height: 3),
-                        Text(f.$2,
+                                ?.copyWith(
+                                    fontWeight: FontWeight.w800, color: f.$6)),
+                        Text(f.$4,
                             style: Theme.of(context)
                                 .textTheme
                                 .bodyMedium
-                                ?.copyWith(
-                                    color: scheme.onSurfaceVariant,
-                                    height: 1.35)),
+                                ?.copyWith(color: f.$6.withValues(alpha: 0.8))),
                       ],
                     ),
                   ),
                 ],
               ),
             ),
-          const Spacer(),
-        ],
-      ),
+          ),
+      ],
     );
   }
 
-  Widget _connectPage(BuildContext context) {
+  Widget _donePage(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(28, 8, 28, 0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Spacer(),
-          Text('built in the\nopen', style: _displayStyle(context)),
-          const SizedBox(height: 14),
-          Text(
-            'kashou is free software, star the repo to follow along',
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: scheme.onSurfaceVariant,
-                  height: 1.45,
-                ),
-          ),
-          const SizedBox(height: 32),
-          Material(
-            color: scheme.surfaceContainerHigh,
-            borderRadius: BorderRadius.circular(rMd),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(rMd),
-              onTap: () => launchUrl(Uri.parse(_repoUrl),
-                  mode: LaunchMode.externalApplication),
-              child: const Padding(
-                padding: EdgeInsets.all(18),
-                child: Row(
-                  children: [
-                    Icon(Icons.star_border_rounded),
-                    SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('Star on GitHub',
-                              style: TextStyle(
-                                  fontWeight: FontWeight.w600, fontSize: 16)),
-                          SizedBox(height: 2),
-                          Text('github.com/libreAMP/kashou'),
-                        ],
-                      ),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _title(context, 'all set'),
+        const SizedBox(height: 14),
+        _blurb(context, 'kashou is free and open source'),
+        const SizedBox(height: 24),
+        Material(
+          color: scheme.tertiaryContainer,
+          borderRadius: BorderRadius.circular(rXl),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(rXl),
+            onTap: () => launchUrl(Uri.parse(_repoUrl),
+                mode: LaunchMode.externalApplication),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 12, 18, 12),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  MorphShape(
+                    from: MaterialShapes.sunny,
+                    size: 48,
+                    spin: true,
+                    color: scheme.onTertiaryContainer,
+                    child: Icon(Icons.star_rounded,
+                        color: scheme.tertiaryContainer, size: 26),
+                  ),
+                  const SizedBox(width: 14),
+                  Flexible(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('star on github',
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium
+                                ?.copyWith(
+                                    fontWeight: FontWeight.w800,
+                                    color: scheme.onTertiaryContainer)),
+                        Text('libreAMP/kashou',
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyMedium
+                                ?.copyWith(
+                                    color: scheme.onTertiaryContainer
+                                        .withValues(alpha: 0.8))),
+                      ],
                     ),
-                    Icon(Icons.arrow_outward_rounded),
-                  ],
-                ),
+                  ),
+                  const SizedBox(width: 12),
+                  Icon(Icons.arrow_outward_rounded,
+                      color: scheme.onTertiaryContainer),
+                ],
               ),
             ),
           ),
-          const Spacer(),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
@@ -463,66 +602,46 @@ class _PermissionsPageState extends State<_PermissionsPage>
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-
     return _scrollablePage(
       context,
-      Padding(
-        padding: const EdgeInsets.fromLTRB(28, 8, 28, 0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Spacer(),
-            Text(
-              'before you\nstart',
-              style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -1,
-                    height: 1.02,
-                  ),
+      Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _title(context, 'a few asks'),
+          const SizedBox(height: 14),
+          _blurb(context, 'you can change these later in settings'),
+          const SizedBox(height: 22),
+          _permissionGroup([
+            (
+              Icons.folder_rounded,
+              'media',
+              'read your local songs',
+              _granted[Permission.audio] == true,
+              () => _request(Permission.audio)
             ),
-            const SizedBox(height: 14),
-            Text(
-              'grant what you want now, everything also works from settings later',
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: scheme.onSurfaceVariant,
-                    height: 1.45,
-                  ),
+            (
+              Icons.notifications_rounded,
+              'notifications',
+              'controls in the shade',
+              _granted[Permission.notification] == true,
+              () => _request(Permission.notification)
             ),
-            const SizedBox(height: 30),
-            _permissionGroup([
-              (
-                Icons.folder_outlined,
-                'media & storage',
-                'read your local audio files',
-                _granted[Permission.audio] == true,
-                () => _request(Permission.audio)
-              ),
-              (
-                Icons.notifications_none_rounded,
-                'notifications',
-                'playback controls in the shade',
-                _granted[Permission.notification] == true,
-                () => _request(Permission.notification)
-              ),
-              (
-                Icons.bluetooth_rounded,
-                'bluetooth',
-                'nearby speakers and headphones',
-                _granted[Permission.bluetoothConnect] == true,
-                () => _request(Permission.bluetoothConnect)
-              ),
-              (
-                Icons.folder_zip_outlined,
-                'all files access',
-                'optional, only to write tags and art back',
-                _allFiles,
-                _openAllFiles
-              ),
-            ]),
-            const Spacer(),
-          ],
-        ),
+            (
+              Icons.bluetooth_rounded,
+              'bluetooth',
+              'speakers and headphones',
+              _granted[Permission.bluetoothConnect] == true,
+              () => _request(Permission.bluetoothConnect)
+            ),
+            (
+              Icons.edit_note_rounded,
+              'all files',
+              'optional, to write tags back',
+              _allFiles,
+              _openAllFiles
+            ),
+          ]),
+        ],
       ),
     );
   }
@@ -531,52 +650,63 @@ class _PermissionsPageState extends State<_PermissionsPage>
   Widget _permissionGroup(
       List<(IconData, String, String, bool, VoidCallback)> rows) {
     final scheme = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
     return Column(
       children: [
         for (var i = 0; i < rows.length; i++)
           Padding(
-            padding: EdgeInsets.only(bottom: i == rows.length - 1 ? 0 : 2),
+            padding: EdgeInsets.only(bottom: i == rows.length - 1 ? 0 : 3),
             child: Material(
-              color: scheme.surfaceContainerLow,
+              color: rows[i].$4
+                  ? scheme.secondaryContainer
+                  : scheme.surfaceContainerHigh,
               borderRadius: BorderRadius.vertical(
-                top: Radius.circular(i == 0 ? rMd : rSm),
-                bottom: Radius.circular(i == rows.length - 1 ? rMd : rSm),
+                top: Radius.circular(i == 0 ? rXl : rSm),
+                bottom: Radius.circular(i == rows.length - 1 ? rXl : rSm),
               ),
               clipBehavior: Clip.antiAlias,
-              child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                child: Row(
-                  children: [
-                    Icon(rows[i].$1, color: scheme.onSurfaceVariant, size: 22),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(rows[i].$2,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleSmall
-                                  ?.copyWith(fontWeight: FontWeight.w600)),
-                          const SizedBox(height: 2),
-                          Text(rows[i].$3,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodySmall
-                                  ?.copyWith(color: scheme.onSurfaceVariant)),
-                        ],
+              child: InkWell(
+                onTap: rows[i].$4 ? null : rows[i].$5,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(10, 10, 16, 10),
+                  child: Row(
+                    children: [
+                      MorphShape(
+                        from: MaterialShapes.circle,
+                        to: MaterialShapes.cookie9Sided,
+                        morphed: rows[i].$4,
+                        size: 44,
+                        color: rows[i].$4
+                            ? scheme.primary
+                            : scheme.surfaceContainerHighest,
+                        child: Icon(
+                          rows[i].$4 ? Icons.check_rounded : rows[i].$1,
+                          size: 22,
+                          color: rows[i].$4
+                              ? scheme.onPrimary
+                              : scheme.onSurfaceVariant,
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 10),
-                    rows[i].$4
-                        ? Icon(Icons.check_circle_rounded,
-                            color: scheme.primary, size: 26)
-                        : FilledButton.tonal(
-                            onPressed: rows[i].$5,
-                            child: const Text('allow'),
-                          ),
-                  ],
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(rows[i].$2,
+                                style: text.titleSmall
+                                    ?.copyWith(fontWeight: FontWeight.w700)),
+                            Text(rows[i].$3,
+                                style: text.bodySmall
+                                    ?.copyWith(color: scheme.onSurfaceVariant)),
+                          ],
+                        ),
+                      ),
+                      Text(rows[i].$4 ? 'done' : 'allow',
+                          style: text.labelLarge?.copyWith(
+                              fontWeight: FontWeight.w800,
+                              color: scheme.primary)),
+                    ],
+                  ),
                 ),
               ),
             ),

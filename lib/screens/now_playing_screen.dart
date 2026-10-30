@@ -53,7 +53,7 @@ class NowPlayingScreen extends StatefulWidget {
 class _NowPlayingScreenState extends State<NowPlayingScreen> {
   bool _findingArtist = false;
   final _down = <String>{};
-  double _doubleTapDx = 0;
+  bool _seekBack = false;
   int _seekFlash = 1;
   bool _seekFlashOn = false;
   int _seekDown = 0;
@@ -216,10 +216,12 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                           if (!isDesktop)
                             Padding(
                               padding: EdgeInsets.only(
+                                // ios inset has dead space under the clock
                                 top: math.max(
-                                  MediaQuery.paddingOf(context).top,
-                                  MediaQuery.viewPaddingOf(context).top,
-                                ),
+                                      MediaQuery.paddingOf(context).top,
+                                      MediaQuery.viewPaddingOf(context).top,
+                                    ) -
+                                    (Platform.isIOS ? 14 : 0),
                               ),
                               child: Center(
                                 child: Container(
@@ -300,6 +302,15 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                                   return GestureDetector(
                                                     behavior: HitTestBehavior
                                                         .translucent,
+      // onDoubleTap has no position
+                                                    onDoubleTapDown: (d) =>
+                                                        _seekBack = d
+                                                                .localPosition
+                                                                .dx <
+                                                            constraints
+                                                                    .maxWidth /
+                                                                2,
+                                                    onDoubleTap: _doubleTapSeek,
                                                     onVerticalDragUpdate: widget
                                                                 .onCollapseDragUpdate ==
                                                             null
@@ -760,12 +771,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     }
 
     final card = GestureDetector(
-      // onDoubleTap has no position
-      onDoubleTapDown: (details) => _doubleTapDx = details.localPosition.dx,
-      onDoubleTap: () {
-        _triggerSeekFlash(_doubleTapDx < dimension / 2);
-        _seekFromDoubleTap(context, dimension);
-      },
+      onDoubleTapDown: (d) => _seekBack = d.localPosition.dx < dimension / 2,
+      onDoubleTap: _doubleTapSeek,
       // right-click mirrors the more-vert menu on desktop
       onSecondaryTap: isDesktop ? () => _showMoreOptions(context) : null,
       onHorizontalDragEnd: (details) {
@@ -866,13 +873,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     );
   }
 
-  void _seekFromDoubleTap(BuildContext context, double dimension) {
-    final audio = context.read<AudioProvider>();
-    final step = Duration(seconds: _doubleTapDx < dimension / 2 ? -5 : 5);
-    var target = audio.position + step;
-    if (target < Duration.zero) target = Duration.zero;
-    if (target > audio.duration) target = audio.duration;
-    audio.seek(target);
+  void _doubleTapSeek() {
+    _triggerSeekFlash(_seekBack);
+    _seekBy(context, _seekBack ? -5 : 5);
   }
 
   Widget _buildAmbientBackground(BuildContext context, Track track) {

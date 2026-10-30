@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:material_new_shapes/material_new_shapes.dart';
 import 'package:provider/provider.dart';
-import 'package:http/http.dart' as http;
 
 import '../models/track.dart';
 import '../providers/audio_provider.dart';
@@ -333,25 +332,6 @@ class _StreamScreenState extends State<StreamScreen>
       );
 
       await audioProvider.playTrack(finalTrack, playlist: playlist);
-
-      // hqdefault has black bars baked in
-      http
-          .get(Uri.parse('https://i.ytimg.com/vi/$videoId/maxresdefault.jpg'))
-          .then((resp) {
-        if (resp.statusCode == 200) {
-          audioProvider.updateTrackMetadata(
-              finalTrack.copyWith(albumArt: resp.bodyBytes));
-        } else {
-          return http
-              .get(Uri.parse('https://i.ytimg.com/vi/$videoId/mqdefault.jpg'))
-              .then((r2) {
-            if (r2.statusCode == 200) {
-              audioProvider.updateTrackMetadata(
-                  finalTrack.copyWith(albumArt: r2.bodyBytes));
-            }
-          });
-        }
-      });
     } catch (e) {
       audioProvider.cancelPendingTrack(videoId);
       _snack('Error loading audio: $e');

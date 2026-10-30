@@ -2,7 +2,6 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:http/http.dart' as http;
 import 'package:material_new_shapes/material_new_shapes.dart';
 import 'package:shimmer/shimmer.dart';
 import '../providers/audio_provider.dart';
@@ -94,14 +93,6 @@ class _SectionPageState extends State<SectionPage> {
 
       await audioProvider.playTrack(finalTrack, playlist: tracks);
 
-      final thumb = video['thumbnail'] as String? ??
-          'https://i.ytimg.com/vi/${placeholderTrack.id}/hqdefault.jpg';
-      http.get(Uri.parse(thumb)).then((resp) {
-        if (resp.statusCode == 200) {
-          audioProvider.updateTrackMetadata(
-              finalTrack.copyWith(albumArt: resp.bodyBytes));
-        }
-      });
     } catch (e) {
       audioProvider.cancelPendingTrack(placeholderTrack.id);
       _showSnackBar('Error loading audio: $e');

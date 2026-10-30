@@ -97,13 +97,11 @@ Future<List<double>> _sideBarInsets(ui.Image src) async {
 class AudioPlayerService {
   static AudioPlayer? _audioPlayer;
   static AudioHandler? _audioHandler;
-  static bool _isInitializing = false;
-  static bool _isInitialized = false;
+  static Future<void>? _init;
 
-  static Future<void> initialize() async {
-    if (_isInitialized || _isInitializing) return;
+  static Future<void> initialize() => _init ??= _initialize();
 
-    _isInitializing = true;
+  static Future<void> _initialize() async {
     final prefs = await SharedPreferences.getInstance();
     final bufferSize = prefs.getInt('buffer_size') ?? 2048;
     _audioPlayer =
@@ -111,11 +109,7 @@ class AudioPlayerService {
 
     // audio_service only implements android/ios/macos; desktop plays
     // straight through the plain player
-    if (Platform.isLinux || Platform.isWindows) {
-      _isInitialized = true;
-      _isInitializing = false;
-      return;
-    }
+    if (Platform.isLinux || Platform.isWindows) return;
 
     try {
       _audioHandler = await AudioService.init(
@@ -128,11 +122,8 @@ class AudioPlayerService {
           androidNotificationIcon: 'drawable/ic_stat_kashou',
         ),
       );
-      _isInitialized = true;
     } catch (e) {
       debugPrint('Error initializing audio service: $e');
-    } finally {
-      _isInitializing = false;
     }
   }
 
