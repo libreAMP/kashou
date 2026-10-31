@@ -462,6 +462,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           ),
           520.0,
         );
+        final thumb = math.min(constraints.maxHeight - 470, 220.0);
         return Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 1120),
@@ -538,16 +539,17 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                 curve: EMotion.standard,
                                 child: AnimatedSwitcher(
                                   duration: EMotion.medium,
-                                  child: _lyricsOpen
+                                  child: _lyricsOpen && thumb >= 72
                                       ? Padding(
                                           padding:
                                               const EdgeInsets.only(bottom: 28),
-                                          child: SquareArt(
-                                            bytes: track.albumArt,
-                                            url: _buildYoutubeThumbnailUrl(
-                                                track),
-                                            size: math.min(artSize * 0.6, 240),
-                                            radius: rLg,
+                                          child: SizedBox.square(
+                                            dimension: thumb,
+                                            child: ClipRRect(
+                                              borderRadius:
+                                                  BorderRadius.circular(rLg),
+                                              child: _artImage(context, track),
+                                            ),
                                           ),
                                         )
                                       : const SizedBox(width: double.infinity),
@@ -717,11 +719,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     );
   }
 
-  Widget _buildArtworkCard(BuildContext context, Track track, Size size,
-      {double? artSize}) {
+  Widget _artImage(BuildContext context, Track track) {
     final colorScheme = Theme.of(context).colorScheme;
-    final dimension = artSize ?? (size.width - 40) * 0.92;
-
     Widget buildFallback() {
       return Container(
         color: colorScheme.surfaceContainerHigh,
@@ -760,17 +759,22 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       return buildFallback();
     }
 
-    final Widget image;
     if (online) {
-      image = CachedNetworkImage(
+      return CachedNetworkImage(
         imageUrl: 'https://i.ytimg.com/vi/$videoId/maxresdefault.jpg',
         fit: BoxFit.cover,
         placeholder: (_, __) => lowArt(),
         errorWidget: (_, __, ___) => lowArt(),
       );
-    } else {
-      image = lowArt();
     }
+    return lowArt();
+  }
+
+  Widget _buildArtworkCard(BuildContext context, Track track, Size size,
+      {double? artSize}) {
+    final dimension = artSize ?? (size.width - 40) * 0.92;
+
+    final image = _artImage(context, track);
 
     final card = GestureDetector(
       onDoubleTapDown: (d) => _seekBack = d.localPosition.dx < dimension / 2,

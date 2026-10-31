@@ -480,7 +480,6 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
         'wallpaper',
         'colors from your phone'
       ),
-      ('accent', Icons.palette_outlined, 'pick one', 'a color you choose'),
       ('art', Icons.album_rounded, 'now playing', 'follows the album art'),
     ];
 
