@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:material_new_shapes/material_new_shapes.dart';
 import 'package:provider/provider.dart';
 import '../providers/library_provider.dart';
 import '../providers/audio_provider.dart';
@@ -7,13 +6,13 @@ import '../widgets/m3e_refresh.dart';
 import '../widgets/track_list_item.dart';
 import '../widgets/album_card.dart';
 import '../widgets/m3e_cover_card.dart';
-import '../widgets/morph_shape.dart';
 import '../widgets/track_options_sheet.dart';
 import 'track_list_page.dart';
 import '../models/track.dart';
 import '../theme/radii.dart';
 import '../utils/platform.dart';
 import 'search_screen.dart';
+import '../widgets/section_header.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -86,7 +85,6 @@ class HomeScreen extends StatelessWidget {
       );
 
   Widget _buildSearchBar(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     return _centeredContent(Padding(
       padding: EdgeInsets.fromLTRB(20, isWideLayout ? 16 : 8, 12, 8),
       child: Row(
@@ -119,26 +117,7 @@ class HomeScreen extends StatelessWidget {
                   ),
                 ),
                 style: Theme.of(context).textTheme.bodyLarge,
-                decoration: InputDecoration(
-                  hintText: 'Search your music',
-                  prefixIcon: const Padding(
-                    padding: EdgeInsets.fromLTRB(14, 0, 12, 0),
-                    child: Icon(Icons.search_rounded),
-                  ),
-                  prefixIconConstraints: const BoxConstraints(
-                      minWidth: 50, maxWidth: 50, minHeight: 0),
-                  hintStyle: Theme.of(context)
-                      .textTheme
-                      .bodyLarge
-                      ?.copyWith(color: scheme.onSurfaceVariant),
-                  filled: true,
-                  fillColor: scheme.surfaceContainerHigh,
-                  contentPadding: EdgeInsets.zero,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(rFull),
-                    borderSide: BorderSide.none,
-                  ),
-                ),
+                decoration: searchDecoration(context, 'Search your music'),
               ),
             ),
           ),
@@ -687,38 +666,24 @@ class HomeScreen extends StatelessWidget {
     VoidCallback? onActionTap,
   }) {
     final colorScheme = Theme.of(context).colorScheme;
-
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        MorphShape(
-            from: MaterialShapes.sunny, size: 14, color: colorScheme.tertiary),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            title,
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.6,
-                  color: colorScheme.onSurface,
+    return SectionHeader(
+      title,
+      trailing: actionLabel == null
+          ? null
+          : TextButton(
+              onPressed: onActionTap,
+              style: TextButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                backgroundColor: colorScheme.secondaryContainer,
+                foregroundColor: colorScheme.onSecondaryContainer,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(rFull),
                 ),
-          ),
-        ),
-        if (actionLabel != null)
-          TextButton(
-            onPressed: onActionTap,
-            style: TextButton.styleFrom(
-              visualDensity: VisualDensity.compact,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-              backgroundColor: colorScheme.secondaryContainer,
-              foregroundColor: colorScheme.onSecondaryContainer,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(rFull),
               ),
+              child: Text(actionLabel),
             ),
-            child: Text(actionLabel),
-          ),
-      ],
     );
   }
 }

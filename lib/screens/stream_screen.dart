@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:material_new_shapes/material_new_shapes.dart';
 import 'package:provider/provider.dart';
 
 import '../models/track.dart';
@@ -16,7 +15,6 @@ import '../theme/radii.dart';
 import '../utils/platform.dart';
 import '../utils/sheet_scope.dart';
 import '../widgets/m3e_badge.dart';
-import '../widgets/morph_shape.dart';
 import '../widgets/m3e_refresh.dart';
 import '../widgets/art_card.dart';
 import '../widgets/dpad_focus.dart';
@@ -30,6 +28,8 @@ import 'downloads_screen.dart';
 import 'mood_category_screen.dart';
 import 'section_page.dart';
 import 'youtube_history_screen.dart';
+import '../widgets/section_header.dart';
+import '../widgets/empty_shape.dart';
 
 // the skeleton shares these
 const int _quickPicksRows = 4;
@@ -452,7 +452,6 @@ class _StreamScreenState extends State<StreamScreen>
   }
 
   Widget _buildSearchBar(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     final searching = _exploreOpen || _currentQuery.isNotEmpty;
 
     return _centeredContent(
@@ -474,33 +473,15 @@ class _StreamScreenState extends State<StreamScreen>
                       _search(q);
                     },
                     style: Theme.of(context).textTheme.bodyLarge,
-                    decoration: InputDecoration(
-                      hintText: 'Search songs, artists',
-                      prefixIcon: const Padding(
-                        padding: EdgeInsets.fromLTRB(14, 0, 12, 0),
-                        child: Icon(Icons.search_rounded),
-                      ),
-                      prefixIconConstraints: const BoxConstraints(
-                          minWidth: 50, maxWidth: 50, minHeight: 0),
-                      hintStyle: Theme.of(context)
-                          .textTheme
-                          .bodyLarge
-                          ?.copyWith(color: scheme.onSurfaceVariant),
-                      suffixIcon: searching
-                          ? IconButton(
-                              icon: const Icon(Icons.close_rounded),
-                              tooltip: 'Close search',
-                              onPressed: _closeSearch,
-                            )
-                          : null,
-                      filled: true,
-                      fillColor: scheme.surfaceContainerHigh,
-                      contentPadding: EdgeInsets.zero,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(rFull),
-                        borderSide: BorderSide.none,
-                      ),
-                    ),
+                    decoration:
+                        searchDecoration(context, 'Search songs, artists',
+                            suffix: searching
+                                ? IconButton(
+                                    icon: const Icon(Icons.close_rounded),
+                                    tooltip: 'Close search',
+                                    onPressed: _closeSearch,
+                                  )
+                                : null),
                   ),
                 ),
               ),
@@ -594,7 +575,7 @@ class _StreamScreenState extends State<StreamScreen>
         _searchPlaylists.isEmpty &&
         _searchAlbums.isEmpty) {
       return _emptyState(
-          Icons.search_off_rounded, 'No results', 'Try a different search');
+          Icons.search_off_rounded, 'nothing found', 'try a different search');
     }
     final bottom = _bottomInset(context);
     return ListView(
@@ -809,7 +790,7 @@ class _StreamScreenState extends State<StreamScreen>
   Widget _buildDiscover(BuildContext context) {
     if (_isLoading) return const Center(child: KashouLoader());
     if (_error != null) {
-      return _emptyState(Icons.wifi_off_rounded, 'Offline', _error!,
+      return _emptyState(Icons.wifi_off_rounded, 'offline', _error!,
           onRetry: _loadDiscover);
     }
 
@@ -1497,58 +1478,18 @@ class _StreamScreenState extends State<StreamScreen>
   }
 
   Widget _sectionTitle(String title, {Widget? trailing}) {
-    final scheme = Theme.of(context).colorScheme;
-    return Row(
-      children: [
-        MorphShape(
-            from: MaterialShapes.sunny, size: 14, color: scheme.tertiary),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context)
-                .textTheme
-                .headlineSmall
-                ?.copyWith(fontWeight: FontWeight.w800, letterSpacing: -0.6),
-          ),
-        ),
-        if (trailing != null) ...[const SizedBox(width: 8), trailing],
-      ],
-    );
+    return SectionHeader(title, trailing: trailing);
   }
 
   Widget _emptyState(IconData icon, String title, String subtitle,
       {VoidCallback? onRetry}) {
-    final scheme = Theme.of(context).colorScheme;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 56, color: scheme.onSurfaceVariant),
-            const SizedBox(height: 16),
-            Text(title,
-                style: Theme.of(context)
-                    .textTheme
-                    .titleMedium
-                    ?.copyWith(fontWeight: FontWeight.w600)),
-            const SizedBox(height: 6),
-            Text(subtitle,
-                textAlign: TextAlign.center,
-                style: Theme.of(context)
-                    .textTheme
-                    .bodyMedium
-                    ?.copyWith(color: scheme.onSurfaceVariant)),
-            if (onRetry != null) ...[
-              const SizedBox(height: 20),
-              FilledButton(onPressed: onRetry, child: const Text('Retry')),
-            ],
-          ],
-        ),
-      ),
+    return EmptyShape(
+      icon: icon,
+      title: title,
+      body: subtitle,
+      action: onRetry == null
+          ? null
+          : FilledButton(onPressed: onRetry, child: const Text('retry')),
     );
   }
 

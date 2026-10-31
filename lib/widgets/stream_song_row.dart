@@ -66,33 +66,7 @@ class StreamSongRow extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
           child: Row(
             children: [
-              MorphShape(
-                from: MaterialShapes.square,
-                to: MaterialShapes.cookie9Sided,
-                morphed: isCurrent,
-                size: 52,
-                child: SizedBox.square(
-                  dimension: 52,
-                  child: Stack(
-                    children: [
-                      Positioned.fill(child: artwork),
-                      Positioned.fill(
-                        child: AnimatedOpacity(
-                          opacity: playing ? 1 : 0,
-                          duration: EMotion.medium,
-                          child: ColoredBox(
-                            color: scheme.primary.withValues(alpha: 0.55),
-                            child: const Center(
-                              child:
-                                  NowPlayingBars(color: Colors.white, size: 18),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+              MorphArt(art: artwork, current: isCurrent, playing: playing),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -151,6 +125,52 @@ class StreamSongRow extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class MorphArt extends StatelessWidget {
+  const MorphArt({
+    super.key,
+    required this.art,
+    required this.current,
+    required this.playing,
+    this.size = 52,
+  });
+
+  final Widget art;
+  final bool current;
+  final bool playing;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return MorphShape(
+      from: MaterialShapes.square,
+      to: MaterialShapes.cookie9Sided,
+      morphed: current,
+      size: size,
+      child: SizedBox.square(
+        dimension: size,
+        child: Stack(
+          children: [
+            Positioned.fill(child: art),
+            Positioned.fill(
+              child: AnimatedOpacity(
+                opacity: playing ? 1 : 0,
+                duration: EMotion.medium,
+                child: ColoredBox(
+                  color: scheme.primary.withValues(alpha: 0.55),
+                  child: const Center(
+                    child: NowPlayingBars(color: Colors.white, size: 18),
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

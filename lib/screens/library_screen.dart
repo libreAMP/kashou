@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:material_new_shapes/material_new_shapes.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -17,7 +16,6 @@ import '../widgets/loading_indicator.dart';
 import '../widgets/m3e_list.dart';
 import '../widgets/m3e_menu.dart';
 import '../widgets/m3e_progress.dart';
-import '../widgets/morph_shape.dart';
 import '../widgets/settings_tiles.dart';
 import '../widgets/sheet_handle.dart';
 import '../utils/app_messenger.dart';
@@ -28,6 +26,8 @@ import '../widgets/album_card.dart';
 import '../widgets/artist_card.dart';
 import 'track_list_page.dart';
 import 'youtube_history_screen.dart';
+import '../widgets/section_header.dart';
+import '../widgets/empty_shape.dart';
 
 class LibraryScreen extends StatefulWidget {
   const LibraryScreen({super.key});
@@ -255,7 +255,6 @@ class _LibraryScreenState extends State<LibraryScreen>
   }
 
   Widget _buildSearchBar(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     return _centeredContent(
       Padding(
         padding: EdgeInsets.fromLTRB(20, isDesktop ? 16 : 8, 12, 8),
@@ -267,36 +266,17 @@ class _LibraryScreenState extends State<LibraryScreen>
                 child: TextField(
                   controller: _searchController,
                   style: Theme.of(context).textTheme.bodyLarge,
-                  decoration: InputDecoration(
-                    hintText: 'Search library...',
-                    prefixIcon: const Padding(
-                      padding: EdgeInsets.fromLTRB(14, 0, 12, 0),
-                      child: Icon(Icons.search_rounded),
-                    ),
-                    prefixIconConstraints: const BoxConstraints(
-                        minWidth: 50, maxWidth: 50, minHeight: 0),
-                    hintStyle: Theme.of(context)
-                        .textTheme
-                        .bodyLarge
-                        ?.copyWith(color: scheme.onSurfaceVariant),
-                    suffixIcon: _searchController.text.isNotEmpty
-                        ? IconButton(
-                            icon: const Icon(Icons.close_rounded),
-                            tooltip: 'Clear search',
-                            onPressed: () {
-                              _searchController.clear();
-                              setState(() {});
-                            },
-                          )
-                        : null,
-                    filled: true,
-                    fillColor: scheme.surfaceContainerHigh,
-                    contentPadding: EdgeInsets.zero,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(rFull),
-                      borderSide: BorderSide.none,
-                    ),
-                  ),
+                  decoration: searchDecoration(context, 'Search library...',
+                      suffix: _searchController.text.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.close_rounded),
+                              tooltip: 'Clear search',
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() {});
+                              },
+                            )
+                          : null),
                   onChanged: (_) => setState(() {}),
                 ),
               ),
@@ -522,49 +502,10 @@ class _LibraryScreenState extends State<LibraryScreen>
     final favoriteTracks = _sorted(_filtered(library.favoriteTracks));
 
     if (favoriteTracks.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surfaceContainerLow,
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  Icons.favorite_border,
-                  size: 64,
-                  color: Theme.of(context)
-                      .colorScheme
-                      .onSurfaceVariant
-                      .withValues(alpha: 0.4),
-                ),
-              ),
-              const SizedBox(height: 24),
-              Text(
-                'No liked songs yet',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: Theme.of(context).colorScheme.onSurface,
-                    ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Tap the heart icon on songs you love',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context)
-                          .colorScheme
-                          .onSurfaceVariant
-                          .withValues(alpha: 0.7),
-                    ),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-        ),
+      return EmptyShape(
+        icon: Icons.favorite_rounded,
+        title: 'no liked songs yet',
+        body: 'tap the heart on songs you love',
       );
     }
 
@@ -582,7 +523,6 @@ class _LibraryScreenState extends State<LibraryScreen>
           if (onlineTracks.isNotEmpty) ...[
             _buildSectionHeader(
               context,
-              icon: Icons.cloud_outlined,
               title: 'Online Songs',
               subtitle: '${onlineTracks.length} tracks',
             ),
@@ -593,7 +533,6 @@ class _LibraryScreenState extends State<LibraryScreen>
           if (localTracks.isNotEmpty) ...[
             _buildSectionHeader(
               context,
-              icon: Icons.phone_android,
               title: 'Local Songs',
               subtitle: '${localTracks.length} tracks',
             ),
@@ -614,59 +553,11 @@ class _LibraryScreenState extends State<LibraryScreen>
     return Column(children: rows);
   }
 
-  Widget _buildSectionHeader(
-    BuildContext context, {
-    required IconData icon,
-    required String title,
-    required String subtitle,
-  }) {
-    final theme = Theme.of(context);
+  Widget _buildSectionHeader(BuildContext context,
+      {required String title, required String subtitle}) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-      child: Row(
-        children: [
-          MorphShape(
-            from: MaterialShapes.cookie6Sided,
-            size: 36,
-            color: theme.colorScheme.primaryContainer,
-            child: Icon(
-              icon,
-              size: 20,
-              color: theme.colorScheme.onPrimaryContainer,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  MorphShape(
-                    from: MaterialShapes.sunny,
-                    size: 14,
-                    color: theme.colorScheme.tertiary,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    title,
-                    style: theme.textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.6,
-                      color: theme.colorScheme.onSurface,
-                    ),
-                  ),
-                ],
-              ),
-              Text(
-                subtitle,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
+      child: SectionHeader(title, subtitle: subtitle),
     );
   }
 
@@ -677,45 +568,21 @@ class _LibraryScreenState extends State<LibraryScreen>
         : library.searchTracks(_searchController.text));
 
     if (tracks.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              _searchController.text.isEmpty
-                  ? Icons.music_note_outlined
-                  : Icons.search_off,
-              size: 64,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              _searchController.text.isEmpty
-                  ? 'No songs found'
-                  : 'No songs match your search',
-              style: Theme.of(context).textTheme.headlineSmall,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              _searchController.text.isEmpty
-                  ? 'Add some music to get started'
-                  : 'Try a different search term',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-              textAlign: TextAlign.center,
-            ),
-            if (_searchController.text.isEmpty) ...[
-              const SizedBox(height: 16),
-              FilledButton(
-                onPressed: () {
-                  library.scanLibrary(force: true);
-                },
-                child: const Text('Scan Library'),
-              ),
-            ],
-          ],
-        ),
+      return EmptyShape(
+        icon: _searchController.text.isEmpty
+            ? Icons.music_note_rounded
+            : Icons.search_off_rounded,
+        title:
+            _searchController.text.isEmpty ? 'no songs yet' : 'nothing matches',
+        body: _searchController.text.isEmpty
+            ? 'add some music to get started'
+            : 'try a different search',
+        action: _searchController.text.isEmpty
+            ? FilledButton(
+                onPressed: () => library.scanLibrary(force: true),
+                child: const Text('scan library'),
+              )
+            : null,
       );
     }
 
@@ -757,26 +624,16 @@ class _LibraryScreenState extends State<LibraryScreen>
         : library.searchAlbums(_searchController.text);
 
     if (albums.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              _searchController.text.isEmpty
-                  ? Icons.album_outlined
-                  : Icons.search_off,
-              size: 64,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              _searchController.text.isEmpty
-                  ? 'No albums found'
-                  : 'No albums match your search',
-              style: Theme.of(context).textTheme.headlineSmall,
-            ),
-          ],
-        ),
+      return EmptyShape(
+        icon: _searchController.text.isEmpty
+            ? Icons.album_rounded
+            : Icons.search_off_rounded,
+        title: _searchController.text.isEmpty
+            ? 'no albums yet'
+            : 'nothing matches',
+        body: _searchController.text.isEmpty
+            ? 'albums from your files land here'
+            : 'try a different search',
       );
     }
 
@@ -801,26 +658,16 @@ class _LibraryScreenState extends State<LibraryScreen>
         : library.searchArtists(_searchController.text);
 
     if (artists.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              _searchController.text.isEmpty
-                  ? Icons.person_outlined
-                  : Icons.search_off,
-              size: 64,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              _searchController.text.isEmpty
-                  ? 'No artists found'
-                  : 'No artists match your search',
-              style: Theme.of(context).textTheme.headlineSmall,
-            ),
-          ],
-        ),
+      return EmptyShape(
+        icon: _searchController.text.isEmpty
+            ? Icons.person_rounded
+            : Icons.search_off_rounded,
+        title: _searchController.text.isEmpty
+            ? 'no artists yet'
+            : 'nothing matches',
+        body: _searchController.text.isEmpty
+            ? 'artists from your files land here'
+            : 'try a different search',
       );
     }
 
@@ -848,29 +695,10 @@ class _LibraryScreenState extends State<LibraryScreen>
         }
         final tracks = _sorted(_filtered(snapshot.data!));
         if (tracks.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.download_done_rounded,
-                  size: 64,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Nothing downloaded yet',
-                  style: Theme.of(context).textTheme.headlineSmall,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Songs you download play here without internet.',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                ),
-              ],
-            ),
+          return const EmptyShape(
+            icon: Icons.download_done_rounded,
+            title: 'nothing downloaded yet',
+            body: 'songs you download play here without internet',
           );
         }
         return _wrapTabScrollable(
@@ -899,36 +727,13 @@ class _LibraryScreenState extends State<LibraryScreen>
             .where((p) => p.name.toLowerCase().contains(q))
             .toList();
     if (playlists.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.playlist_play,
-              size: 64,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'No playlists yet',
-              style: Theme.of(context).textTheme.headlineSmall,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Create your first playlist',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-            FilledButton(
-              onPressed: () {
-                _showCreatePlaylistDialog(context);
-              },
-              child: const Text('Create Playlist'),
-            ),
-          ],
+      return EmptyShape(
+        icon: Icons.queue_music_rounded,
+        title: 'no playlists yet',
+        body: 'make one for your favourite songs',
+        action: FilledButton(
+          onPressed: () => _showCreatePlaylistDialog(context),
+          child: const Text('new playlist'),
         ),
       );
     }

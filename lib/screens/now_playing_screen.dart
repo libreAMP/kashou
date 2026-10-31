@@ -54,6 +54,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
   bool _findingArtist = false;
   final _down = <String>{};
   bool _seekBack = false;
+  double _artDx = 0;
+  bool _artHeld = false;
   int _seekFlash = 1;
   bool _seekFlashOn = false;
   int _seekDown = 0;
@@ -775,35 +777,52 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       onDoubleTap: _doubleTapSeek,
       // right-click mirrors the more-vert menu on desktop
       onSecondaryTap: isDesktop ? () => _showMoreOptions(context) : null,
+      onHorizontalDragStart: (_) => setState(() => _artHeld = true),
+      onHorizontalDragUpdate: (d) => setState(() => _artDx += d.delta.dx),
       onHorizontalDragEnd: (details) {
-        final velocity = details.primaryVelocity ?? 0;
-        if (velocity.abs() < 400) return;
-        final audio = context.read<AudioProvider>();
-        velocity < 0 ? audio.skipNext() : audio.skipPrevious();
+        final v = details.primaryVelocity ?? 0;
+        if (_artDx.abs() > dimension * 0.3 || v.abs() > 800) {
+          final audio = context.read<AudioProvider>();
+          (v.abs() > 800 ? v < 0 : _artDx < 0)
+              ? audio.skipNext()
+              : audio.skipPrevious();
+        }
+        setState(() {
+          _artHeld = false;
+          _artDx = 0;
+        });
       },
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          Positioned(
-            left: -dimension * 0.05,
-            top: -dimension * 0.05,
-            child: MorphShape(
-              from: MaterialShapes.softBurst,
-              size: dimension * 1.1,
-              spin: context.watch<AudioProvider>().isPlaying,
-              color: colorScheme.tertiaryContainer.withValues(alpha: 0.55),
-            ),
-          ),
-          Hero(
-            tag: 'album_art_${track.id}',
-            createRectTween: albumArtRectTween,
-            flightShuttleBuilder: albumArtFlightShuttleBuilder,
-            child: SizedBox(
-              width: dimension,
-              height: dimension,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(rXl + 8),
-                child: image,
+          AnimatedScale(
+            scale: context.watch<AudioProvider>().isPlaying ? 1 : 0.9,
+            duration: EMotion.medium,
+            curve: EMotion.emphasized,
+            child: TweenAnimationBuilder<double>(
+              tween: Tween(end: _artDx),
+              duration: _artHeld ? Duration.zero : EMotion.medium,
+              curve: Curves.easeOutBack,
+              builder: (context, dx, child) {
+                final k = (dx / dimension).clamp(-1.0, 1.0);
+                return Transform.translate(
+                  offset: Offset(dx, 0),
+                  child: Transform.rotate(
+                    angle: k * 0.12,
+                    child: ClipRRect(
+                      borderRadius:
+                          BorderRadius.circular(rXl + 8 + k.abs() * 90),
+                      child: child,
+                    ),
+                  ),
+                );
+              },
+              child: Hero(
+                tag: 'album_art_${track.id}',
+                createRectTween: albumArtRectTween,
+                flightShuttleBuilder: albumArtFlightShuttleBuilder,
+                child:
+                    SizedBox(width: dimension, height: dimension, child: image),
               ),
             ),
           ),

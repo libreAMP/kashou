@@ -9,11 +9,13 @@ class EmptyShape extends StatelessWidget {
     required this.icon,
     required this.title,
     required this.body,
+    this.action,
   });
 
   final IconData icon;
   final String title;
   final String body;
+  final Widget? action;
 
   @override
   Widget build(BuildContext context) {
@@ -40,6 +42,7 @@ class EmptyShape extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style:
                     text.bodyMedium?.copyWith(color: scheme.onSurfaceVariant)),
+            if (action != null) ...[const SizedBox(height: 20), action!],
           ],
         ),
       ),

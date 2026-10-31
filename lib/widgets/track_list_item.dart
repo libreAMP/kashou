@@ -1,6 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:material_new_shapes/material_new_shapes.dart';
 import 'package:provider/provider.dart';
 import '../models/track.dart';
 import '../providers/audio_provider.dart';
@@ -8,9 +7,8 @@ import '../providers/library_provider.dart';
 import '../theme/app_theme.dart';
 import '../theme/radii.dart';
 import '../utils/platform.dart';
-import 'morph_shape.dart';
-import 'now_playing_bars.dart';
 import 'track_options_sheet.dart';
+import 'stream_song_row.dart';
 
 class TrackListItem extends StatefulWidget {
   final Track track;
@@ -188,57 +186,14 @@ class _TrackListItemState extends State<TrackListItem> {
   }
 
   Widget _artwork(ThemeData theme, bool isPlaying, bool isCurrent) {
-    final size = isTv ? 60.0 : 52.0;
-    final art = ColoredBox(
-      color: theme.colorScheme.surfaceContainerHighest,
-      child: _artFor(widget.track, theme.colorScheme),
-    );
-    if (isCurrent) {
-      return MorphShape(
-        from: MaterialShapes.square,
-        to: MaterialShapes.cookie9Sided,
-        morphed: true,
-        size: size,
-        child: SizedBox.square(
-          dimension: size,
-          child: Stack(
-            children: [
-              Positioned.fill(child: art),
-              if (isPlaying)
-                Positioned.fill(
-                  child: ColoredBox(
-                    color: theme.colorScheme.primary.withValues(alpha: 0.55),
-                    child: const Center(
-                      child: NowPlayingBars(color: Colors.white, size: 18),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ),
-      );
-    }
-    final radius = BorderRadius.circular(rMd - 4);
-    return SizedBox.square(
-      dimension: size,
-      child: Stack(
-        children: [
-          Positioned.fill(child: ClipRRect(borderRadius: radius, child: art)),
-          Positioned.fill(
-            child: IgnorePointer(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  borderRadius: radius,
-                  border: Border.all(
-                    color: theme.colorScheme.outlineVariant
-                        .withValues(alpha: 0.28),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
+    return MorphArt(
+      art: ColoredBox(
+        color: theme.colorScheme.surfaceContainerHighest,
+        child: _artFor(widget.track, theme.colorScheme),
       ),
+      current: isCurrent,
+      playing: isPlaying,
+      size: isTv ? 60 : 52,
     );
   }
 
