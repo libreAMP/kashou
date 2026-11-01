@@ -233,7 +233,9 @@ class _ArtistScreenState extends State<ArtistScreen> {
       artist: song['channel'] as String? ?? '',
       album: '',
       path: url,
-      duration: Duration.zero,
+      duration: song['duration'] is int
+          ? Duration(seconds: song['duration'] as int)
+          : Duration.zero,
       sourceUrl: url,
       artistId: song['artistId'] as String? ?? widget.browseId,
       views: song['views'] as String?,

@@ -251,11 +251,13 @@ class YtMusicService {
         if (title == null) continue;
         final by = _text(p['longBylineText']) ?? _text(p['shortBylineText']);
         final views = _viewsFromByline(by);
+        final dur = _clock(_text(p['lengthText']));
         out.add({
           'id': id,
           'title': title,
           'url': 'https://www.youtube.com/watch?v=$id',
           'channel': by?.split(' • ').first ?? '',
+          if (dur != null) 'duration': dur,
           if (views != null) 'views': views,
           'artistId': _artistIdFromRuns(p['longBylineText']) ??
               _artistIdFromRuns(p['shortBylineText']),
@@ -284,11 +286,13 @@ class YtMusicService {
     final plays = cols.length > 2
         ? _text(cols[2]['musicResponsiveListItemFlexColumnRenderer']?['text'])
         : null;
+    final dur = _duration(r);
     return {
       'id': videoId,
       'title': title,
       'url': 'https://www.youtube.com/watch?v=$videoId',
       'channel': artist?.split(' • ').first ?? '',
+      if (dur != null) 'duration': dur,
       if (plays != null && plays.toLowerCase().contains('play')) 'views': plays,
       if (cols.length > 1) 'artistId': _artistIdFrom(cols[1]),
       'thumbnail': _lastThumb(
@@ -763,10 +767,23 @@ class YtMusicService {
 
   int? _duration(Map r) {
     final fixed = r['fixedColumns'] as List?;
-    if (fixed == null || fixed.isEmpty) return null;
-    final t = _text(fixed.last['musicResponsiveListItemFixedColumnRenderer']
-        ?['text']);
-    return _clock(t);
+    if (fixed != null && fixed.isNotEmpty) {
+      final t = _text(fixed.last['musicResponsiveListItemFixedColumnRenderer']
+          ?['text']);
+      final d = _clock(t);
+      if (d != null) return d;
+    }
+    final cols = r['flexColumns'] as List?;
+    if (cols == null) return null;
+    for (final c in cols) {
+      final t = _text(c['musicResponsiveListItemFlexColumnRenderer']?['text']);
+      if (t == null) continue;
+      for (final p in t.split(' • ')) {
+        final d = _clock(p.trim());
+        if (d != null) return d;
+      }
+    }
+    return null;
   }
 
   String? _text(dynamic node) {

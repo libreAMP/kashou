@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math' show min;
 import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:audio_service/audio_service.dart';
@@ -25,22 +26,23 @@ AudioLoadConfiguration _loadConfigFor(int bufferSize) {
   );
 }
 
-Future<Uint8List?> _centerCropWide(Uint8List bytes) async {
+Future<Uint8List?> _centerCrop(Uint8List bytes, double aspect) async {
   try {
     final codec = await ui.instantiateImageCodec(bytes);
     final frame = await codec.getNextFrame();
     final src = frame.image;
     final insets = await _sideBarInsets(src);
     final left = src.width * insets[0];
-    final w = (src.width * (1 - insets[0] - insets[1]))
-        .clamp(1.0, src.width.toDouble());
-    final h = (w / 2.2).clamp(1.0, src.height.toDouble());
+    final regionW = src.width * (1 - insets[0] - insets[1]);
+    final h = min(regionW / aspect, src.height.toDouble());
+    final w = h * aspect;
+    final dx = left + (regionW - w) / 2;
     final dy = (src.height - h) / 2;
     final recorder = ui.PictureRecorder();
     final canvas = ui.Canvas(recorder);
     canvas.drawImageRect(
       src,
-      ui.Rect.fromLTWH(left, dy, w, h),
+      ui.Rect.fromLTWH(dx, dy, w, h),
       ui.Rect.fromLTWH(0, 0, w, h),
       ui.Paint(),
     );
@@ -164,12 +166,12 @@ class AudioPlayerHandler extends BaseAudioHandler
     if (track.albumArt != null) {
       try {
         final tempDir = await getTemporaryDirectory();
+        final aspect = Platform.isAndroid ? 2.2 : 1.0;
         // the name carries the byte length
         final artFile = File(
-            '${tempDir.path}/album_art_${track.id.hashCode}_${track.albumArt!.length}.jpg');
-        // notifications center fit so we crop wide
-        final wide = await _centerCropWide(track.albumArt!);
-        await artFile.writeAsBytes(wide ?? track.albumArt!);
+            '${tempDir.path}/album_art_${track.id.hashCode}_${track.albumArt!.length}_$aspect.jpg');
+        final art = await _centerCrop(track.albumArt!, aspect);
+        await artFile.writeAsBytes(art ?? track.albumArt!);
         artUri = Uri.file(artFile.path);
       } catch (e) {
         debugPrint('Error saving album art to file: $e');
@@ -188,9 +190,7 @@ class AudioPlayerHandler extends BaseAudioHandler
         title: track.title,
         artist: track.artist,
         album: track.album,
-        duration: track.duration > Duration.zero
-            ? track.duration
-            : mediaItem.value?.duration,
+        duration: track.duration > Duration.zero ? track.duration : null,
         artUri: artUri,
       ),
     );
@@ -221,6 +221,12 @@ class AudioPlayerHandler extends BaseAudioHandler
         MediaAction.seek,
         MediaAction.seekForward,
         MediaAction.seekBackward,
+        MediaAction.playPause,
+        MediaAction.play,
+        MediaAction.pause,
+        MediaAction.stop,
+        MediaAction.skipToNext,
+        MediaAction.skipToPrevious,
       },
       androidCompactActionIndices: const [0, 1, 2],
       processingState: const {
@@ -246,6 +252,25 @@ class AudioPlayerHandler extends BaseAudioHandler
 
   @override
   Future<void> pause() => _player.pause();
+
+  @override
+  Future<void> click([MediaButton button = MediaButton.media]) async {
+    switch (button) {
+      case MediaButton.media:
+        if (_player.playing) {
+          await pause();
+        } else {
+          await play();
+        }
+        break;
+      case MediaButton.next:
+        await skipToNext();
+        break;
+      case MediaButton.previous:
+        await skipToPrevious();
+        break;
+    }
+  }
 
   @override
   Future<void> stop() async {

@@ -72,6 +72,12 @@ dependency_overrides:
       url: https://github.com/primalkz/just_audio.git
       ref: hires
       path: just_audio
+  # pub 0.18.19 doesn't report playback state to ios
+  audio_service:
+    git:
+      url: https://github.com/primalkz/audio_service.git
+      ref: 33e0137d6ed069341140c80e55a84159637f46fc
+      path: audio_service
 
 dev_dependencies:
   flutter_test:

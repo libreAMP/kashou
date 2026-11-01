@@ -44,10 +44,11 @@ packages:
   audio_service:
     dependency: "direct main"
     description:
-      name: audio_service
-      sha256: "95f3267f3449eb5cf71c8fcf1d556f57af1e898e2dc5815fb168d1843653edb7"
-      url: "https://pub.dev"
-    source: hosted
+      path: audio_service
+      ref: "33e0137d6ed069341140c80e55a84159637f46fc"
+      resolved-ref: "33e0137d6ed069341140c80e55a84159637f46fc"
+      url: "https://github.com/primalkz/audio_service.git"
+    source: git
     version: "0.18.19"
   audio_service_platform_interface:
     dependency: transitive

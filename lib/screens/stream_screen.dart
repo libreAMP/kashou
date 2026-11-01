@@ -328,6 +328,9 @@ class _StreamScreenState extends State<StreamScreen>
 
       final finalTrack = placeholder.copyWith(
         path: stream.url,
+        duration: stream.duration != null && stream.duration! > Duration.zero
+            ? stream.duration!
+            : placeholder.duration,
         loudnessDb: stream.loudnessDb,
       );
 

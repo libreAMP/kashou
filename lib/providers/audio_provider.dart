@@ -368,6 +368,10 @@ class AudioProvider extends ChangeNotifier {
 
     _playerSubs.add(audioPlayer.positionStream.listen((position) {
       _position = position;
+      if (_duration > Duration.zero && position >= _duration) {
+        _handleTrackComplete();
+        return;
+      }
       if (_isLoadingTrack &&
           _pendingTrack != null &&
           position > Duration.zero) {
@@ -388,19 +392,28 @@ class AudioProvider extends ChangeNotifier {
       notifyListeners();
     }));
 
-    _playerSubs.add(audioPlayer.durationStream.listen((duration) {
-      _duration = duration ?? Duration.zero;
-      if (_audioHandler != null &&
-          duration != null &&
-          duration > Duration.zero) {
-        _audioHandler!.updateDuration(duration);
-      }
-      // search sometimes ships no duration
-      if (duration != null &&
-          duration > Duration.zero &&
-          _currentTrack != null &&
-          _currentTrack!.duration != duration) {
-        final updated = _currentTrack!.copyWith(duration: duration);
+    _playerSubs.add(audioPlayer.durationStream.listen((reported) {
+      if (reported == null || reported <= Duration.zero) return;
+      final isApple = Platform.isIOS || Platform.isMacOS;
+      final isRemote = _isRemotePath(_currentTrack?.path ?? '') ||
+          _isRemotePath(_lastCommittedTrack?.path ?? '') ||
+          _isRemotePath(_pendingTrack?.path ?? '');
+      // avfoundation reports googlevideo fragments at twice the length
+      final saneReported = (isApple && isRemote)
+          ? Duration(milliseconds: reported.inMilliseconds ~/ 2)
+          : reported;
+      final known = _currentTrack?.duration ?? Duration.zero;
+      final isKnownDoubled = isApple &&
+          isRemote &&
+          known > Duration.zero &&
+          (known.inSeconds - saneReported.inSeconds * 2).abs() <= 2;
+      final effective = (known > Duration.zero && !isKnownDoubled)
+          ? known
+          : saneReported;
+      _duration = effective;
+      _audioHandler?.updateDuration(effective);
+      if ((known <= Duration.zero || isKnownDoubled) && _currentTrack != null) {
+        final updated = _currentTrack!.copyWith(duration: effective);
         _currentTrack = updated;
         _lastCommittedTrack = updated;
         final qi = _queue.indexWhere((t) => t.id == updated.id);
@@ -453,15 +466,17 @@ class AudioProvider extends ChangeNotifier {
     if (!Platform.isAndroid && !Platform.isIOS) return;
     try {
       final session = await AudioSession.instance;
-      await session.configure(const AudioSessionConfiguration(
+      await session.configure(AudioSessionConfiguration(
         avAudioSessionCategory: AVAudioSessionCategory.playback,
         // mixable sessions get no lock screen player on ios
-        avAudioSessionCategoryOptions: AVAudioSessionCategoryOptions.none,
+        avAudioSessionCategoryOptions:
+            AVAudioSessionCategoryOptions.allowBluetoothA2dp |
+                AVAudioSessionCategoryOptions.allowAirPlay,
         avAudioSessionMode: AVAudioSessionMode.defaultMode,
         avAudioSessionRouteSharingPolicy:
             AVAudioSessionRouteSharingPolicy.defaultPolicy,
         avAudioSessionSetActiveOptions: AVAudioSessionSetActiveOptions.none,
-        androidAudioAttributes: AndroidAudioAttributes(
+        androidAudioAttributes: const AndroidAudioAttributes(
           contentType: AndroidAudioContentType.music,
           flags: AndroidAudioFlags.none,
           usage: AndroidAudioUsage.media,
@@ -572,6 +587,9 @@ class AudioProvider extends ChangeNotifier {
         path: stream.url,
         title: track.title.isEmpty ? (stream.title ?? '') : track.title,
       );
+      if (stream.duration != null && stream.duration! > Duration.zero) {
+        resolved = resolved.copyWith(duration: stream.duration);
+      }
       // copyWith treats null as "keep", so only overwrite when we have one
       if (stream.loudnessDb != null) {
         resolved = resolved.copyWith(loudnessDb: stream.loudnessDb);
@@ -595,17 +613,22 @@ class AudioProvider extends ChangeNotifier {
       bytes = cached;
     } else {
       try {
-        // mqdefault is only 320x180
-        final resp = await http
-            .get(Uri.parse('https://i.ytimg.com/vi/$id/maxresdefault.jpg'));
-        if (resp.statusCode != 200 || resp.bodyBytes.isEmpty) {
-          final fallback = await http
-              .get(Uri.parse('https://i.ytimg.com/vi/$id/sddefault.jpg'));
-          if (fallback.statusCode != 200 || fallback.bodyBytes.isEmpty) return;
-          bytes = fallback.bodyBytes;
-        } else {
-          bytes = resp.bodyBytes;
+        final urls = [
+          'https://i.ytimg.com/vi/$id/maxresdefault.jpg',
+          'https://i.ytimg.com/vi/$id/sddefault.jpg',
+          'https://i.ytimg.com/vi/$id/hqdefault.jpg',
+          'https://i.ytimg.com/vi/$id/mqdefault.jpg',
+        ];
+        Uint8List? fetched;
+        for (final u in urls) {
+          final res = await http.get(Uri.parse(u));
+          if (res.statusCode == 200 && res.bodyBytes.isNotEmpty) {
+            fetched = res.bodyBytes;
+            break;
+          }
         }
+        if (fetched == null) return;
+        bytes = fetched;
         _artCache[id] = bytes;
       } catch (_) {
         return;
@@ -650,6 +673,7 @@ class AudioProvider extends ChangeNotifier {
       track = resolved;
       final qi = _queue.indexWhere((t) => t.id == track.id);
       if (qi != -1) _queue[qi] = track;
+      _audioHandler?.setTrackMediaItem(track);
     }
 
     final bool alreadyPending =
@@ -663,7 +687,8 @@ class AudioProvider extends ChangeNotifier {
       // stop() here kills the media notification
       _position = Duration.zero;
       _bufferedPosition = Duration.zero;
-      _duration = Duration.zero;
+      _duration =
+          track.duration > Duration.zero ? track.duration : Duration.zero;
       _isPlaying = false;
       _isLoadingTrack = true;
       notifyListeners();
@@ -949,7 +974,15 @@ class AudioProvider extends ChangeNotifier {
       // serves 206 to libmpv, curl, the Quest 3 UA and no UA alike, and a dead
       // one 403s them all), and any header at all forces playback through
       // just_audio's loopback proxy for no gain. mpv range-negotiates itself.
-      return AudioSource.uri(uri);
+      return ProgressiveAudioSource(
+        uri,
+        duration: track.duration > Duration.zero ? track.duration : null,
+        options: const ProgressiveAudioSourceOptions(
+          darwinAssetOptions: DarwinAssetOptions(
+            preferPreciseDurationAndTiming: true,
+          ),
+        ),
+      );
     }
     debugPrint('[Audio] Using file audio source');
     return AudioSource.file(path);

@@ -17,11 +17,13 @@ class ResolvedAudioStream {
     required this.url,
     this.loudnessDb,
     this.title,
+    this.duration,
   });
 
   final String url;
   final double? loudnessDb;
   final String? title;
+  final Duration? duration;
 }
 
 class YtdlWrapperService {
@@ -143,6 +145,7 @@ class YtdlWrapperService {
       url: stream.url,
       loudnessDb: info.loudnessDb,
       title: info.title,
+      duration: info.duration > 0 ? Duration(seconds: info.duration) : null,
     );
   }
 
@@ -158,7 +161,11 @@ class YtdlWrapperService {
       );
       final stream = data?.bestStream ?? data?.fallbackStream;
       if (stream == null) return null;
-      return ResolvedAudioStream(url: stream.url, title: data?.title);
+      return ResolvedAudioStream(
+        url: stream.url,
+        title: data?.title,
+        duration: data?.duration,
+      );
     } catch (_) {
       return null;
     }

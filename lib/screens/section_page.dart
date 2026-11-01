@@ -89,6 +89,10 @@ class _SectionPageState extends State<SectionPage> {
 
       final finalTrack = placeholderTrack.copyWith(
         path: stream.url,
+        duration: stream.duration != null && stream.duration! > Duration.zero
+            ? stream.duration!
+            : placeholderTrack.duration,
+        loudnessDb: stream.loudnessDb,
       );
 
       await audioProvider.playTrack(finalTrack, playlist: tracks);

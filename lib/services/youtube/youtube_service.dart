@@ -51,7 +51,7 @@ class YoutubeService {
       final result = YoutubeStreamInfo(
         videoId: videoId,
         title: streamInfo.title ?? 'Unknown',
-        duration: 0,
+        duration: streamInfo.duration?.inSeconds ?? 0,
         audioStreams: streamInfo.audioStreams,
         videoStreams: streamInfo.videoStreams,
         hasMultipleLanguages: streamInfo.hasMultipleLanguages,
