@@ -81,7 +81,9 @@ class MprisObject extends DBusObject {
         }
         return DBusMethodErrorResponse.unknownMethod();
       }
-      if (methodCall.interface == _player) return _playerCall(methodCall);
+      if (methodCall.interface == _player) {
+        return await _playerCall(methodCall);
+      }
       return DBusMethodErrorResponse.unknownInterface();
     } catch (e) {
       debugPrint('mpris call failed: $e');
