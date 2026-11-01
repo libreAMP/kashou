@@ -32,6 +32,7 @@ import 'services/ytmusic_service.dart';
 import 'services/cast_service.dart';
 import 'screens/splash_screen.dart';
 import 'screens/home_screen.dart';
+import 'screens/about_screen.dart';
 import 'screens/library_screen.dart';
 import 'screens/now_playing_screen.dart';
 import 'screens/settings_screen.dart';
@@ -317,6 +318,7 @@ class KashouApp extends StatelessWidget {
                     '/home': (context) => const MainNavigationScreen(),
                     '/now-playing': (context) => const NowPlayingScreen(),
                     '/settings': (context) => const SettingsScreen(),
+                    '/about': (context) => const AboutScreen(),
                   },
                 );
               },
