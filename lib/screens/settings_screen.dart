@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/settings_provider.dart';
+import '../screens/about_screen.dart';
+import '../screens/downloads_screen.dart';
 import '../screens/personalization_screen.dart';
+import '../screens/youtube_history_screen.dart';
 import '../theme/app_theme.dart';
 import '../utils/platform.dart';
 import '../widgets/back_chip.dart';
@@ -148,6 +150,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
         child: PersonalizationContent(),
       );
     }
+    if (_category == 4) {
+      return const Padding(
+        padding: _tvPanePadding,
+        child: SingleChildScrollView(child: AboutContent()),
+      );
+    }
 
     final section = switch (_category) {
       1 => sections[1],
@@ -273,32 +281,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             ListTile(
               leading: const Icon(Icons.tune),
-              title: const Text('Buffer Size'),
-              subtitle: const Text('Applies on next launch'),
+              title: const Text('Audio Buffer'),
+              subtitle:
+                  const Text('Stream cache duration, applies on next launch'),
               trailing: M3ESelect<int>(
                 value: settings.bufferSize,
-                labelOf: (value) => '$value',
+                labelOf: (value) => switch (value) {
+                  1024 => '20s (Fast)',
+                  4096 => '120s (High cache)',
+                  _ => '50s (Standard)',
+                },
                 items: const [1024, 2048, 4096],
                 onChanged: settings.setBufferSize,
               ),
-            ),
-            ListTile(
-              leading: const Icon(Icons.high_quality),
-              title: const Text('Resampler Quality'),
-              subtitle: const Text('Float output on high, next launch'),
-              trailing: M3ESelect<String>(
-                value: settings.resamplerQuality,
-                labelOf: (value) => value,
-                items: const ['Low', 'Medium', 'High', 'Very High'],
-                onChanged: settings.setResamplerQuality,
-              ),
-            ),
-            SettingsSwitchTile(
-              icon: Icons.blur_on,
-              title: 'Dithering',
-              subtitle: 'Dither on the 16 bit path, next launch',
-              value: settings.enableDither,
-              onChanged: settings.setEnableDither,
             ),
           ],
         ),
@@ -307,13 +302,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         builder: (context, settings, child) => SettingsSection(
           title: 'Online Features',
           children: [
-            SettingsSwitchTile(
-              icon: Icons.cloud_outlined,
-              title: 'YouTube Integration',
-              subtitle: 'Enable online music streaming',
-              value: settings.enableYouTubeIntegration,
-              onChanged: settings.setEnableYouTubeIntegration,
-            ),
             SettingsSwitchTile(
               icon: Icons.history_rounded,
               title: 'Search history',
@@ -337,6 +325,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 onChanged: settings.setEnableAndroidAuto,
               ),
             ],
+            ListTile(
+              leading: const Icon(Icons.history_rounded),
+              title: const Text('Stream History'),
+              subtitle: const Text('Recently played online tracks'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => const YoutubeHistoryScreen()),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.download_rounded),
+              title: const Text('Downloads'),
+              subtitle: const Text('Downloaded tracks and cache'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => const DownloadsScreen()),
+              ),
+            ),
           ],
         ),
       ),
@@ -345,26 +355,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
         children: [
           ListTile(
             leading: const Icon(Icons.info_outline),
-            title: const Text('Version'),
-            subtitle: const Text('1.0.0'),
-          ),
-          ListTile(
-            leading: const Icon(Icons.code),
-            title: const Text('Open Source'),
-            subtitle: const Text('GPL v3 License'),
-            trailing: const Icon(Icons.open_in_new),
-            onTap: () => launchUrl(
-              Uri.parse('https://github.com/libreAMP/kashou'),
-              mode: LaunchMode.externalApplication,
-            ),
-          ),
-          ListTile(
-            leading: const Icon(Icons.favorite_outline),
-            title: const Text('Support Development'),
+            title: const Text('About Kashou'),
+            subtitle: const Text('Contributors, source code and licenses'),
             trailing: const Icon(Icons.chevron_right),
-            onTap: () => launchUrl(
-              Uri.parse('https://github.com/libreAMP/kashou'),
-              mode: LaunchMode.externalApplication,
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const AboutScreen()),
             ),
           ),
         ],

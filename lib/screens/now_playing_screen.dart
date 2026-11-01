@@ -28,7 +28,6 @@ import '../widgets/scrolling_text.dart';
 import '../widgets/sheet_handle.dart';
 import '../widgets/square_art.dart';
 import '../widgets/squiggly_slider.dart';
-import '../providers/settings_provider.dart';
 import '../services/ytmusic_service.dart';
 import '../utils/app_messenger.dart';
 import '../utils/platform.dart';
@@ -142,12 +141,6 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
 
     if (!isOnlineTrack) {
       showToast('Only online tracks can be downloaded');
-      return;
-    }
-
-    final settings = Provider.of<SettingsProvider>(context, listen: false);
-    if (!settings.enableYouTubeIntegration) {
-      showToast('YouTube integration is disabled');
       return;
     }
 

@@ -8,12 +8,9 @@ class SettingsProvider extends ChangeNotifier {
   bool _enableCrossfade = false;
   double _crossfadeDuration = 3.0;
   bool _enableReplayGain = true;
-  bool _enableYouTubeIntegration = false;
   bool _enableCasting = true;
   bool _enableAndroidAuto = true;
   int _bufferSize = 2048;
-  String _resamplerQuality = 'High';
-  bool _enableDither = false;
   String _ytdlBaseUrl = 'https://ytdl-wrapper.onrender.com';
   bool _minimalBottomBar = false;
   bool _enableSearchHistory = true;
@@ -27,12 +24,9 @@ class SettingsProvider extends ChangeNotifier {
   bool get enableCrossfade => _enableCrossfade;
   double get crossfadeDuration => _crossfadeDuration;
   bool get enableReplayGain => _enableReplayGain;
-  bool get enableYouTubeIntegration => _enableYouTubeIntegration;
   bool get enableCasting => _enableCasting;
   bool get enableAndroidAuto => _enableAndroidAuto;
   int get bufferSize => _bufferSize;
-  String get resamplerQuality => _resamplerQuality;
-  bool get enableDither => _enableDither;
   String get ytdlBaseUrl => _ytdlBaseUrl;
   bool get minimalBottomBar => _minimalBottomBar;
   bool get enableSearchHistory => _enableSearchHistory;
@@ -52,12 +46,9 @@ class SettingsProvider extends ChangeNotifier {
       _enableCrossfade = prefs.getBool('enable_crossfade') ?? false;
       _crossfadeDuration = prefs.getDouble('crossfade_duration') ?? 3.0;
       _enableReplayGain = prefs.getBool('enable_replay_gain') ?? true;
-      _enableYouTubeIntegration = prefs.getBool('enable_youtube') ?? true;
       _enableCasting = prefs.getBool('enable_casting') ?? true;
       _enableAndroidAuto = prefs.getBool('enable_android_auto') ?? true;
       _bufferSize = prefs.getInt('buffer_size') ?? 2048;
-      _resamplerQuality = prefs.getString('resampler_quality') ?? 'High';
-      _enableDither = prefs.getBool('enable_dither') ?? false;
       _ytdlBaseUrl = prefs.getString('ytdl_base_url') ?? 'https://ytdl-wrapper.onrender.com';
       _minimalBottomBar = prefs.getBool('minimal_bottom_bar') ?? false;
       _enableSearchHistory = prefs.getBool('enable_search_history') ?? true;
@@ -113,13 +104,6 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> setEnableYouTubeIntegration(bool value) async {
-    _enableYouTubeIntegration = value;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('enable_youtube', value);
-    notifyListeners();
-  }
-
   Future<void> setEnableCasting(bool value) async {
     _enableCasting = value;
     final prefs = await SharedPreferences.getInstance();
@@ -138,20 +122,6 @@ class SettingsProvider extends ChangeNotifier {
     _bufferSize = value;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt('buffer_size', value);
-    notifyListeners();
-  }
-
-  Future<void> setResamplerQuality(String value) async {
-    _resamplerQuality = value;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('resampler_quality', value);
-    notifyListeners();
-  }
-
-  Future<void> setEnableDither(bool value) async {
-    _enableDither = value;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('enable_dither', value);
     notifyListeners();
   }
 

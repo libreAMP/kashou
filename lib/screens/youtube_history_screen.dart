@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 import '../models/stream_history_entry.dart';
 import '../models/track.dart';
 import '../providers/audio_provider.dart';
-import '../providers/settings_provider.dart';
 import '../services/download_manager.dart';
 import '../services/ytdl_service.dart';
 import '../utils/platform.dart';
@@ -29,12 +28,6 @@ class _YoutubeHistoryScreenState extends State<YoutubeHistoryScreen> {
   String? _loadingEntryId;
 
   Future<void> _playEntry(StreamHistoryEntry entry) async {
-    final settings = context.read<SettingsProvider>();
-    if (!settings.enableYouTubeIntegration) {
-      _showSnackBar('YouTube integration is disabled in settings.');
-      return;
-    }
-
     final sourceUrl = entry.track.sourceUrl ?? entry.track.path;
     if (sourceUrl.isEmpty) {
       _showSnackBar('Original stream URL is unavailable.');
