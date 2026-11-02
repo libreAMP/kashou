@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../theme/radii.dart';
+import '../utils/platform.dart';
 
 class M3ESearchBar extends StatelessWidget {
   const M3ESearchBar({
@@ -28,9 +29,14 @@ class M3ESearchBar extends StatelessWidget {
     return AnimatedPadding(
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeOutCubic,
-      padding: EdgeInsets.symmetric(horizontal: docked ? 24 : 12),
+      padding: EdgeInsets.fromLTRB(
+        docked ? 24 : 20,
+        isWideLayout ? 16 : 8,
+        docked ? 24 : 20,
+        8,
+      ),
       child: SizedBox(
-        height: 56,
+        height: 54,
         child: TextField(
           controller: controller,
           focusNode: focusNode,
@@ -45,40 +51,33 @@ class M3ESearchBar extends StatelessWidget {
                 .bodyLarge
                 ?.copyWith(color: scheme.onSurfaceVariant),
             prefixIcon: IconButton(
-              icon: const Icon(Icons.arrow_back_rounded),
+              icon: const Icon(Icons.arrow_back_rounded, size: 22),
               tooltip: 'Back',
               onPressed: onBack,
             ),
             prefixIconConstraints: const BoxConstraints(
-              minWidth: 56,
-              minHeight: 56,
+              minWidth: 52,
+              maxWidth: 52,
+              minHeight: 52,
+              maxHeight: 52,
             ),
             suffixIcon: controller.text.isEmpty
                 ? null
                 : IconButton(
-                    icon: const Icon(Icons.close_rounded),
+                    icon: const Icon(Icons.close_rounded, size: 20),
                     tooltip: 'Clear',
                     onPressed: onClear,
                   ),
             filled: true,
             fillColor: scheme.surfaceContainerHigh,
             contentPadding: EdgeInsets.zero,
-            border: _outline(scheme, rFull),
-            enabledBorder: _outline(scheme, rFull),
-            focusedBorder: _outline(scheme, rFull, width: 2),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(rFull),
+              borderSide: BorderSide.none,
+            ),
           ),
         ),
       ),
-    );
-  }
-
-  OutlineInputBorder _outline(ColorScheme scheme, double radius,
-      {double width = 0}) {
-    return OutlineInputBorder(
-      borderRadius: BorderRadius.circular(radius),
-      borderSide: width == 0
-          ? BorderSide.none
-          : BorderSide(color: scheme.primary, width: width),
     );
   }
 }
@@ -95,7 +94,7 @@ class M3ESearchResults extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     if (docked) {
       return Padding(
-        padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+        padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
         child: Material(
           color: scheme.surfaceContainerLow,
           borderRadius: BorderRadius.circular(24),
@@ -104,7 +103,7 @@ class M3ESearchResults extends StatelessWidget {
         ),
       );
     }
-    return ColoredBox(color: scheme.surfaceContainerLow, child: child);
+    return child;
   }
 }
 

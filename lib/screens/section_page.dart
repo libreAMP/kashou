@@ -387,24 +387,24 @@ class _SectionPageState extends State<SectionPage> {
                         height: 1.08,
                       ),
                     ),
-                    const SizedBox(height: 10),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: colorScheme.secondaryContainer,
-                        borderRadius: BorderRadius.circular(rFull),
-                      ),
-                      child: Text(
-                        _loadingItems
-                            ? 'loading'
-                            : '${_items.length} ${_items.isNotEmpty && _items.any((it) => it['playlistId'] != null) ? "items" : "songs"}',
-                        style: theme.textTheme.labelLarge?.copyWith(
-                          color: colorScheme.onSecondaryContainer,
-                          fontWeight: FontWeight.w700,
+                    if (!_loadingItems) ...[
+                      const SizedBox(height: 10),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: colorScheme.secondaryContainer,
+                          borderRadius: BorderRadius.circular(rFull),
+                        ),
+                        child: Text(
+                          '${_items.length} ${_items.isNotEmpty && _items.any((it) => it['playlistId'] != null) ? "items" : "songs"}',
+                          style: theme.textTheme.labelLarge?.copyWith(
+                            color: colorScheme.onSecondaryContainer,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ),
-                    ),
+                    ],
                   ],
                 ),
               ),

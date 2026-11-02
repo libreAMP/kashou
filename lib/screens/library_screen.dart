@@ -262,7 +262,7 @@ class _LibraryScreenState extends State<LibraryScreen>
           children: [
             Expanded(
               child: SizedBox(
-                height: 48,
+                height: 54,
                 child: TextField(
                   controller: _searchController,
                   style: Theme.of(context).textTheme.bodyLarge,
@@ -282,14 +282,15 @@ class _LibraryScreenState extends State<LibraryScreen>
               ),
             ),
             const SizedBox(width: 4),
-            IconButton(
-              icon: const Icon(Icons.refresh_rounded),
-              tooltip: isDesktop ? 'Rescan library' : null,
-              onPressed: () => Provider.of<LibraryProvider>(
-                context,
-                listen: false,
-              ).scanLibrary(force: true),
-            ),
+            if (isDesktop)
+              IconButton(
+                icon: const Icon(Icons.refresh_rounded),
+                tooltip: 'Rescan library',
+                onPressed: () => Provider.of<LibraryProvider>(
+                  context,
+                  listen: false,
+                ).scanLibrary(force: true),
+              ),
             Builder(
               builder: (buttonContext) => IconButton(
                 icon: const Icon(Icons.more_vert_rounded),
@@ -305,6 +306,12 @@ class _LibraryScreenState extends State<LibraryScreen>
                 },
               ),
             ),
+            if (!isDesktop)
+              IconButton(
+                icon: const Icon(Icons.settings_outlined),
+                tooltip: 'Settings',
+                onPressed: () => Navigator.pushNamed(context, '/settings'),
+              ),
           ],
         ),
       ),
@@ -409,66 +416,65 @@ class _LibraryScreenState extends State<LibraryScreen>
 
                         return [
                           SliverToBoxAdapter(
-                            child: Padding(
-                              padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Padding(
-                                    padding:
-                                        const EdgeInsets.fromLTRB(0, 0, 0, 12),
-                                    child: Text(
-                                      'Library',
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .headlineMedium
-                                          ?.copyWith(
-                                            fontWeight: FontWeight.w800,
-                                            letterSpacing: -0.5,
-                                          ),
-                                    ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Padding(
+                                  padding:
+                                      const EdgeInsets.fromLTRB(20, 8, 20, 12),
+                                  child: Text(
+                                    'Library',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .headlineMedium
+                                        ?.copyWith(
+                                          fontWeight: FontWeight.w800,
+                                          letterSpacing: -0.5,
+                                        ),
                                   ),
-                                  SingleChildScrollView(
-                                    scrollDirection: Axis.horizontal,
-                                    child: Row(
-                                      children: [
-                                        _statChip(
-                                          context,
-                                          Icons.music_note_rounded,
-                                          songCount,
-                                          'songs',
-                                          onTap: () => _goToTab('Songs'),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        _statChip(
-                                          context,
-                                          Icons.album_rounded,
-                                          albumCount,
-                                          'albums',
-                                          onTap: () => _goToTab('Albums'),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        _statChip(
-                                          context,
-                                          Icons.person_rounded,
-                                          artistCount,
-                                          'artists',
-                                          onTap: () => _goToTab('Artists'),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        _statChip(
-                                          context,
-                                          Icons.playlist_play_rounded,
-                                          playlistCount,
-                                          'playlists',
-                                          onTap: () => _goToTab('Playlists'),
-                                        ),
-                                      ],
-                                    ),
+                                ),
+                                SingleChildScrollView(
+                                  scrollDirection: Axis.horizontal,
+                                  padding:
+                                      const EdgeInsets.symmetric(horizontal: 20),
+                                  child: Row(
+                                    children: [
+                                      _statChip(
+                                        context,
+                                        Icons.music_note_rounded,
+                                        songCount,
+                                        'songs',
+                                        onTap: () => _goToTab('Songs'),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      _statChip(
+                                        context,
+                                        Icons.album_rounded,
+                                        albumCount,
+                                        'albums',
+                                        onTap: () => _goToTab('Albums'),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      _statChip(
+                                        context,
+                                        Icons.person_rounded,
+                                        artistCount,
+                                        'artists',
+                                        onTap: () => _goToTab('Artists'),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      _statChip(
+                                        context,
+                                        Icons.playlist_play_rounded,
+                                        playlistCount,
+                                        'playlists',
+                                        onTap: () => _goToTab('Playlists'),
+                                      ),
+                                    ],
                                   ),
-                                  const SizedBox(height: 8),
-                                ],
-                              ),
+                                ),
+                                const SizedBox(height: 8),
+                              ],
                             ),
                           ),
                           SliverPersistentHeader(

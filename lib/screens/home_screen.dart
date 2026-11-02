@@ -91,7 +91,7 @@ class HomeScreen extends StatelessWidget {
         children: [
           Expanded(
             child: SizedBox(
-              height: 48,
+              height: 54,
               child: TextField(
                 readOnly: true,
                 onTap: () => Navigator.push(

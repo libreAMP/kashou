@@ -45,11 +45,11 @@ InputDecoration searchDecoration(BuildContext context, String hint,
   return InputDecoration(
     hintText: hint,
     prefixIcon: const Padding(
-      padding: EdgeInsets.fromLTRB(14, 0, 12, 0),
-      child: Icon(Icons.search_rounded),
+      padding: EdgeInsets.fromLTRB(16, 0, 12, 0),
+      child: Icon(Icons.search_rounded, size: 22),
     ),
     prefixIconConstraints:
-        const BoxConstraints(minWidth: 50, maxWidth: 50, minHeight: 0),
+        const BoxConstraints(minWidth: 52, maxWidth: 52, minHeight: 0),
     hintStyle: Theme.of(context)
         .textTheme
         .bodyLarge
