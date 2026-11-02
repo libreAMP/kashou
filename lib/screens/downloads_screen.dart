@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:material_new_shapes/material_new_shapes.dart';
+import 'package:provider/provider.dart';
 
+import '../providers/audio_provider.dart';
 import '../services/download_manager.dart';
 import '../theme/app_theme.dart';
 import '../theme/radii.dart';
@@ -10,12 +12,24 @@ import '../widgets/empty_shape.dart';
 import '../widgets/m3e_progress.dart';
 import '../widgets/morph_shape.dart';
 import '../widgets/square_art.dart';
+import '../widgets/track_options_sheet.dart';
 
 // downloads list stays a single column on desktop, just centered
 const double _maxContentWidth = 720;
 
-class DownloadsScreen extends StatelessWidget {
+class DownloadsScreen extends StatefulWidget {
   const DownloadsScreen({super.key});
+
+  @override
+  State<DownloadsScreen> createState() => _DownloadsScreenState();
+}
+
+class _DownloadsScreenState extends State<DownloadsScreen> {
+  @override
+  void initState() {
+    super.initState();
+    DownloadManager.instance.refresh();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -154,7 +168,15 @@ class _JobCard extends StatelessWidget {
       borderRadius: BorderRadius.circular(rXl),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: failed ? () => manager.retry(job) : null,
+        onTap: failed
+            ? () => manager.retry(job)
+            : done
+                ? () => Provider.of<AudioProvider>(context, listen: false)
+                    .playTrack(job.track)
+                : null,
+        onLongPress: done
+            ? () => showTrackOptionsSheet(context, job.track)
+            : null,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(10, 10, 6, 10),
           child: Row(
