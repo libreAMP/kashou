@@ -2,14 +2,13 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-import '../theme/radii.dart';
-
 class M3EMenuItem {
   const M3EMenuItem({
     required this.label,
     this.icon,
     this.onTap,
     this.selected = false,
+    this.hasLeading = false,
     this.trailing,
     this.destructive = false,
   });
@@ -18,6 +17,7 @@ class M3EMenuItem {
   final IconData? icon;
   final VoidCallback? onTap;
   final bool selected;
+  final bool hasLeading;
   final Widget? trailing;
   final bool destructive;
 }
@@ -66,47 +66,71 @@ class _M3EMenuRowState extends State<M3EMenuRow> {
             ? scheme.surfaceContainerHighest
             : Colors.transparent;
 
+    final rowRadius = BorderRadius.circular(12);
+
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
-      child: Material(
-        color: bg,
-        child: InkWell(
-          onTap: item.onTap,
-          child: Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: dense ? 12 : 16,
-              vertical: dense ? 8 : 12,
-            ),
-            child: Row(
-              children: [
-                if (item.icon != null) ...[
-                  Icon(item.icon, size: dense ? 18 : 20, color: fg),
-                  SizedBox(width: dense ? 10 : 12),
-                ],
-                Expanded(
-                  child: Text(
-                    item.label,
-                    style: (dense
-                            ? theme.textTheme.bodyMedium
-                            : theme.textTheme.bodyLarge)
-                        ?.copyWith(
-                      color: enabled ? fg : scheme.onSurfaceVariant,
-                      fontWeight:
-                          item.selected ? FontWeight.w600 : FontWeight.w400,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        child: Material(
+          color: bg,
+          borderRadius: rowRadius,
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            borderRadius: rowRadius,
+            onTap: item.onTap,
+            splashColor: scheme.primary.withValues(alpha: 0.12),
+            highlightColor: scheme.primary.withValues(alpha: 0.06),
+            child: Padding(
+              padding: EdgeInsets.symmetric(
+                horizontal: 14,
+                vertical: dense ? 9 : 12,
+              ),
+              child: Row(
+                children: [
+                  if (item.selected) ...[
+                    Icon(
+                      Icons.check_rounded,
+                      size: dense ? 18 : 20,
+                      color: item.destructive
+                          ? scheme.onErrorContainer
+                          : scheme.onSecondaryContainer,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                    const SizedBox(width: 10),
+                  ] else if (item.icon != null) ...[
+                    Icon(
+                      item.icon,
+                      size: dense ? 18 : 20,
+                      color: item.destructive
+                          ? scheme.onErrorContainer
+                          : scheme.onSurfaceVariant,
+                    ),
+                    const SizedBox(width: 10),
+                  ] else if (item.hasLeading) ...[
+                    SizedBox(width: (dense ? 18 : 20) + 10),
+                  ],
+                  Expanded(
+                    child: Text(
+                      item.label,
+                      style: (dense
+                              ? theme.textTheme.bodyMedium
+                              : theme.textTheme.bodyLarge)
+                          ?.copyWith(
+                        color: enabled ? fg : scheme.onSurfaceVariant,
+                        fontWeight:
+                            item.selected ? FontWeight.w600 : FontWeight.w400,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                ),
-                if (item.selected) ...[
-                  SizedBox(width: dense ? 8 : 12),
-                  Icon(Icons.check_rounded, size: dense ? 18 : 20, color: fg),
-                ] else if (item.trailing != null) ...[
-                  SizedBox(width: dense ? 8 : 12),
-                  item.trailing!,
+                  if (item.trailing != null) ...[
+                    const SizedBox(width: 10),
+                    item.trailing!,
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
         ),
@@ -122,10 +146,32 @@ class M3EMenuSeparator extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: Divider(
-          height: 1, color: scheme.outlineVariant.withValues(alpha: 0.4)),
+        height: 1,
+        color: scheme.outlineVariant.withValues(alpha: 0.2),
+      ),
     );
+  }
+}
+
+class _M3EMenuSeparatorEntry extends PopupMenuEntry<void> {
+  const _M3EMenuSeparatorEntry();
+
+  @override
+  double get height => 9;
+
+  @override
+  bool represents(void value) => false;
+
+  @override
+  State<_M3EMenuSeparatorEntry> createState() => _M3EMenuSeparatorEntryState();
+}
+
+class _M3EMenuSeparatorEntryState extends State<_M3EMenuSeparatorEntry> {
+  @override
+  Widget build(BuildContext context) {
+    return const M3EMenuSeparator();
   }
 }
 
@@ -146,7 +192,7 @@ Future<void> showM3EMenu(
 
   // flip above the trigger when there is more room up there
   var estimated = 16.0;
-  final itemH = dense ? 38.0 : 48.0;
+  final itemH = dense ? 40.0 : 48.0;
   for (final child in children) {
     estimated += child is M3EMenuSeparator ? 9 : itemH;
   }
@@ -166,10 +212,15 @@ Future<void> showM3EMenu(
 
   return showMenu<void>(
     context: context,
-    color: scheme.surfaceContainerHigh,
-    elevation: 0,
+    color: scheme.surfaceContainer,
+    elevation: 3,
+    shadowColor: Colors.black.withValues(alpha: 0.25),
     surfaceTintColor: Colors.transparent,
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(rMd)),
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(16),
+    ),
+    clipBehavior: Clip.antiAlias,
+    menuPadding: const EdgeInsets.symmetric(vertical: 8),
     constraints: BoxConstraints(
       minWidth: minWidth,
       maxWidth: maxWidth,
@@ -180,19 +231,16 @@ Future<void> showM3EMenu(
       isEnd ? endGap : math.max(0.0, rect.left) + 1,
       math.max(0.0, screen.height - rect.bottom),
     ),
-    items: children
-        .whereType<M3EMenuRow>()
-        .map((row) => PopupMenuItem<void>(
-              padding: EdgeInsets.zero,
-              enabled: false,
-              height: dense ? 38 : 48,
-              child: row.item.onTap == null
-                  ? row
-                  : InkWell(
-                      onTap: row.item.onTap,
-                      child: row,
-                    ),
-            ))
-        .toList(),
+    items: children.map<PopupMenuEntry<void>>((child) {
+      if (child is M3EMenuSeparator) {
+        return const _M3EMenuSeparatorEntry();
+      }
+      return PopupMenuItem<void>(
+        padding: EdgeInsets.zero,
+        enabled: false,
+        height: dense ? 40 : 48,
+        child: child,
+      );
+    }).toList(),
   );
 }
