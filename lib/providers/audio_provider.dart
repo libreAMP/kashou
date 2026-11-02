@@ -129,6 +129,24 @@ class AudioProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void playTrackNext(Track track) {
+    final existingIndex = _queue.indexWhere((t) => t.id == track.id);
+    if (existingIndex != -1) {
+      if (existingIndex == _currentIndex) return;
+      _queue.removeAt(existingIndex);
+      if (existingIndex < _currentIndex) {
+        _currentIndex--;
+      }
+    }
+    final targetIndex = (_queue.isEmpty || _currentIndex < 0)
+        ? 0
+        : (_currentIndex + 1).clamp(0, _queue.length);
+    _queue.insert(targetIndex, track);
+    debugPrint(
+        '[Audio] Inserted track next at $targetIndex. Queue size: ${_queue.length}');
+    notifyListeners();
+  }
+
   void clearQueueAfterCurrent() {
     if (_queue.isEmpty || _currentIndex < 0) return;
 

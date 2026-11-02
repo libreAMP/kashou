@@ -11,6 +11,7 @@ class ArtCard extends StatelessWidget {
   final String? subtitle;
   final VoidCallback onTap;
   final VoidCallback? onPlay;
+  final VoidCallback? onLongPress;
   final bool playing;
   final double? width;
   final bool emphasized;
@@ -34,6 +35,7 @@ class ArtCard extends StatelessWidget {
     required this.onTap,
     this.subtitle,
     this.onPlay,
+    this.onLongPress,
     this.playing = false,
     this.width,
     this.emphasized = false,
@@ -49,6 +51,7 @@ class ArtCard extends StatelessWidget {
       subtitle: subtitle,
       onTap: onTap,
       onPlay: onPlay,
+      onLongPress: onLongPress,
       playing: playing,
       width: cardWidth,
       radius: rLg,

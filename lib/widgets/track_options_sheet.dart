@@ -3,9 +3,11 @@ import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../models/track.dart';
+import '../providers/audio_provider.dart';
 import '../providers/library_provider.dart';
 import '../screens/artist_screen.dart';
 import '../screens/metadata_editor_screen.dart';
+import '../services/download_manager.dart';
 import '../theme/radii.dart';
 import '../utils/platform.dart';
 import 'm3e_menu.dart';
@@ -99,8 +101,45 @@ List<_TrackAction> _trackActions(
   final shareUrl = isOnline
       ? 'https://www.youtube.com/watch?v=${_videoId(track)}'
       : '${track.title} - ${track.artist}';
+  final audio = Provider.of<AudioProvider>(context, listen: false);
 
   return [
+    _TrackAction('Play', Icons.play_arrow_rounded, (ctx) {
+      audio.playTrack(track);
+    }),
+    _TrackAction('Play next', Icons.playlist_play_rounded, (ctx) {
+      audio.playTrackNext(track);
+      ScaffoldMessenger.of(ctx).showSnackBar(
+        SnackBar(
+          content: Text('Playing "${track.title}" next'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }),
+    _TrackAction('Add to queue', Icons.queue_music_rounded, (ctx) {
+      audio.addTracksToQueue([track]);
+      ScaffoldMessenger.of(ctx).showSnackBar(
+        SnackBar(
+          content: Text('Added "${track.title}" to queue'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }),
+    _TrackAction('Add to Playlist', Icons.playlist_add_rounded,
+        (context) => showAddToPlaylistDialog(context, track)),
+    if (isOnline)
+      _TrackAction('Download', Icons.download_rounded, (ctx) {
+        DownloadManager.instance.enqueue(
+          track,
+          thumbUrl: 'https://i.ytimg.com/vi/${_videoId(track)}/mqdefault.jpg',
+        );
+        ScaffoldMessenger.of(ctx).showSnackBar(
+          const SnackBar(
+            content: Text('Download started, see Downloads'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }),
     if (!isOnline)
       _TrackAction('Edit Metadata', Icons.edit_rounded, (context) {
         Navigator.push(
@@ -108,8 +147,6 @@ List<_TrackAction> _trackActions(
           MaterialPageRoute(builder: (_) => MetadataEditorScreen(track: track)),
         );
       }),
-    _TrackAction('Add to Playlist', Icons.playlist_add_rounded,
-        (context) => _showAddToPlaylist(context, track)),
     _TrackAction('Share', Icons.share_rounded,
         (_) => SharePlus.instance.share(ShareParams(uri: Uri.parse(shareUrl)))),
     if (isOnline && track.artistId != null)
@@ -184,7 +221,7 @@ List<Widget> _menuRows(
   return rows;
 }
 
-void _showAddToPlaylist(BuildContext context, Track track) {
+void showAddToPlaylistDialog(BuildContext context, Track track) {
   final library = Provider.of<LibraryProvider>(context, listen: false);
   showDialog(
     context: context,

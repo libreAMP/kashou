@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../models/track.dart';
 import '../providers/audio_provider.dart';
@@ -14,6 +15,7 @@ import '../theme/app_theme.dart';
 import '../theme/radii.dart';
 import '../utils/platform.dart';
 import '../utils/sheet_scope.dart';
+import '../widgets/track_options_sheet.dart';
 import '../widgets/m3e_badge.dart';
 import '../widgets/m3e_refresh.dart';
 import '../widgets/art_card.dart';
@@ -296,15 +298,11 @@ class _StreamScreenState extends State<StreamScreen>
     context.read<SettingsProvider>().addSearchTerm(_currentQuery);
   }
 
-  Future<void> _playVideo(Map<String, dynamic> video,
-      {List<Track>? playlist}) async {
-    _rememberSearch();
-    final audioProvider = Provider.of<AudioProvider>(context, listen: false);
+  Track _trackFromVideo(Map<String, dynamic> video) {
     final videoId = video['id']?.toString() ?? UniqueKey().toString();
     final videoUrl = video['url'] ?? 'https://www.youtube.com/watch?v=$videoId';
     final durationSeconds = _asInt(video['duration']) ?? 0;
-
-    final placeholder = Track(
+    return Track(
       id: videoId,
       title: video['title'] as String? ?? 'Unknown',
       artist: video['channel'] as String? ?? 'Unknown',
@@ -315,6 +313,15 @@ class _StreamScreenState extends State<StreamScreen>
       artistId: video['artistId'] as String?,
       views: video['views'] as String?,
     );
+  }
+
+  Future<void> _playVideo(Map<String, dynamic> video,
+      {List<Track>? playlist}) async {
+    _rememberSearch();
+    final audioProvider = Provider.of<AudioProvider>(context, listen: false);
+    final placeholder = _trackFromVideo(video);
+    final videoId = placeholder.id;
+    final videoUrl = placeholder.path;
 
     await audioProvider.prepareTrackLoad(placeholder, playlist: playlist);
 
@@ -343,22 +350,7 @@ class _StreamScreenState extends State<StreamScreen>
 
   void _playQuickPicks(List<Map<String, dynamic>> items) {
     if (items.isEmpty) return;
-    final tracks = items.map((v) {
-      final videoId = v['id']?.toString() ?? UniqueKey().toString();
-      final videoUrl = v['url'] ?? 'https://www.youtube.com/watch?v=$videoId';
-      final durationSeconds = _asInt(v['duration']) ?? 0;
-      return Track(
-        id: videoId,
-        title: v['title'] as String? ?? 'Unknown',
-        artist: v['channel'] as String? ?? 'Unknown',
-        album: '',
-        path: videoUrl,
-        duration: Duration(seconds: durationSeconds),
-        sourceUrl: videoUrl,
-        artistId: v['artistId'] as String?,
-        views: v['views'] as String?,
-      );
-    }).toList();
+    final tracks = items.map(_trackFromVideo).toList();
     _playVideo(items.first, playlist: tracks);
   }
 
@@ -465,7 +457,7 @@ class _StreamScreenState extends State<StreamScreen>
             Expanded(
               child: DpadFocus(
                 child: SizedBox(
-                  height: 48,
+                  height: 54,
                   child: TextField(
                     controller: _searchController,
                     focusNode: _searchFocus,
@@ -530,23 +522,6 @@ class _StreamScreenState extends State<StreamScreen>
                                 );
                               },
                             ),
-                          Consumer<SettingsProvider>(
-                            builder: (context, settings, _) {
-                              if (!settings.enableYouTubeIntegration) {
-                                return const SizedBox.shrink();
-                              }
-                              return IconButton(
-                                icon: const Icon(Icons.history_rounded),
-                                tooltip: 'History',
-                                onPressed: () => Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                      builder: (_) =>
-                                          const YoutubeHistoryScreen()),
-                                ),
-                              );
-                            },
-                          ),
                           if (!isDesktop)
                             IconButton(
                               icon: const Icon(Icons.settings_outlined),
@@ -692,7 +667,21 @@ class _StreamScreenState extends State<StreamScreen>
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       children: [
         if (recent.isNotEmpty) ...[
-          _sectionTitle('Recent searches'),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _sectionTitle('Recent searches'),
+              TextButton.icon(
+                icon: const Icon(Icons.history_rounded, size: 18),
+                label: const Text('Stream history'),
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => const YoutubeHistoryScreen()),
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 4),
           // five on screen, the rest surface as these get removed
           for (final q in recent.take(5)) _buildRecentSearchRow(q),
@@ -1340,6 +1329,7 @@ class _StreamScreenState extends State<StreamScreen>
                     subtitle: displayItems[i]['channel'] as String?,
                     onTap: () => _playVideo(displayItems[i]),
                     onPlay: () => _playVideo(displayItems[i]),
+                    onLongPress: () => _showSongSheet(displayItems[i]),
                     playing: playback.playing &&
                         playback.id == displayItems[i]['id'],
                     width: cardWidth,
@@ -1368,6 +1358,7 @@ class _StreamScreenState extends State<StreamScreen>
                     subtitle: items[i]['channel'] as String?,
                     onTap: () => _playVideo(items[i]),
                     onPlay: () => _playVideo(items[i]),
+                    onLongPress: () => _showSongSheet(items[i]),
                     playing: playback.playing && playback.id == items[i]['id'],
                   );
                 },
@@ -1420,44 +1411,97 @@ class _StreamScreenState extends State<StreamScreen>
   }
 
   void _showSongSheet(Map<String, dynamic> video) {
+    final track = _trackFromVideo(video);
     final artistId = video['artistId'] as String?;
     final channel = video['channel'] as String? ?? '';
+    final audio = Provider.of<AudioProvider>(context, listen: false);
+    final thumb = _videoThumb(video);
+
     Widget buildContent(BuildContext sheetContext) => SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (!isDesktop) sheetHandle(sheetContext),
-              ListTile(
-                leading:
-                    SquareArt(url: _videoThumb(video), size: 44, radius: rSm),
-                title: Text(video['title'] as String? ?? '',
-                    maxLines: 1, overflow: TextOverflow.ellipsis),
-                subtitle:
-                    Text(channel, maxLines: 1, overflow: TextOverflow.ellipsis),
-              ),
-              const Divider(height: 1),
-              SheetTile(
-                leading: const Icon(Icons.play_arrow_rounded),
-                title: const Text('Play'),
-                onTap: () {
-                  Navigator.of(sheetContext).pop();
-                  _playVideo(video);
-                },
-              ),
-              if (artistId != null)
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (!isDesktop) sheetHandle(sheetContext),
+                ListTile(
+                  leading: SquareArt(url: thumb, size: 44, radius: rSm),
+                  title: Text(video['title'] as String? ?? '',
+                      maxLines: 1, overflow: TextOverflow.ellipsis),
+                  subtitle: Text(channel,
+                      maxLines: 1, overflow: TextOverflow.ellipsis),
+                ),
+                const Divider(height: 1),
                 SheetTile(
-                  leading: const Icon(Icons.person_rounded),
-                  title: Text('Go to $channel'),
+                  leading: const Icon(Icons.play_arrow_rounded),
+                  title: const Text('Play'),
                   onTap: () {
                     Navigator.of(sheetContext).pop();
-                    Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) =>
-                          ArtistScreen(browseId: artistId, name: channel),
-                    ));
+                    _playVideo(video);
                   },
                 ),
-              const SizedBox(height: 8),
-            ],
+                SheetTile(
+                  leading: const Icon(Icons.playlist_play_rounded),
+                  title: const Text('Play next'),
+                  onTap: () {
+                    Navigator.of(sheetContext).pop();
+                    audio.playTrackNext(track);
+                    _snack('Playing "${track.title}" next');
+                  },
+                ),
+                SheetTile(
+                  leading: const Icon(Icons.queue_music_rounded),
+                  title: const Text('Add to queue'),
+                  onTap: () {
+                    Navigator.of(sheetContext).pop();
+                    audio.addTracksToQueue([track]);
+                    _snack('Added "${track.title}" to queue');
+                  },
+                ),
+                SheetTile(
+                  leading: const Icon(Icons.playlist_add_rounded),
+                  title: const Text('Add to playlist'),
+                  onTap: () {
+                    Navigator.of(sheetContext).pop();
+                    showAddToPlaylistDialog(context, track);
+                  },
+                ),
+                SheetTile(
+                  leading: const Icon(Icons.download_rounded),
+                  title: const Text('Download'),
+                  onTap: () {
+                    Navigator.of(sheetContext).pop();
+                    DownloadManager.instance.enqueue(
+                      track,
+                      thumbUrl: thumb,
+                    );
+                    _snack('Download started, see Downloads');
+                  },
+                ),
+                if (artistId != null)
+                  SheetTile(
+                    leading: const Icon(Icons.person_rounded),
+                    title: Text('Go to $channel'),
+                    onTap: () {
+                      Navigator.of(sheetContext).pop();
+                      Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) =>
+                            ArtistScreen(browseId: artistId, name: channel),
+                      ));
+                    },
+                  ),
+                SheetTile(
+                  leading: const Icon(Icons.share_rounded),
+                  title: const Text('Share'),
+                  onTap: () {
+                    Navigator.of(sheetContext).pop();
+                    final url = video['url'] ??
+                        'https://www.youtube.com/watch?v=${video['id']}';
+                    SharePlus.instance.share(ShareParams(uri: Uri.parse(url)));
+                  },
+                ),
+                const SizedBox(height: 8),
+              ],
+            ),
           ),
         );
     // bottom sheets are a touch idiom; a dialog fits pointer conventions
