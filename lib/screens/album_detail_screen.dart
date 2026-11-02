@@ -11,6 +11,7 @@ import '../utils/platform.dart';
 import '../widgets/morph_shape.dart';
 import '../widgets/now_playing_bars.dart';
 import '../widgets/sheet_handle.dart';
+import '../widgets/track_options_sheet.dart';
 
 enum CollectionType { album, playlist }
 
@@ -473,6 +474,7 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
       child: InkWell(
         borderRadius: BorderRadius.circular(rLg),
         onTap: () => _playTrack(context, index),
+        onLongPress: () => _showTrackOptions(context, track),
         onSecondaryTap:
             isDesktop ? () => _showTrackOptions(context, track) : null,
         child: Container(
@@ -686,150 +688,9 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
   }
 
   void _showTrackOptions(BuildContext context, Track track) {
-    // desktop: present the same options as a dialog instead of a bottom sheet
-    if (isDesktop) {
-      showDialog(
-        context: context,
-        builder: (context) => Dialog(
-          clipBehavior: Clip.antiAlias,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _trackOptionsHeader(context, track),
-                  const Divider(height: 1),
-                  ..._trackOptionTiles(context, track),
-                ],
-              ),
-            ),
-          ),
-        ),
-      );
-      return;
-    }
-    showModalBottomSheet(
-      context: context,
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _trackOptionsHeader(context, track),
-            const Divider(height: 1),
-            ..._trackOptionTiles(context, track),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _trackOptionsHeader(BuildContext context, Track track) {
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Row(
-        children: [
-          if (track.albumArt != null)
-            ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: Image.memory(
-                track.albumArt!,
-                width: 48,
-                height: 48,
-                fit: BoxFit.cover,
-              ),
-            )
-          else
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: const Icon(Icons.music_note, size: 24),
-            ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  track.title,
-                  style: Theme.of(context).textTheme.titleSmall,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                Text(
-                  track.artist,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context)
-                            .colorScheme
-                            .onSurface
-                            .withValues(alpha: 0.6),
-                      ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  List<Widget> _trackOptionTiles(BuildContext context, Track track) {
-    return [
-      SheetTile(
-        leading: const Icon(Icons.queue_music),
-        title: const Text('Add to queue'),
-        onTap: () {
-          Navigator.pop(context);
-          final audioProvider =
-              Provider.of<AudioProvider>(context, listen: false);
-          audioProvider.addTracksToQueue([track]);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Added to queue'),
-              duration: Duration(seconds: 2),
-            ),
-          );
-        },
-      ),
-      SheetTile(
-        leading: const Icon(Icons.playlist_add),
-        title: const Text('Add to playlist'),
-        onTap: () {
-          Navigator.pop(context);
-          // TODO: Implement add to playlist
-        },
-      ),
-      SheetTile(
-        leading: const Icon(Icons.album),
-        title: const Text('Go to album'),
-        onTap: () {
-          Navigator.pop(context);
-          // TODO: Implement go to album
-        },
-      ),
-      SheetTile(
-        leading: const Icon(Icons.person),
-        title: const Text('Go to artist'),
-        onTap: () {
-          Navigator.pop(context);
-          // TODO: Implement go to artist
-        },
-      ),
-      SheetTile(
-        leading: const Icon(Icons.share),
-        title: const Text('Share'),
-        onTap: () {
-          Navigator.pop(context);
-          // TODO: Implement share
-        },
-      ),
-    ];
+    showTrackOptionsSheet(context, track,
+        playlistId:
+            widget.type == CollectionType.playlist ? widget.playlist?.id : null);
   }
 
   void _addToQueue(BuildContext context) {

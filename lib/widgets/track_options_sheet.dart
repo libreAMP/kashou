@@ -55,27 +55,31 @@ void showTrackOptionsSheet(BuildContext context, Track track,
   }
   showModalBottomSheet(
     context: context,
+    isScrollControlled: true,
     builder: (sheetContext) => SafeArea(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          sheetHandle(sheetContext),
-          _headerTile(track, isOnline),
-          const SizedBox(height: 4),
-          ..._optionTiles(sheetContext, track, isOnline, playlistId),
-          const SizedBox(height: 8),
-        ],
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            sheetHandle(sheetContext),
+            _headerTile(track, isOnline),
+            const SizedBox(height: 4),
+            ..._optionTiles(sheetContext, track, isOnline, playlistId),
+            const SizedBox(height: 8),
+          ],
+        ),
       ),
     ),
   );
 }
 
 Widget _headerTile(Track track, bool isOnline, {Widget? trailing}) {
+  final vid = _videoId(track);
   return ListTile(
     leading: SquareArt(
       bytes: track.albumArt,
-      url: isOnline
-          ? 'https://i.ytimg.com/vi/${_videoId(track)}/mqdefault.jpg'
+      url: isOnline && vid != null
+          ? 'https://i.ytimg.com/vi/$vid/mqdefault.jpg'
           : null,
       size: 44,
       radius: rSm,
@@ -189,10 +193,15 @@ List<Widget> _optionTiles(
 
 String? _videoId(Track track) {
   final uri = Uri.tryParse(track.sourceUrl ?? track.path);
-  return uri?.queryParameters['v'] ??
+  final id = uri?.queryParameters['v'] ??
       (uri?.host.contains('youtu.be') == true && uri!.pathSegments.isNotEmpty
           ? uri.pathSegments.first
           : null);
+  if (id != null && id.isNotEmpty) return id;
+  if (track.isOnline && RegExp(r'^[a-zA-Z0-9_-]{11}$').hasMatch(track.id)) {
+    return track.id;
+  }
+  return null;
 }
 
 List<Widget> _menuRows(

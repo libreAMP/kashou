@@ -16,6 +16,7 @@ import '../widgets/morph_shape.dart';
 import '../widgets/now_playing_bars.dart';
 import '../widgets/square_art.dart';
 import '../widgets/page_mini_player.dart';
+import '../widgets/track_options_sheet.dart';
 import '../services/ytmusic_service.dart';
 import 'artist_screen.dart';
 
@@ -62,6 +63,7 @@ class _SectionPageState extends State<SectionPage> {
       path: videoUrl,
       duration: Duration(seconds: _asInt(video['duration'])),
       sourceUrl: videoUrl,
+      artistId: (video['artistId'] ?? video['artistBrowseId']) as String?,
     );
   }
 
@@ -542,6 +544,7 @@ class _SectionPageState extends State<SectionPage> {
     final colorScheme = theme.colorScheme;
 
     final (current, playing) = _stateOf(context, video);
+    final song = video['playlistId'] == null && video['type'] != 'artist';
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Material(
@@ -549,6 +552,13 @@ class _SectionPageState extends State<SectionPage> {
         borderRadius: BorderRadius.circular(rLg),
         child: InkWell(
           onTap: () => _playVideo(video),
+          onLongPress: song
+              ? () => showTrackOptionsSheet(context, _trackFor(video))
+              : null,
+          onSecondaryTapDown: song && isDesktop
+              ? (d) => showTrackOptionsSheet(context, _trackFor(video),
+                  anchor: d.globalPosition)
+              : null,
           borderRadius: BorderRadius.circular(rLg),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
@@ -650,6 +660,11 @@ class _SectionPageState extends State<SectionPage> {
         playing: playing,
         onTap: () => _handleItemTap(item),
         onPlay: song ? () => _toggle(item) : null,
+        onLongPress:
+            song ? () => showTrackOptionsSheet(context, _trackFor(item)) : null,
+        onSecondaryTap: song && isDesktop
+            ? () => showTrackOptionsSheet(context, _trackFor(item))
+            : null,
       );
     }
 

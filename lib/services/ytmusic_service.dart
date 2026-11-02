@@ -582,6 +582,8 @@ class YtMusicService {
       final artist = cols != null && cols.length > 1
           ? _text(cols[1]['musicResponsiveListItemFlexColumnRenderer']?['text'])
           : null;
+      final artistId =
+          cols != null && cols.length > 1 ? _artistIdFrom(cols[1]) : null;
       final thumb = _lastThumb(r['thumbnail']?['musicThumbnailRenderer']
           ?['thumbnail']?['thumbnails']);
       songs.add({
@@ -591,6 +593,7 @@ class YtMusicService {
         'channel': artist ?? '',
         'thumbnail': thumb,
         'duration': _duration(r),
+        if (artistId != null) 'artistId': artistId,
       });
       if (songs.length >= limit) break;
     }

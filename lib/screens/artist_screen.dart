@@ -10,6 +10,7 @@ import '../widgets/art_card.dart';
 import '../widgets/back_chip.dart';
 import '../widgets/loading_indicator.dart';
 import '../widgets/square_art.dart';
+import '../widgets/track_options_sheet.dart';
 import 'section_page.dart';
 
 // widest the content is allowed to stretch on desktop windows
@@ -249,8 +250,10 @@ class _ArtistScreenState extends State<ArtistScreen> {
 
   Widget _songRow(Map<String, dynamic> song, List<Map<String, dynamic>> all) {
     final scheme = Theme.of(context).colorScheme;
-    return ListTile(
+    final track = _toTrack(song);
+    final tile = ListTile(
       onTap: () => _play(song, all),
+      onLongPress: () => showTrackOptionsSheet(context, track),
       leading: SquareArt(
           url: song['thumbnail'] as String?, size: 48, radius: rSm),
       title: Text(song['title'] as String? ?? '',
@@ -260,6 +263,12 @@ class _ArtistScreenState extends State<ArtistScreen> {
           overflow: TextOverflow.ellipsis,
           style: TextStyle(color: scheme.onSurfaceVariant)),
       trailing: Icon(Icons.play_arrow_rounded, color: scheme.onSurfaceVariant),
+    );
+    if (!isDesktop) return tile;
+    return GestureDetector(
+      onSecondaryTapDown: (d) =>
+          showTrackOptionsSheet(context, track, anchor: d.globalPosition),
+      child: tile,
     );
   }
 
