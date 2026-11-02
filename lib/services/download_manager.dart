@@ -27,7 +27,8 @@ class DownloadManager extends ChangeNotifier {
   static final DownloadManager instance = DownloadManager._();
 
   final List<DownloadJob> jobs = [];
-  bool _busy = false;
+  static const int _maxConcurrent = 2;
+  int _activeCount = 0;
 
   void enqueue(Track track, {String? thumbUrl}) {
     final id = track.sourceUrl ?? track.path;
@@ -51,32 +52,33 @@ class DownloadManager extends ChangeNotifier {
   }
 
   void _pump() {
-    if (_busy) return;
-    DownloadJob? next;
-    for (final j in jobs) {
-      if (j.status == 'queued') {
-        next = j;
-        break;
+    while (_activeCount < _maxConcurrent) {
+      DownloadJob? next;
+      for (final j in jobs.reversed) {
+        if (j.status == 'queued') {
+          next = j;
+          break;
+        }
       }
-    }
-    if (next == null) return;
-    _busy = true;
-    final job = next;
-    job.status = 'downloading';
-    notifyListeners();
-    _run(job).then((_) {
-      job.status = 'done';
-      showToast(job.artFailed
-          ? 'Audio saved, album art extraction failed'
-          : 'Saved ${job.track.title}');
-    }).catchError((e) {
-      job.status = 'failed';
-      showToast('Download failed: ${job.track.title}');
-    }).whenComplete(() {
-      _busy = false;
+      if (next == null) break;
+      _activeCount++;
+      final job = next;
+      job.status = 'downloading';
       notifyListeners();
-      _pump();
-    });
+      _run(job).then((_) {
+        job.status = 'done';
+        showToast(job.artFailed
+            ? 'Audio saved, album art extraction failed'
+            : 'Saved ${job.track.title}');
+      }).catchError((e) {
+        job.status = 'failed';
+        showToast('Download failed: ${job.track.title}');
+      }).whenComplete(() {
+        _activeCount--;
+        notifyListeners();
+        _pump();
+      });
+    }
   }
 
   Future<void> _run(DownloadJob job) async {

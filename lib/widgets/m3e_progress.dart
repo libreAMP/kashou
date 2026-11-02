@@ -51,39 +51,32 @@ class _M3EProgressPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    canvas.save();
+    canvas.clipRect(Offset.zero & size);
+
     final midY = size.height / 2;
     final radius = Radius.circular(thickness / 2);
-    final splitX = size.width * fraction;
+    final splitX = (size.width * fraction).clamp(0.0, size.width);
 
-    final track = Paint()
-      ..color = trackColor
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = thickness
-      ..strokeCap = StrokeCap.round;
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(0, midY - thickness / 2, size.width, thickness),
+        radius,
+      ),
+      Paint()..color = trackColor,
+    );
 
-    if (splitX > 0.5) {
-      canvas.drawLine(Offset(0, midY), Offset(splitX, midY), track);
-      final active = Paint()
-        ..color = color
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = thickness
-        ..strokeCap = StrokeCap.round;
-      canvas.drawLine(Offset(0, midY), Offset(splitX, midY), active);
-    }
-
-    canvas.drawCircle(
-        Offset(splitX, midY), thickness * 0.5, Paint()..color = color);
-
-    if (splitX < size.width - 1) {
+    if (splitX > 0) {
       canvas.drawRRect(
         RRect.fromRectAndRadius(
-          Rect.fromLTRB(splitX + thickness, midY - thickness / 2, size.width,
-              midY + thickness / 2),
+          Rect.fromLTWH(0, midY - thickness / 2, splitX, thickness),
           radius,
         ),
-        Paint()..color = trackColor,
+        Paint()..color = color,
       );
     }
+
+    canvas.restore();
   }
 
   @override
@@ -145,28 +138,38 @@ class _IndeterminatePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    canvas.save();
+    canvas.clipRect(Offset.zero & size);
+
     final midY = size.height / 2;
     final thickness = size.height * 0.5;
+    final radius = Radius.circular(thickness / 2);
+
     canvas.drawRRect(
       RRect.fromRectAndRadius(
         Rect.fromLTWH(0, midY - thickness / 2, size.width, thickness),
-        Radius.circular(thickness / 2),
+        radius,
       ),
       Paint()..color = trackColor,
     );
 
     const span = 0.32;
     final head = t * (1 + span);
-    final start = (head - span) * size.width;
-    final end = math.min(head, 1.0) * size.width;
-    if (end <= start) return;
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTRB(start, midY - thickness / 2, end, midY + thickness / 2),
-        Radius.circular(thickness / 2),
-      ),
-      Paint()..color = color,
-    );
+    final rawStart = (head - span) * size.width;
+    final rawEnd = head * size.width;
+    final start = math.max(0.0, math.min(size.width, rawStart));
+    final end = math.max(0.0, math.min(size.width, rawEnd));
+
+    if (end > start) {
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTRB(start, midY - thickness / 2, end, midY + thickness / 2),
+          radius,
+        ),
+        Paint()..color = color,
+      );
+    }
+    canvas.restore();
   }
 
   @override
