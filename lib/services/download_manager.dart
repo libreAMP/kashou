@@ -201,7 +201,8 @@ class DownloadManager extends ChangeNotifier {
             ? 'Audio saved, album art extraction failed'
             : 'Saved ${job.track.title}');
         _save();
-      }).catchError((e) {
+      }).catchError((e, st) {
+        debugPrint('[Download] job failed for ${job.track.title}: $e\n$st');
         job.status = 'failed';
         showToast('Download failed: ${job.track.title}');
         _save();
@@ -227,13 +228,18 @@ class DownloadManager extends ChangeNotifier {
     }
 
     // opus usually wins on bitrate and its container keeps pictures
-    final streams = List.of(info.audioStreams)
+    final sorted = List.of(info.audioStreams)
       ..sort((a, b) => b.bitrate.compareTo(a.bitrate));
-    final stream = streams.first;
+    final stream = sorted.firstWhere(
+      (s) => s.mimeType.contains('mp4'),
+      orElse: () => sorted.first,
+    );
 
     final safeTitle = info.title.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_').trim();
     final safeArtist = track.artist.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_').trim();
-    final ext = stream.mimeType.contains('webm') ? '.opus' : '.m4a';
+    final ext = stream.mimeType.contains('mp4')
+        ? '.m4a'
+        : (stream.mimeType.contains('webm') ? '.webm' : '.opus');
     final filename = '$safeTitle - $safeArtist$ext';
 
     final downloadDir = await DownloadStore.dir();
@@ -259,26 +265,28 @@ class DownloadManager extends ChangeNotifier {
       albumArt: art,
     );
 
-    // tags so the file stands on its own offline
-    try {
-      await AudioTags.write(
-        filePath,
-        Tag(
-          title: info.title,
-          trackArtist: track.artist,
-          album: track.artist,
-          pictures: [
-            if (art != null)
-              Picture(
-                bytes: art,
-                mimeType: MimeType.jpeg,
-                pictureType: PictureType.coverFront,
-              ),
-          ],
-        ),
-      );
-    } catch (e) {
-      debugPrint('[Download] tagging failed: $e');
+    if (!stream.mimeType.contains('webm')) {
+      // tags so the file stands on its own offline
+      try {
+        await AudioTags.write(
+          filePath,
+          Tag(
+            title: info.title,
+            trackArtist: track.artist,
+            album: track.artist,
+            pictures: [
+              if (art != null)
+                Picture(
+                  bytes: art,
+                  mimeType: MimeType.jpeg,
+                  pictureType: PictureType.coverFront,
+                ),
+            ],
+          ),
+        );
+      } catch (e) {
+        debugPrint('[Download] tagging failed: $e');
+      }
     }
   }
 

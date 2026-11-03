@@ -46,8 +46,16 @@ class DownloadStore {
   // m4a picture tags dont survive the tagger so keep the video id
   static Future<void> _ensureArtIds() async {
     if (_artIdsLoaded) return;
-    final prefs = await SharedPreferences.getInstance();
-    _artIds = Map<String, String>.from(jsonDecode(prefs.getString('dl_art') ?? '{}'));
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString('dl_art');
+      if (raw != null) {
+        final decoded = jsonDecode(raw);
+        if (decoded is Map) {
+          _artIds = decoded.map((k, v) => MapEntry(k.toString(), v.toString()));
+        }
+      }
+    } catch (_) {}
     _artIdsLoaded = true;
   }
 
@@ -57,10 +65,12 @@ class DownloadStore {
   }
 
   static Future<void> rememberArt(String path, String videoId) async {
-    await _ensureArtIds();
-    _artIds[path] = videoId;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('dl_art', jsonEncode(_artIds));
+    try {
+      await _ensureArtIds();
+      _artIds[path] = videoId;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('dl_art', jsonEncode(_artIds));
+    } catch (_) {}
   }
 
   static Future<List<Track>> tracks() async {

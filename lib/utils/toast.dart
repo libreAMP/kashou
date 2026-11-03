@@ -6,13 +6,15 @@ final toastNavigatorKey = GlobalKey<NavigatorState>();
 // snackbars get buried under sheets so this floats above everything
 void showToast(String message) {
   final overlay = toastNavigatorKey.currentState?.overlay;
-  if (overlay == null) return;
+  if (overlay == null || !overlay.mounted) return;
   // overlay entries are invisible to screen readers
-  SemanticsService.sendAnnouncement(
-    View.of(overlay.context),
-    message,
-    Directionality.of(overlay.context),
-  );
+  try {
+    final view = View.maybeOf(overlay.context);
+    final dir = Directionality.maybeOf(overlay.context);
+    if (view != null && dir != null) {
+      SemanticsService.sendAnnouncement(view, message, dir);
+    }
+  } catch (_) {}
   final entry = OverlayEntry(
     builder: (context) {
       final scheme = Theme.of(context).colorScheme;
