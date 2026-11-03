@@ -231,8 +231,11 @@ class KashouApp extends StatelessWidget {
                 TextTheme getTextTheme(ColorScheme colorScheme) {
                   try {
                     final fontFamily = settingsProvider.fontFamily;
-                    final baseTheme =
-                        ThemeData(colorScheme: colorScheme).textTheme;
+                    final baseTheme = Typography.englishLike2021.apply(
+                      displayColor: colorScheme.onSurface,
+                      bodyColor: colorScheme.onSurface,
+                      decorationColor: colorScheme.onSurface,
+                    );
 
                     switch (fontFamily) {
                       case 'System':
@@ -283,7 +286,11 @@ class KashouApp extends StatelessWidget {
                         return baseTheme;
                     }
                   } catch (e) {
-                    return ThemeData(colorScheme: colorScheme).textTheme;
+                    return Typography.englishLike2021.apply(
+                      displayColor: colorScheme.onSurface,
+                      bodyColor: colorScheme.onSurface,
+                      decorationColor: colorScheme.onSurface,
+                    );
                   }
                 }
 
