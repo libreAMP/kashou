@@ -1255,21 +1255,46 @@ class AudioProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  static const equalizerPresetCurves = {
+    'normal': [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+    'flat': [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+    'classical': [4.5, 3.5, 3.0, 2.0, -1.5, -1.5, 0.0, 2.0, 3.5, 4.0],
+    'dance': [3.5, 6.0, 5.0, 2.0, 0.0, 0.0, -2.0, -2.0, 3.5, 4.5],
+    'folk': [2.5, 1.5, 0.0, 1.5, 2.5, 1.5, 0.0, -1.0, 1.5, 0.0],
+    'heavy metal': [4.0, 3.0, 0.0, 3.0, 4.0, 3.0, 0.0, -2.0, 3.0, 4.0],
+    'hip hop': [5.0, 4.0, 1.5, 2.5, -1.0, -1.0, 1.5, -1.0, 2.0, 3.0],
+    'jazz': [3.5, 2.5, 1.0, 2.0, -1.5, -1.5, 0.0, 1.5, 2.5, 3.5],
+    'pop': [-1.5, 1.5, 3.5, 4.0, 3.0, 0.0, -1.5, -1.5, -1.0, -1.0],
+    'rock': [4.5, 3.0, -2.0, -3.5, -1.0, 2.5, 4.0, 5.0, 5.0, 5.0],
+  };
+
   Future<void> applyEqualizerPreset(String presetName) async {
     if (!_equalizerEnabled) return;
+    _activePreset = presetName;
 
     try {
       await CustomEqualizer.setPreset(presetName);
-      _activePreset = presetName;
       final presetValues = await CustomEqualizer.getPresetBandLevels();
       if (presetValues.isNotEmpty) {
         _equalizerBands = presetValues.map((millibelValue) {
           return (millibelValue / 125.0).clamp(-12.0, 12.0);
         }).toList();
+        notifyListeners();
+        return;
+      }
+    } catch (_) {}
+
+    final curve = equalizerPresetCurves[presetName.toLowerCase().trim()];
+    if (curve != null) {
+      final bandCount = _equalizerBands.isNotEmpty ? _equalizerBands.length : 10;
+      _equalizerBands = curve.take(bandCount).toList();
+      if (Platform.isAndroid) {
+        for (int i = 0; i < _equalizerBands.length; i++) {
+          final millibels = (_equalizerBands[i] * 125).toInt();
+          CustomEqualizer.setBandLevel(i, millibels).catchError((_) {});
+        }
       }
       notifyListeners();
-    } catch (e) {
-      debugPrint('Error applying preset $presetName: $e');
     }
   }
 

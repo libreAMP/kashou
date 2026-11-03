@@ -22,6 +22,15 @@ class Track {
   // streams keep a cdn url in path while downloads stay local files
   bool get isOnline => path.startsWith('http');
 
+  String? get videoId {
+    final uri = Uri.tryParse(sourceUrl ?? path);
+    if (uri == null) return null;
+    if (uri.host.contains('youtu.be')) {
+      return uri.pathSegments.isNotEmpty ? uri.pathSegments.first : null;
+    }
+    return uri.queryParameters['v'];
+  }
+
   Track({
     required this.id,
     required this.title,

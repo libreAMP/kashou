@@ -22,6 +22,19 @@ const _presetIcons = {
   'rock': Icons.album_rounded,
 };
 
+const _defaultPresets = [
+  'Normal',
+  'Classical',
+  'Dance',
+  'Flat',
+  'Folk',
+  'Heavy Metal',
+  'Hip Hop',
+  'Jazz',
+  'Pop',
+  'Rock',
+];
+
 // native preset names drag junk bytes along
 String _cleanPreset(String s) =>
     s.replaceAll(RegExp(r'[^\x20-\x7E]'), '').trim();
@@ -296,8 +309,8 @@ class EqualizerWidget extends StatelessWidget {
         return FutureBuilder<List<String>>(
           future: CustomEqualizer.getPresetNames(),
           builder: (context, snapshot) {
-            if (!snapshot.hasData) return const SizedBox.shrink();
-            final presets = snapshot.data!;
+            final hardware = snapshot.data ?? const [];
+            final presets = hardware.isNotEmpty ? hardware : _defaultPresets;
             final scheme = Theme.of(context).colorScheme;
             final on = audio.equalizerEnabled;
             return Column(
@@ -328,7 +341,8 @@ class EqualizerWidget extends StatelessWidget {
                     separatorBuilder: (_, __) => const SizedBox(width: 8),
                     itemBuilder: (context, i) {
                       final label = _cleanPreset(presets[i]);
-                      final selected = audio.activePreset == presets[i];
+                      final selected = audio.activePreset?.toLowerCase().trim() ==
+                          presets[i].toLowerCase().trim();
                       final fg = selected
                           ? scheme.onPrimary
                           : on

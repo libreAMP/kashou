@@ -13,6 +13,7 @@ import '../utils/platform.dart';
 import 'm3e_menu.dart';
 import 'sheet_handle.dart';
 import 'square_art.dart';
+import 'track_info_sheet.dart';
 
 void showTrackOptionsSheet(BuildContext context, Track track,
     {String? playlistId, Offset? anchor}) {
@@ -171,7 +172,7 @@ List<_TrackAction> _trackActions(
               .removeFromPlaylist(playlistId, track),
           destructive: true),
     _TrackAction('Track Info', Icons.info_outline,
-        (context) => _showTrackInfo(context, track, isOnline)),
+        (context) => showTrackInfoModal(context, track)),
   ];
 }
 
@@ -305,63 +306,5 @@ Future<String?> _promptName(BuildContext context) {
         ),
       ],
     ),
-  );
-}
-
-void _showTrackInfo(BuildContext context, Track track, bool isOnline) {
-  final rows = <MapEntry<String, String>>[
-    MapEntry('Title', track.title),
-    MapEntry('Artist', track.artist),
-    if (track.album.isNotEmpty && track.album != 'YouTube')
-      MapEntry('Album', track.album),
-    if (track.year != null) MapEntry('Year', track.year.toString()),
-    if (track.genre != null) MapEntry('Genre', track.genre!),
-    MapEntry('Duration',
-        '${track.duration.inMinutes}:${(track.duration.inSeconds % 60).toString().padLeft(2, '0')}'),
-    if (track.bitrate != null) MapEntry('Bitrate', '${track.bitrate} kbps'),
-    if (track.sampleRate != null)
-      MapEntry('Sample Rate', '${track.sampleRate} Hz'),
-    if (track.codec != null) MapEntry('Format', track.codec!),
-    if (_videoId(track) != null)
-      MapEntry('Link', 'https://youtube.com/watch?v=${_videoId(track)}'),
-    if (!isOnline) MapEntry('Path', track.path),
-  ];
-  showDialog(
-    context: context,
-    builder: (dialogContext) {
-      final rowsView = Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          for (final row in rows)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(row.key, style: Theme.of(context).textTheme.labelMedium),
-                  Text(row.value, style: Theme.of(context).textTheme.bodyLarge),
-                ],
-              ),
-            ),
-        ],
-      );
-      return AlertDialog(
-        title: Text(
-          'Track info',
-          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                fontWeight: FontWeight.w800,
-                letterSpacing: -0.5,
-              ),
-        ),
-        content: isDesktop ? SingleChildScrollView(child: rowsView) : rowsView,
-        actions: [
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Close'),
-          ),
-        ],
-      );
-    },
   );
 }

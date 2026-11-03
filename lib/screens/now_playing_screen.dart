@@ -28,6 +28,7 @@ import '../widgets/scrolling_text.dart';
 import '../widgets/sheet_handle.dart';
 import '../widgets/square_art.dart';
 import '../widgets/squiggly_slider.dart';
+import '../widgets/track_info_sheet.dart';
 import '../services/ytmusic_service.dart';
 import '../utils/app_messenger.dart';
 import '../utils/platform.dart';
@@ -1885,7 +1886,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                           title: const Text('Track Info'),
                           onTap: () {
                             Navigator.pop(sheetContext);
-                            _showTrackInfo(rootContext, current);
+                            showTrackInfoModal(rootContext, current);
                           },
                         ),
                       ]),
@@ -2084,111 +2085,6 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     }
 
     return null;
-  }
-
-  void _showTrackInfo(BuildContext context, Track track) {
-    final isStream = (track.sourceUrl ?? track.path).startsWith('http');
-    final ytId =
-        isStream ? _extractYouTubeId(track.sourceUrl ?? track.path) : null;
-    final rows = <MapEntry<String, String>>[
-      MapEntry('Title', track.title),
-      MapEntry('Artist', track.artist),
-      if (track.album.isNotEmpty && track.album != 'YouTube')
-        MapEntry('Album', track.album),
-      if (track.duration > Duration.zero)
-        MapEntry('Duration', _formatDuration(track.duration)),
-      if (track.genre != null && track.genre!.isNotEmpty)
-        MapEntry('Genre', track.genre!),
-      if (track.year != null) MapEntry('Year', '${track.year}'),
-      if (track.codec != null) MapEntry('Format', track.codec!),
-      if (track.bitrate != null) MapEntry('Bitrate', '${track.bitrate} kbps'),
-      if (track.sampleRate != null)
-        MapEntry('Sample rate', '${track.sampleRate} Hz'),
-      if (track.loudnessDb != null)
-        MapEntry('Loudness', '${track.loudnessDb!.toStringAsFixed(1)} dB'),
-      MapEntry('Source', isStream ? 'YouTube' : 'Local file'),
-      if (isStream && ytId != null)
-        MapEntry('Link', 'https://youtube.com/watch?v=$ytId'),
-      if (!isStream) MapEntry('Path', track.path),
-    ];
-
-    if (isDesktop) {
-      _showAdaptiveDialog(
-        context,
-        (dialogContext) => SafeArea(
-          child: _buildTrackInfoBody(dialogContext, rows),
-        ),
-      );
-      return;
-    }
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (sheetContext) {
-        return SafeArea(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxHeight: MediaQuery.of(sheetContext).size.height * 0.7,
-            ),
-            child: _buildTrackInfoBody(sheetContext, rows),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildTrackInfoBody(
-      BuildContext sheetContext, List<MapEntry<String, String>> rows) {
-    final scheme = Theme.of(sheetContext).colorScheme;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (!isDesktop)
-          sheetHandle(sheetContext)
-        else
-          const SizedBox(height: 20),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
-          child: Text(
-            'Track info',
-            style: Theme.of(sheetContext)
-                .textTheme
-                .titleMedium
-                ?.copyWith(fontWeight: FontWeight.w700),
-          ),
-        ),
-        Flexible(
-          child: ListView(
-            shrinkWrap: true,
-            padding: const EdgeInsets.fromLTRB(24, 4, 24, 16),
-            children: [
-              for (final row in rows)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 14),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        row.key,
-                        style: Theme.of(sheetContext)
-                            .textTheme
-                            .bodySmall
-                            ?.copyWith(color: scheme.onSurfaceVariant),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        row.value,
-                        style: Theme.of(sheetContext).textTheme.bodyLarge,
-                      ),
-                    ],
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ],
-    );
   }
 }
 
