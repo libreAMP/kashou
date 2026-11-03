@@ -58,6 +58,7 @@ class AudioProvider extends ChangeNotifier {
   Duration _bufferedPosition = Duration.zero;
   Duration _duration = Duration.zero;
   bool _isLoadingTrack = false;
+  bool _isAutoAdvancing = false;
 
   RepeatMode _repeatMode = RepeatMode.off;
   ShuffleMode _shuffleMode = ShuffleMode.off;
@@ -386,10 +387,6 @@ class AudioProvider extends ChangeNotifier {
 
     _playerSubs.add(audioPlayer.positionStream.listen((position) {
       _position = position;
-      if (_duration > Duration.zero && position >= _duration) {
-        _handleTrackComplete();
-        return;
-      }
       if (_isLoadingTrack &&
           _pendingTrack != null &&
           position > Duration.zero) {
@@ -421,16 +418,14 @@ class AudioProvider extends ChangeNotifier {
           ? Duration(milliseconds: reported.inMilliseconds ~/ 2)
           : reported;
       final known = _currentTrack?.duration ?? Duration.zero;
-      final isKnownDoubled = isApple &&
-          isRemote &&
-          known > Duration.zero &&
-          (known.inSeconds - saneReported.inSeconds * 2).abs() <= 2;
-      final effective = (known > Duration.zero && !isKnownDoubled)
-          ? known
-          : saneReported;
+      final isKnownHalved = known > Duration.zero &&
+          (saneReported.inSeconds - known.inSeconds * 2).abs() <= 2;
+      final effective = (known <= Duration.zero || isKnownHalved)
+          ? saneReported
+          : known;
       _duration = effective;
       _audioHandler?.updateDuration(effective);
-      if ((known <= Duration.zero || isKnownDoubled) && _currentTrack != null) {
+      if ((known <= Duration.zero || isKnownHalved) && _currentTrack != null) {
         final updated = _currentTrack!.copyWith(duration: effective);
         _currentTrack = updated;
         _lastCommittedTrack = updated;
@@ -555,9 +550,18 @@ class AudioProvider extends ChangeNotifier {
         _queue.insert(0, track);
         _currentIndex = 0;
       }
-    } else {
+    } else if (_queue.isEmpty) {
       _queue = [track];
       _currentIndex = 0;
+    } else {
+      final index = _queue.indexWhere((t) => t.id == track.id);
+      if (index != -1) {
+        _queue[index] = track;
+        _currentIndex = index;
+      } else {
+        _queue.insert(_currentIndex + 1, track);
+        _currentIndex++;
+      }
     }
 
     final wasPlaying = _isPlaying;
@@ -1183,11 +1187,17 @@ class AudioProvider extends ChangeNotifier {
   }
 
   void _handleTrackComplete() {
+    if (_isAutoAdvancing) return;
+    _isAutoAdvancing = true;
+
     if (_repeatMode == RepeatMode.one) {
       audioPlayer.seek(Duration.zero);
       audioPlayer.play();
+      _isAutoAdvancing = false;
     } else {
-      skipNext();
+      skipNext().whenComplete(() {
+        _isAutoAdvancing = false;
+      });
     }
   }
 
