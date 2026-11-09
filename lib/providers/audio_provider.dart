@@ -173,9 +173,14 @@ class AudioProvider extends ChangeNotifier {
           .where((entry) => entry.isYouTube)
           .toList(growable: false);
 
-  AudioProvider({SettingsProvider? settingsProvider}) {
+  AudioProvider({SettingsProvider? settingsProvider, AudioPlayer? player}) {
     _settingsProvider = settingsProvider;
-    _initializeAudioService();
+    if (player != null) {
+      _audioPlayer = player;
+      _initializePlayer();
+    } else {
+      _initializeAudioService();
+    }
     _loadRecentTracks();
     _loadStreamHistory();
   }
@@ -395,6 +400,14 @@ class AudioProvider extends ChangeNotifier {
         notifyListeners();
         return;
       }
+      // some streams never send completed
+      if (_duration > Duration.zero &&
+          position >= _duration &&
+          !_isLoadingTrack &&
+          !_isAutoAdvancing) {
+        _handleTrackComplete();
+        return;
+      }
       // ui only shows whole seconds
       if (position.inSeconds != _lastPositionSecond) {
         _lastPositionSecond = position.inSeconds;
@@ -418,14 +431,10 @@ class AudioProvider extends ChangeNotifier {
           ? Duration(milliseconds: reported.inMilliseconds ~/ 2)
           : reported;
       final known = _currentTrack?.duration ?? Duration.zero;
-      final isKnownHalved = known > Duration.zero &&
-          (saneReported.inSeconds - known.inSeconds * 2).abs() <= 2;
-      final effective = (known <= Duration.zero || isKnownHalved)
-          ? saneReported
-          : known;
+      final effective = known > Duration.zero ? known : saneReported;
       _duration = effective;
       _audioHandler?.updateDuration(effective);
-      if ((known <= Duration.zero || isKnownHalved) && _currentTrack != null) {
+      if (known <= Duration.zero && _currentTrack != null) {
         final updated = _currentTrack!.copyWith(duration: effective);
         _currentTrack = updated;
         _lastCommittedTrack = updated;
@@ -951,7 +960,8 @@ class AudioProvider extends ChangeNotifier {
     if (children == null) return false;
     if (children.length != _queue.length) return false;
     for (int i = 0; i < children.length; i++) {
-      final source = children[i];
+      final child = children[i];
+      final source = child is ClippingAudioSource ? child.child : child;
       final track = _queue[i];
       if (source is UriAudioSource) {
         if (source.uri.toString() != track.path) {
@@ -972,7 +982,9 @@ class AudioProvider extends ChangeNotifier {
     if (!wasPlaying) return false;
 
     if (_playlistSources != null && _playlistIsMatchingQueue()) {
-      final currentSource = _playlistSources![_currentIndex];
+      final current = _playlistSources![_currentIndex];
+      final currentSource =
+          current is ClippingAudioSource ? current.child : current;
       if (currentSource is UriAudioSource) {
         return currentSource.uri.toString() == track.path;
       }
@@ -996,15 +1008,20 @@ class AudioProvider extends ChangeNotifier {
       // serves 206 to libmpv, curl, the Quest 3 UA and no UA alike, and a dead
       // one 403s them all), and any header at all forces playback through
       // just_audio's loopback proxy for no gain. mpv range-negotiates itself.
-      return ProgressiveAudioSource(
+      final known = track.duration > Duration.zero ? track.duration : null;
+      final source = ProgressiveAudioSource(
         uri,
-        duration: track.duration > Duration.zero ? track.duration : null,
+        duration: known,
         options: const ProgressiveAudioSourceOptions(
           darwinAssetOptions: DarwinAssetOptions(
             preferPreciseDurationAndTiming: true,
           ),
         ),
       );
+      final isApple = Platform.isIOS || Platform.isMacOS;
+      return isApple && known != null
+          ? ClippingAudioSource(child: source, end: known)
+          : source;
     }
     debugPrint('[Audio] Using file audio source');
     return AudioSource.file(path);
