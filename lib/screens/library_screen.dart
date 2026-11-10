@@ -13,6 +13,7 @@ import '../services/download_store.dart';
 import '../services/ytmusic_service.dart';
 import '../theme/radii.dart';
 import '../widgets/loading_indicator.dart';
+import '../widgets/m3e_button_group.dart';
 import '../widgets/m3e_list.dart';
 import '../widgets/m3e_menu.dart';
 import '../widgets/m3e_progress.dart';
@@ -179,59 +180,19 @@ class _LibraryScreenState extends State<LibraryScreen>
       child: AnimatedBuilder(
         animation: _tabController.animation!,
         builder: (context, _) {
-          final scheme = Theme.of(context).colorScheme;
           final sel = _tabController.animation!.value.round();
           WidgetsBinding.instance.addPostFrameCallback((_) => _revealChip(sel));
-          Widget chip(int i) {
-            return Material(
-              key: _chipKeys[i],
-              color: i == sel ? scheme.primary : scheme.surfaceContainerHigh,
-              borderRadius: BorderRadius.circular(24),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(24),
-                onTap: () => _tabController.animateTo(i),
-                child: Padding(
-                  // the horizontal rail stretches chips to full tab height;
-                  // the wrapped desktop rail sizes them from content instead
-                  padding: EdgeInsets.symmetric(
-                      horizontal: 16, vertical: isDesktop ? 11 : 0),
-                  child: Row(
-                    // a row inside a wrap has to hug
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(_tabIcons[labels[i]]!,
-                          size: 18,
-                          color: i == sel
-                              ? scheme.onPrimary
-                              : scheme.onSurfaceVariant),
-                      const SizedBox(width: 8),
-                      Text(
-                        labels[i],
-                        style: TextStyle(
-                          color: i == sel ? scheme.onPrimary : scheme.onSurface,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          }
-
           return SizedBox(
             height: 64,
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  for (var i = 0; i < labels.length; i++) ...[
-                    if (i > 0) const SizedBox(width: 8),
-                    chip(i),
-                  ],
-                ],
+              child: M3EButtonGroup(
+                labels: labels,
+                icons: [for (final label in labels) _tabIcons[label]!],
+                itemKeys: _chipKeys,
+                selected: sel,
+                onSelected: _tabController.animateTo,
               ),
             ),
           );

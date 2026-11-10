@@ -17,6 +17,7 @@ import '../utils/platform.dart';
 import '../utils/sheet_scope.dart';
 import '../widgets/track_options_sheet.dart';
 import '../widgets/m3e_badge.dart';
+import '../widgets/m3e_button_group.dart';
 import '../widgets/m3e_refresh.dart';
 import '../widgets/art_card.dart';
 import '../widgets/dpad_focus.dart';
@@ -597,59 +598,20 @@ class _StreamScreenState extends State<StreamScreen>
   }
 
   Widget _buildFilterChips(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     final types = <String>[];
     if (_searchResults.isNotEmpty) types.add('Songs');
     if (_searchPlaylists.isNotEmpty) types.add('Playlists');
     if (_searchAlbums.isNotEmpty) types.add('Albums');
     if (types.length < 2) return const SizedBox.shrink();
     final options = ['All', ...types];
-    final chips = [
-      for (var i = 0; i < options.length; i++)
-        FilterChip(
-          label: Text(options[i]),
-          selected: _searchFilter == options[i],
-          onSelected: (_) => setState(() => _searchFilter = options[i]),
-          showCheckmark: false,
-          avatar: Icon(
-            options[i] == 'All'
-                ? Icons.check_rounded
-                : options[i] == 'Songs'
-                    ? Icons.music_note_rounded
-                    : options[i] == 'Playlists'
-                        ? Icons.queue_music_rounded
-                        : Icons.album_rounded,
-            size: 18,
-          ),
-          side: BorderSide.none,
-          backgroundColor: scheme.surfaceContainerHigh,
-          selectedColor: scheme.secondaryContainer,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          labelStyle: TextStyle(
-            color: _searchFilter == options[i]
-                ? scheme.onSecondaryContainer
-                : scheme.onSurfaceVariant,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-    ];
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
-      child: isDesktop
-          // filter rows are short; wrapping beats a sideways scrollbar
-          ? Wrap(spacing: 8, children: chips)
-          : SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  for (var i = 0; i < chips.length; i++) ...[
-                    if (i > 0) const SizedBox(width: 8),
-                    chips[i],
-                  ],
-                ],
-              ),
-            ),
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+      child: M3EButtonGroup(
+        labels: options,
+        selected: options.indexOf(_searchFilter).clamp(0, options.length - 1),
+        onSelected: (i) => setState(() => _searchFilter = options[i]),
+      ),
     );
   }
 
