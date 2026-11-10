@@ -1067,6 +1067,12 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     final duration = isLoading
         ? 1.0
         : liveDur.inMilliseconds.toDouble().clamp(1.0, double.infinity);
+    final displayPos = isLoading
+        ? Duration.zero
+        : (liveDur > Duration.zero && audio.position > liveDur
+            ? liveDur
+            : audio.position);
+    final displayDur = isLoading ? Duration.zero : liveDur;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1084,14 +1090,14 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              _formatDuration(isLoading ? Duration.zero : audio.position),
+              _formatDuration(displayPos),
               style: theme.textTheme.labelSmall?.copyWith(
                 color: colorScheme.onSurfaceVariant,
                 fontFeatures: const [FontFeature.tabularFigures()],
               ),
             ),
             Text(
-              _formatDuration(isLoading ? Duration.zero : audio.duration),
+              _formatDuration(displayDur),
               style: theme.textTheme.labelSmall?.copyWith(
                 color: colorScheme.onSurfaceVariant,
                 fontFeatures: const [FontFeature.tabularFigures()],
