@@ -18,6 +18,7 @@ import '../utils/sheet_scope.dart';
 import '../widgets/track_options_sheet.dart';
 import '../widgets/m3e_badge.dart';
 import '../widgets/m3e_button_group.dart';
+import '../widgets/mood_tile.dart';
 import '../widgets/m3e_refresh.dart';
 import '../widgets/art_card.dart';
 import '../widgets/dpad_focus.dart';
@@ -452,91 +453,73 @@ class _StreamScreenState extends State<StreamScreen>
 
     return _centeredContent(
       Padding(
-        padding: EdgeInsets.fromLTRB(20, isWideLayout ? 16 : 8, 12, 8),
-        child: Row(
-          children: [
-            Expanded(
-              child: DpadFocus(
-                child: SizedBox(
-                  height: 54,
-                  child: TextField(
-                    controller: _searchController,
-                    focusNode: _searchFocus,
-                    onChanged: _onSearchChanged,
-                    textInputAction: TextInputAction.search,
-                    onSubmitted: (q) {
-                      context.read<SettingsProvider>().addSearchTerm(q);
-                      _search(q);
-                    },
-                    style: Theme.of(context).textTheme.bodyLarge,
-                    decoration:
-                        searchDecoration(context, 'Search songs, artists',
-                            suffix: searching
-                                ? IconButton(
-                                    icon: const Icon(Icons.close_rounded),
-                                    tooltip: 'Close search',
-                                    onPressed: _closeSearch,
-                                  )
-                                : null),
-                  ),
+        padding: EdgeInsets.fromLTRB(16, isWideLayout ? 16 : 8, 16, 8),
+        child: DpadFocus(
+          child: SizedBox(
+            height: 56,
+            child: TextField(
+              controller: _searchController,
+              focusNode: _searchFocus,
+              onChanged: _onSearchChanged,
+              textInputAction: TextInputAction.search,
+              onSubmitted: (q) {
+                context.read<SettingsProvider>().addSearchTerm(q);
+                _search(q);
+              },
+              style: Theme.of(context).textTheme.bodyLarge,
+              decoration: searchDecoration(
+                context,
+                'Search songs, artists',
+                suffix: AnimatedSwitcher(
+                  duration: EMotion.fast,
+                  child: searching
+                      ? IconButton(
+                          icon: const Icon(Icons.close_rounded),
+                          tooltip: 'Close search',
+                          onPressed: _closeSearch,
+                        )
+                      : _buildSearchActions(context),
                 ),
               ),
             ),
-            ClipRect(
-              child: AnimatedSize(
-                duration: EMotion.fast,
-                curve: EMotion.standard,
-                alignment: Alignment.centerRight,
-                child: searching
-                    ? const SizedBox.shrink()
-                    : Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const SizedBox(width: 4),
-                          if (isDesktop)
-                            IconButton(
-                              icon: const Icon(Icons.refresh_rounded),
-                              tooltip: 'Refresh',
-                              onPressed: () => _loadDiscover(refresh: true),
-                            ),
-                          if (!isDesktop)
-                            ListenableBuilder(
-                              listenable: DownloadManager.instance,
-                              builder: (context, _) {
-                                final active = DownloadManager.instance.jobs
-                                    .where((j) =>
-                                        j.status != 'done' &&
-                                        j.status != 'failed')
-                                    .length;
-                                return M3EBadge(
-                                  count: active,
-                                  child: IconButton(
-                                    icon: const Icon(Icons.download_rounded),
-                                    tooltip: 'Downloads',
-                                    onPressed: () => Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                          builder: (_) =>
-                                              const DownloadsScreen()),
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                          if (!isDesktop)
-                            IconButton(
-                              icon: const Icon(Icons.settings_outlined),
-                              tooltip: 'Settings',
-                              onPressed: () =>
-                                  Navigator.pushNamed(context, '/settings'),
-                            ),
-                        ],
-                      ),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
+    );
+  }
+
+  Widget _buildSearchActions(BuildContext context) {
+    if (isDesktop) {
+      return IconButton(
+        icon: const Icon(Icons.refresh_rounded),
+        tooltip: 'Refresh',
+        onPressed: () => _loadDiscover(refresh: true),
+      );
+    }
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        ListenableBuilder(
+          listenable: DownloadManager.instance,
+          builder: (context, _) {
+            final active = DownloadManager.instance.jobs
+                .where((j) => j.status != 'done' && j.status != 'failed')
+                .length;
+            return M3EBadge(
+              count: active,
+              child: IconButton(
+                icon: const Icon(Icons.download_rounded),
+                tooltip: 'Downloads',
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const DownloadsScreen()),
+                ),
+              ),
+            );
+          },
+        ),
+        searchSettingsButton(context),
+      ],
     );
   }
 
@@ -578,10 +561,14 @@ class _StreamScreenState extends State<StreamScreen>
               ),
             ),
           if (!_songsExpanded && _searchResults.length > 5)
-            Center(
-              child: TextButton(
-                onPressed: () => setState(() => _songsExpanded = true),
-                child: Text('Show ${_searchResults.length - 5} more'),
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Center(
+                child: FilledButton.tonalIcon(
+                  onPressed: () => setState(() => _songsExpanded = true),
+                  icon: const Icon(Icons.expand_more_rounded),
+                  label: Text('Show all ${_searchResults.length} songs'),
+                ),
               ),
             ),
           const SizedBox(height: 16),
@@ -633,9 +620,9 @@ class _StreamScreenState extends State<StreamScreen>
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               _sectionTitle('Recent searches'),
-              TextButton.icon(
-                icon: const Icon(Icons.history_rounded, size: 18),
-                label: const Text('Stream history'),
+              IconButton(
+                icon: const Icon(Icons.history_rounded),
+                tooltip: 'Stream history',
                 onPressed: () => Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -698,46 +685,61 @@ class _StreamScreenState extends State<StreamScreen>
     );
   }
 
-  Widget _buildMoodGrid(List<Map<String, dynamic>> moods) {
+  Widget _moodTile(Map<String, dynamic> mood, int index) {
     final scheme = Theme.of(context).colorScheme;
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final columns = isWideLayout
-            ? (constraints.maxWidth / 220).floor().clamp(3, 6).toInt()
-            : 2;
-        final cardWidth = (constraints.maxWidth - 12 * (columns - 1)) / columns;
-        return Wrap(
-          spacing: 12,
-          runSpacing: 12,
-          children: [
-            for (final mood in moods)
-              SizedBox(
-                width: cardWidth,
-                child: Material(
-                  color: scheme.surfaceContainerHigh,
-                  borderRadius: BorderRadius.circular(rMd),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(rMd),
-                    onTap: () => _openMood(mood),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 18),
-                      child: Text(
-                        mood['title'] as String? ?? '',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodyLarge
-                            ?.copyWith(fontWeight: FontWeight.w600),
-                      ),
-                    ),
+    final stripe = mood['color'];
+    final color = stripe is int ? Color(stripe) : null;
+    final isVivid =
+        color != null && HSLColor.fromColor(color).saturation > 0.15;
+    return MoodTile(
+      title: mood['title'] as String? ?? '',
+      seed: isVivid
+          ? color
+          : [scheme.primary, scheme.tertiary, scheme.secondary][index % 3],
+      index: index,
+      onTap: () => _openMood(mood),
+    );
+  }
+
+  Widget _buildMoodGrid(List<Map<String, dynamic>> moods) {
+    if (isWideLayout) {
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final columns =
+              (constraints.maxWidth / 220).floor().clamp(3, 6).toInt();
+          final width = (constraints.maxWidth - 12 * (columns - 1)) / columns;
+          return Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              for (var i = 0; i < moods.length; i++)
+                SizedBox(width: width, child: _moodTile(moods[i], i)),
+            ],
+          );
+        },
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (var i = 0; i < moods.length; i += 2)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: i + 1 == moods.length
+                ? _moodTile(moods[i], i)
+                : Row(
+                    children: [
+                      Expanded(
+                          flex: i % 4 == 0 ? 4 : 3,
+                          child: _moodTile(moods[i], i)),
+                      const SizedBox(width: 12),
+                      Expanded(
+                          flex: i % 4 == 0 ? 3 : 4,
+                          child: _moodTile(moods[i + 1], i + 1)),
+                    ],
                   ),
-                ),
-              ),
-          ],
-        );
-      },
+          ),
+      ],
     );
   }
 

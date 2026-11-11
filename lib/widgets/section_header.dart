@@ -64,3 +64,14 @@ InputDecoration searchDecoration(BuildContext context, String hint,
     ),
   );
 }
+
+Widget searchSettingsButton(BuildContext context) {
+  return Padding(
+    padding: const EdgeInsets.only(right: 4),
+    child: IconButton(
+      icon: const Icon(Icons.settings_outlined),
+      tooltip: 'Settings',
+      onPressed: () => Navigator.pushNamed(context, '/settings'),
+    ),
+  );
+}

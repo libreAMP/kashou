@@ -86,58 +86,48 @@ class HomeScreen extends StatelessWidget {
 
   Widget _buildSearchBar(BuildContext context) {
     return _centeredContent(Padding(
-      padding: EdgeInsets.fromLTRB(20, isWideLayout ? 16 : 8, 12, 8),
-      child: Row(
-        children: [
-          Expanded(
-            child: SizedBox(
-              height: 54,
-              child: TextField(
-                readOnly: true,
-                onTap: () => Navigator.push(
-                  context,
-                  PageRouteBuilder(
-                    transitionDuration: const Duration(milliseconds: 280),
-                    reverseTransitionDuration:
-                        const Duration(milliseconds: 220),
-                    pageBuilder: (_, animation, __) => const SearchScreen(),
-                    transitionsBuilder: (_, animation, __, child) {
-                      final move = Tween(
-                        begin: const Offset(0, 0.03),
-                        end: Offset.zero,
-                      ).animate(CurvedAnimation(
-                        parent: animation,
-                        curve: Curves.easeOutCubic,
-                      ));
-                      return FadeTransition(
-                        opacity: animation,
-                        child: SlideTransition(position: move, child: child),
-                      );
-                    },
-                  ),
-                ),
-                style: Theme.of(context).textTheme.bodyLarge,
-                decoration: searchDecoration(context, 'Search your music'),
-              ),
+      padding: EdgeInsets.fromLTRB(16, isWideLayout ? 16 : 8, 16, 8),
+      child: SizedBox(
+        height: 56,
+        child: TextField(
+          readOnly: true,
+          onTap: () => Navigator.push(
+            context,
+            PageRouteBuilder(
+              transitionDuration: const Duration(milliseconds: 280),
+              reverseTransitionDuration: const Duration(milliseconds: 220),
+              pageBuilder: (_, animation, __) => const SearchScreen(),
+              transitionsBuilder: (_, animation, __, child) {
+                final move = Tween(
+                  begin: const Offset(0, 0.03),
+                  end: Offset.zero,
+                ).animate(CurvedAnimation(
+                  parent: animation,
+                  curve: Curves.easeOutCubic,
+                ));
+                return FadeTransition(
+                  opacity: animation,
+                  child: SlideTransition(position: move, child: child),
+                );
+              },
             ),
           ),
-          const SizedBox(width: 4),
-          if (isDesktop)
-            IconButton(
-              icon: const Icon(Icons.refresh_rounded),
-              tooltip: 'Refresh library',
-              onPressed: () => Provider.of<LibraryProvider>(
-                context,
-                listen: false,
-              ).scanLibrary(force: true),
-            ),
-          if (!isDesktop)
-            IconButton(
-              icon: const Icon(Icons.settings_outlined),
-              tooltip: 'Settings',
-              onPressed: () => Navigator.pushNamed(context, '/settings'),
-            ),
-        ],
+          style: Theme.of(context).textTheme.bodyLarge,
+          decoration: searchDecoration(
+            context,
+            'Search your music',
+            suffix: isDesktop
+                ? IconButton(
+                    icon: const Icon(Icons.refresh_rounded),
+                    tooltip: 'Refresh library',
+                    onPressed: () => Provider.of<LibraryProvider>(
+                      context,
+                      listen: false,
+                    ).scanLibrary(force: true),
+                  )
+                : searchSettingsButton(context),
+          ),
+        ),
       ),
     ));
   }

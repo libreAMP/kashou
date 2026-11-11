@@ -11,6 +11,7 @@ import '../models/track.dart';
 import '../providers/library_provider.dart';
 import '../services/download_store.dart';
 import '../services/ytmusic_service.dart';
+import '../theme/app_theme.dart';
 import '../theme/radii.dart';
 import '../widgets/loading_indicator.dart';
 import '../widgets/m3e_button_group.dart';
@@ -218,64 +219,66 @@ class _LibraryScreenState extends State<LibraryScreen>
   Widget _buildSearchBar(BuildContext context) {
     return _centeredContent(
       Padding(
-        padding: EdgeInsets.fromLTRB(20, isDesktop ? 16 : 8, 12, 8),
-        child: Row(
-          children: [
-            Expanded(
-              child: SizedBox(
-                height: 54,
-                child: TextField(
-                  controller: _searchController,
-                  style: Theme.of(context).textTheme.bodyLarge,
-                  decoration: searchDecoration(context, 'Search library...',
-                      suffix: _searchController.text.isNotEmpty
-                          ? IconButton(
-                              icon: const Icon(Icons.close_rounded),
-                              tooltip: 'Clear search',
-                              onPressed: () {
-                                _searchController.clear();
-                                setState(() {});
-                              },
-                            )
-                          : null),
-                  onChanged: (_) => setState(() {}),
-                ),
+        padding: EdgeInsets.fromLTRB(16, isDesktop ? 16 : 8, 16, 8),
+        child: SizedBox(
+          height: 56,
+          child: TextField(
+            controller: _searchController,
+            style: Theme.of(context).textTheme.bodyLarge,
+            decoration: searchDecoration(
+              context,
+              'Search library',
+              suffix: AnimatedSwitcher(
+                duration: EMotion.fast,
+                child: _searchController.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.close_rounded),
+                        tooltip: 'Clear search',
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() {});
+                        },
+                      )
+                    : _buildSearchActions(context),
               ),
             ),
-            const SizedBox(width: 4),
-            if (isDesktop)
-              IconButton(
-                icon: const Icon(Icons.refresh_rounded),
-                tooltip: 'Rescan library',
-                onPressed: () => Provider.of<LibraryProvider>(
-                  context,
-                  listen: false,
-                ).scanLibrary(force: true),
-              ),
-            Builder(
-              builder: (buttonContext) => IconButton(
-                icon: const Icon(Icons.more_vert_rounded),
-                tooltip: isDesktop ? 'Library options' : null,
-                onPressed: () {
-                  final box = buttonContext.findRenderObject() as RenderBox?;
-                  _showLibraryOptions(
-                    context,
-                    anchor: box == null
-                        ? null
-                        : box.localToGlobal(Offset.zero) & box.size,
-                  );
-                },
-              ),
-            ),
-            if (!isDesktop)
-              IconButton(
-                icon: const Icon(Icons.settings_outlined),
-                tooltip: 'Settings',
-                onPressed: () => Navigator.pushNamed(context, '/settings'),
-              ),
-          ],
+            onChanged: (_) => setState(() {}),
+          ),
         ),
       ),
+    );
+  }
+
+  Widget _buildSearchActions(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (isDesktop)
+          IconButton(
+            icon: const Icon(Icons.refresh_rounded),
+            tooltip: 'Rescan library',
+            onPressed: () => Provider.of<LibraryProvider>(
+              context,
+              listen: false,
+            ).scanLibrary(force: true),
+          ),
+        Builder(
+          builder: (buttonContext) => IconButton(
+            icon: const Icon(Icons.more_vert_rounded),
+            tooltip: 'Library options',
+            onPressed: () {
+              final box = buttonContext.findRenderObject() as RenderBox?;
+              _showLibraryOptions(
+                context,
+                anchor: box == null
+                    ? null
+                    : box.localToGlobal(Offset.zero) & box.size,
+              );
+            },
+          ),
+        ),
+        if (!isDesktop) searchSettingsButton(context),
+      ],
     );
   }
 

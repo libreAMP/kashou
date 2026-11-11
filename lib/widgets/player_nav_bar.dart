@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../screens/downloads_screen.dart';
 import '../theme/app_theme.dart';
 import '../theme/radii.dart';
-import 'glass_surface.dart';
 import 'mini_player.dart';
 
 class NavItem {
@@ -111,11 +110,12 @@ class _PlayerNavBarState extends State<PlayerNavBar>
         ? null
         : (compact == null ? maxW : compact + (maxW - compact) * t);
 
-    final pill = GlassSurface(
+    final pill = Material(
+      color: Theme.of(context).colorScheme.surfaceContainerHigh,
       borderRadius: radius,
-      shadow: true,
-      shadowBlur: 22,
-      shadowOffset: const Offset(0, 6),
+      clipBehavior: Clip.antiAlias,
+      elevation: 6,
+      shadowColor: Colors.black,
       child: Material(
         type: MaterialType.transparency,
         child: Column(

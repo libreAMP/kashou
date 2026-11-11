@@ -7,7 +7,12 @@ import '../models/artist.dart';
 import '../providers/audio_provider.dart';
 import '../models/track.dart';
 import '../services/ytmusic_service.dart';
+import '../screens/album_detail_screen.dart';
+import '../theme/radii.dart';
+import 'm3e_button_group.dart';
+import 'm3e_list.dart';
 import 'morph_shape.dart';
+import 'square_art.dart';
 import 'track_options_sheet.dart';
 
 class ArtistCard extends StatefulWidget {
@@ -154,209 +159,189 @@ class _ArtistCardState extends State<ArtistCard> {
   }
 
   void _showArtistDetails(BuildContext context) {
-    final hasImage = _thumbUrl != null && _thumbUrl!.isNotEmpty;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      builder: (context) {
-        return DraggableScrollableSheet(
-          initialChildSize: 0.9,
-          minChildSize: 0.5,
-          maxChildSize: 0.9,
-          expand: false,
-          builder: (context, scrollController) {
-            return Column(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    children: [
-                      CircleAvatar(
-                        radius: 64,
-                        backgroundColor: Theme.of(
-                          context,
-                        ).colorScheme.primaryContainer,
-                        backgroundImage: hasImage
-                            ? CachedNetworkImageProvider(_thumbUrl!)
-                            : null,
-                        child: !hasImage
-                            ? Text(
-                                widget.artist.name.isNotEmpty
-                                    ? widget.artist.name[0].toUpperCase()
-                                    : '?',
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .displayLarge
-                                    ?.copyWith(
-                                      color: Theme.of(
-                                        context,
-                                      ).colorScheme.onPrimaryContainer,
-                                    ),
-                              )
-                            : null,
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        widget.artist.name,
-                        style: Theme.of(context)
-                            .textTheme
-                            .headlineSmall
-                            ?.copyWith(fontWeight: FontWeight.bold),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        '${widget.artist.albumCount} albums • ${widget.artist.trackCount} songs',
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                      const SizedBox(height: 16),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          FilledButton.icon(
-                            onPressed: () {
-                              final audio = Provider.of<AudioProvider>(
-                                context,
-                                listen: false,
-                              );
-                              if (widget.artist.tracks.isNotEmpty) {
-                                audio.playTrack(
-                                  widget.artist.tracks.first,
-                                  playlist: widget.artist.tracks,
-                                );
-                              }
-                              Navigator.pop(context);
-                            },
-                            icon: const Icon(Icons.play_arrow),
-                            label: const Text('Play All'),
-                          ),
-                          const SizedBox(width: 12),
-                          FilledButton.tonalIcon(
-                            onPressed: () {
-                              final audio = Provider.of<AudioProvider>(
-                                context,
-                                listen: false,
-                              );
-                              final shuffled = List.from(widget.artist.tracks)
-                                ..shuffle();
-                              if (shuffled.isNotEmpty) {
-                                audio.playTrack(
-                                  shuffled.first,
-                                  playlist: shuffled.cast<Track>(),
-                                );
-                              }
-                              Navigator.pop(context);
-                            },
-                            icon: const Icon(Icons.shuffle),
-                            label: const Text('Shuffle'),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  child: DefaultTabController(
-                    length: 2,
-                    child: Column(
-                      children: [
-                        TabBar(
-                          tabs: const [
-                            Tab(text: 'Albums'),
-                            Tab(text: 'Songs'),
-                          ],
-                        ),
-                        Expanded(
-                          child: TabBarView(
-                            children: [
-                              _buildAlbumsList(context, scrollController),
-                              _buildSongsList(context, scrollController),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            );
-          },
-        );
-      },
+      builder: (sheetContext) => DraggableScrollableSheet(
+        initialChildSize: 0.9,
+        minChildSize: 0.5,
+        maxChildSize: 0.9,
+        expand: false,
+        builder: (_, scrollController) => _ArtistSheet(
+          artist: widget.artist,
+          scrollController: scrollController,
+          art: _artistArt(Theme.of(sheetContext).colorScheme),
+        ),
+      ),
     );
   }
 
-  Widget _buildAlbumsList(
-    BuildContext context,
-    ScrollController scrollController,
-  ) {
+  Widget _artistArt(ColorScheme scheme) {
+    final hasImage = _thumbUrl != null && _thumbUrl!.isNotEmpty;
+    return MorphShape(
+      from: MaterialShapes.cookie12Sided,
+      size: 136,
+      color: scheme.tertiaryContainer,
+      child: SizedBox.square(
+        dimension: 136,
+        child: hasImage
+            ? CachedNetworkImage(
+                imageUrl: _thumbUrl!,
+                fit: BoxFit.cover,
+                errorWidget: (_, __, ___) => _fallbackLetter(scheme),
+              )
+            : _fallbackLetter(scheme),
+      ),
+    );
+  }
+}
+
+class _ArtistSheet extends StatefulWidget {
+  const _ArtistSheet({
+    required this.artist,
+    required this.scrollController,
+    required this.art,
+  });
+
+  final Artist artist;
+  final ScrollController scrollController;
+  final Widget art;
+
+  @override
+  State<_ArtistSheet> createState() => _ArtistSheetState();
+}
+
+class _ArtistSheetState extends State<_ArtistSheet> {
+  int _tab = 0;
+
+  List<Track> get _tracks => widget.artist.tracks;
+
+  void _play({bool shuffle = false}) {
+    if (_tracks.isEmpty) return;
+    final queue = List<Track>.of(_tracks);
+    if (shuffle) queue.shuffle();
+    context.read<AudioProvider>().playTrack(queue.first, playlist: queue);
+    Navigator.pop(context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final artist = widget.artist;
+
+    final rows = _tab == 0 ? _albumRows() : _songRows();
+    final header = [
+      Center(child: widget.art),
+      const SizedBox(height: 20),
+      Text(
+        artist.name,
+        textAlign: TextAlign.center,
+        style: theme.textTheme.headlineMedium
+            ?.copyWith(fontWeight: FontWeight.w800, height: 1.1),
+      ),
+      const SizedBox(height: 6),
+      Text(
+        '${artist.albumCount} albums · ${artist.trackCount} songs',
+        textAlign: TextAlign.center,
+        style: theme.textTheme.bodyMedium
+            ?.copyWith(color: scheme.onSurfaceVariant),
+      ),
+      const SizedBox(height: 24),
+      Row(
+        children: [
+          Expanded(
+            child: FilledButton.icon(
+              onPressed: _tracks.isEmpty ? null : _play,
+              style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(56)),
+              icon: const Icon(Icons.play_arrow_rounded),
+              label: const Text('Play all'),
+            ),
+          ),
+          const SizedBox(width: 8),
+          IconButton.filledTonal(
+            onPressed: _tracks.isEmpty ? null : () => _play(shuffle: true),
+            style: IconButton.styleFrom(
+              fixedSize: const Size(56, 56),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(rMd)),
+            ),
+            icon: const Icon(Icons.shuffle_rounded),
+            tooltip: 'Shuffle',
+          ),
+        ],
+      ),
+      const SizedBox(height: 24),
+      Center(
+        child: M3EButtonGroup(
+          labels: const ['Albums', 'Songs'],
+          selected: _tab,
+          onSelected: (i) => setState(() => _tab = i),
+        ),
+      ),
+      const SizedBox(height: 16),
+    ];
     return ListView.builder(
-      controller: scrollController,
-      itemCount: widget.artist.albums.length,
-      itemBuilder: (context, index) {
-        final album = widget.artist.albums[index];
-        return ListTile(
-          leading: Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primaryContainer,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(
-              Icons.album,
-              color: Theme.of(context).colorScheme.onPrimaryContainer,
-            ),
-          ),
-          title: Text(album.name),
-          subtitle: Text('${album.trackCount} songs'),
-          trailing: IconButton(
-            icon: const Icon(Icons.play_arrow),
-            tooltip: 'Play album',
-            onPressed: () {
-              final audio = Provider.of<AudioProvider>(context, listen: false);
-              if (album.tracks.isNotEmpty) {
-                audio.playTrack(album.tracks.first, playlist: album.tracks);
-              }
-              Navigator.pop(context);
-            },
-          ),
-          onTap: () {},
-        );
-      },
+      controller: widget.scrollController,
+      padding: const EdgeInsets.fromLTRB(20, 24, 20, 32),
+      itemCount: header.length + rows.length,
+      itemBuilder: (_, i) =>
+          i < header.length ? header[i] : rows[i - header.length],
     );
   }
 
-  Widget _buildSongsList(
-    BuildContext context,
-    ScrollController scrollController,
-  ) {
-    return ListView.builder(
-      controller: scrollController,
-      itemCount: widget.artist.tracks.length,
-      itemBuilder: (context, index) {
-        final track = widget.artist.tracks[index];
-        return ListTile(
-          leading: Text(
-            '${index + 1}',
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
+  List<Widget> _albumRows() {
+    final albums = widget.artist.albums;
+    return [
+      for (var i = 0; i < albums.length; i++)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 2),
+          child: M3EListRow(
+            label: albums[i].name,
+            supportingText: '${albums[i].trackCount} songs',
+            leading: SquareArt(
+              bytes: albums[i].albumArt,
+              size: 48,
+              radius: rSm,
+              fallbackIcon: Icons.album_rounded,
+            ),
+            slot: albums.length > 1 ? i : -1,
+            count: albums.length,
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => AlbumDetailScreen.album(album: albums[i]),
+            )),
           ),
-          title: Text(track.title),
-          subtitle: Text(track.album),
-          trailing: IconButton(
-            icon: const Icon(Icons.more_vert),
-            tooltip: 'More options',
-            onPressed: () => showTrackOptionsSheet(context, track),
+        ),
+    ];
+  }
+
+  List<Widget> _songRows() {
+    return [
+      for (var i = 0; i < _tracks.length; i++)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 2),
+          child: GestureDetector(
+            onLongPress: () => showTrackOptionsSheet(context, _tracks[i]),
+            child: M3EListRow(
+              label: _tracks[i].title,
+              supportingText: _tracks[i].album,
+              leading: SquareArt(
+                bytes: _tracks[i].albumArt,
+                size: 48,
+                radius: rSm,
+              ),
+              slot: _tracks.length > 1 ? i : -1,
+              count: _tracks.length,
+              onTap: () {
+                context
+                    .read<AudioProvider>()
+                    .playTrack(_tracks[i], playlist: _tracks);
+                Navigator.pop(context);
+              },
+            ),
           ),
-          onTap: () {
-            final audio = Provider.of<AudioProvider>(context, listen: false);
-            audio.playTrack(track, playlist: widget.artist.tracks);
-            Navigator.pop(context);
-          },
-        );
-      },
-    );
+        ),
+    ];
   }
 }

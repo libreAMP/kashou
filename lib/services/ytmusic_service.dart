@@ -118,7 +118,11 @@ class YtMusicService {
         final title = _text(b['buttonText']);
         final params = b['clickCommand']?['browseEndpoint']?['params'];
         if (title != null && params is String) {
-          items.add({'title': title, 'params': params});
+          items.add({
+            'title': title,
+            'params': params,
+            'color': b['solid']?['leftStripeColor'],
+          });
         }
       }
       if (items.isNotEmpty) {
